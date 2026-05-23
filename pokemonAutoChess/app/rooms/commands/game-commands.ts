@@ -1375,22 +1375,28 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             else break
           }
 
-          // Add Ditto as 4th option for wild encounter wins
-          if (won && node.nodeType === MapNodeType.WILD_BATTLE) {
-            pokemonOffers.push(Pkm.DITTO)
-          }
+          if (won && pokemonOffers.length > 0) {
+            // Pair each Pokemon with a random item component
+            const pairedItems: Item[] = pokemonOffers.map(() =>
+              pickRandomIn(ItemComponentsNoFossilOrScarf)
+            )
 
-          if (pokemonOffers.length > 0) {
+            // Add Ditto as extra option for wild encounters (no paired item)
+            if (node.nodeType === MapNodeType.WILD_BATTLE) {
+              pokemonOffers.push(Pkm.DITTO)
+              pairedItems.push(Item.FOSSIL_STONE) // placeholder, won't be shown
+            }
+
+            player.choices.push(
+              new PlayerChoice({
+                type: "addPick",
+                pokemons: pokemonOffers,
+                items: pairedItems
+              })
+            )
+          } else if (pokemonOffers.length > 0) {
             player.choices.push(
               new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
-            )
-          }
-
-          // Component item pick (only on victory, skipped if player picks Ditto)
-          if (won) {
-            const componentChoices = pickNRandomIn(ItemComponents, 3)
-            player.choices.push(
-              new PlayerChoice({ type: "item", items: componentChoices as any[] })
             )
           }
         }

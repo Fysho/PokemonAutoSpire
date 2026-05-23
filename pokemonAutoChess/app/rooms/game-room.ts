@@ -895,25 +895,16 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     if (choice.items.length > 0) {
       const item = choice.items[choiceIndex]
-      player.items.push(item)
-      if (isIn(Wands, item)) {
-        player.fairyWands.push(item)
+      const pickedDitto = choice.pokemons.length > 0 && choice.pokemons[choiceIndex] === Pkm.DITTO
+      if (!pickedDitto) {
+        player.items.push(item)
+        if (isIn(Wands, item)) {
+          player.fairyWands.push(item)
+        }
       }
     }
 
     removeInArray(player.choices, choice)
-
-    // If player picked Ditto from a reward, skip the item component choice
-    if (
-      this.state.phase === GamePhaseState.REWARD &&
-      choice.type === "addPick" &&
-      choice.pokemons[choiceIndex] === Pkm.DITTO
-    ) {
-      const itemChoice = player.choices.find((c) => c.type === "item")
-      if (itemChoice) {
-        removeInArray(player.choices, itemChoice)
-      }
-    }
 
     if (this.state.phase === GamePhaseState.REWARD && player.choices.length === 0) {
       this.state.updatePhaseNeeded = true

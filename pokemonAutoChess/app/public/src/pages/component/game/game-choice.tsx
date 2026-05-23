@@ -142,7 +142,7 @@ export default function GameChoice() {
                     />
                   )}
 
-                  {item && isIn(ShinyItems, item) === false && (
+                  {item && isIn(ShinyItems, item) === false && proposition !== Pkm.DITTO && (
                     <div className="choice-additional-item">
                       <span
                         style={{
