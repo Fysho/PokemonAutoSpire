@@ -333,25 +333,27 @@ interface DifficultyConfig {
 }
 
 function getDifficultyConfig(act: number, floor: number): DifficultyConfig {
-  const progress = (act - 1) * 15 + floor // 1-45
+  const progress = (act - 1) * 20 + floor // 1-60
 
   if (progress <= 1) {
     return { pokemonCount: 1, maxStars: 1, allowedRarities: ["COMMON"], itemsPerPokemon: 0, useCraftedItems: false }
-  } else if (progress <= 5) {
+  } else if (progress <= 3) {
+    return { pokemonCount: 2, maxStars: 1, allowedRarities: ["COMMON"], itemsPerPokemon: 0, useCraftedItems: false }
+  } else if (progress <= 7) {
     return { pokemonCount: randomBetween(2, 3), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 0, useCraftedItems: false }
-  } else if (progress <= 8) {
-    return { pokemonCount: randomBetween(3, 4), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 12) {
+    return { pokemonCount: randomBetween(3, 4), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 1, useCraftedItems: false }
+  } else if (progress <= 18) {
     return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 1, useCraftedItems: false }
-  } else if (progress <= 16) {
+  } else if (progress <= 24) {
     return { pokemonCount: randomBetween(4, 5), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], itemsPerPokemon: 1, useCraftedItems: false }
-  } else if (progress <= 22) {
+  } else if (progress <= 32) {
     return { pokemonCount: randomBetween(4, 6), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], itemsPerPokemon: 1, useCraftedItems: true }
-  } else if (progress <= 28) {
-    return { pokemonCount: randomBetween(5, 6), maxStars: 2, allowedRarities: ["RARE", "EPIC"], itemsPerPokemon: 2, useCraftedItems: true }
-  } else if (progress <= 35) {
-    return { pokemonCount: randomBetween(5, 7), maxStars: 3, allowedRarities: ["RARE", "EPIC"], itemsPerPokemon: 2, useCraftedItems: true }
   } else if (progress <= 40) {
+    return { pokemonCount: randomBetween(5, 6), maxStars: 2, allowedRarities: ["RARE", "EPIC"], itemsPerPokemon: 2, useCraftedItems: true }
+  } else if (progress <= 48) {
+    return { pokemonCount: randomBetween(5, 7), maxStars: 3, allowedRarities: ["RARE", "EPIC"], itemsPerPokemon: 2, useCraftedItems: true }
+  } else if (progress <= 55) {
     return { pokemonCount: randomBetween(6, 8), maxStars: 3, allowedRarities: ["RARE", "EPIC", "ULTRA"], itemsPerPokemon: 3, useCraftedItems: true }
   } else {
     return { pokemonCount: randomBetween(7, 9), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], itemsPerPokemon: 3, useCraftedItems: true }

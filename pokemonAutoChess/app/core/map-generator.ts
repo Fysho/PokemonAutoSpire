@@ -6,9 +6,9 @@ import { pickRandomIn, randomBetween, shuffleArray } from "../utils/random"
 
 const ALL_DUNGEONS = Object.values(DungeonPMDO)
 
-const FLOORS_PER_ACT = 15
-const MIN_NODES_PER_FLOOR = 2
-const MAX_NODES_PER_FLOOR = 4
+const FLOORS_PER_ACT = 20
+const MIN_NODES_PER_FLOOR = 3
+const MAX_NODES_PER_FLOOR = 5
 
 function nodeId(act: number, floor: number, col: number): string {
   return `${act}-${floor}-${col}`
@@ -24,25 +24,25 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
 
   const roll = Math.random()
 
-  if (floor === 5 || floor === 10) {
+  if (floor === 7 || floor === 14) {
     return MapNodeType.POKEMON_CENTER
   }
 
-  if (floor === 4 || floor === 8 || floor === 12) {
+  if (floor === 5 || floor === 10 || floor === 16) {
     return roll < 0.5 ? MapNodeType.POKEMART : MapNodeType.WILD_BATTLE
   }
 
-  if (floor === 7 || floor === 13) {
+  if (floor === 9 || floor === 18) {
     return MapNodeType.GYM_LEADER
   }
 
-  if (floor === 3 || floor === 9 || floor === 11) {
+  if (floor === 4 || floor === 12 || floor === 15) {
     return roll < 0.5 ? MapNodeType.ELITE : MapNodeType.WILD_BATTLE
   }
 
-  if (roll < 0.55) return MapNodeType.WILD_BATTLE
-  if (roll < 0.70) return MapNodeType.MYSTERY_ENCOUNTER
-  if (roll < 0.85) return MapNodeType.POKEMART
+  if (roll < 0.50) return MapNodeType.WILD_BATTLE
+  if (roll < 0.65) return MapNodeType.MYSTERY_ENCOUNTER
+  if (roll < 0.80) return MapNodeType.POKEMART
   return MapNodeType.POKEMON_CENTER
 }
 
@@ -70,7 +70,7 @@ export function generateActMap(
       nodeCount = 1
     } else if (floor === 1) {
       nodeCount = 3
-    } else if (floor === 5 || floor === 10) {
+    } else if (floor === 7 || floor === 14) {
       nodeCount = randomBetween(2, 3)
     } else {
       nodeCount = randomBetween(MIN_NODES_PER_FLOOR, MAX_NODES_PER_FLOOR)
@@ -141,11 +141,11 @@ export function generateActMap(
       mapEdges.push(new MapEdge(fromId, toId))
       connected.add(toId)
 
-      if (Math.random() < 0.4 && targetIdx + 1 < next.length) {
+      if (Math.random() < 0.55 && targetIdx + 1 < next.length) {
         mapEdges.push(new MapEdge(fromId, next[targetIdx + 1]))
         connected.add(next[targetIdx + 1])
       }
-      if (Math.random() < 0.3 && targetIdx - 1 >= 0) {
+      if (Math.random() < 0.45 && targetIdx - 1 >= 0) {
         mapEdges.push(new MapEdge(fromId, next[targetIdx - 1]))
         connected.add(next[targetIdx - 1])
       }
