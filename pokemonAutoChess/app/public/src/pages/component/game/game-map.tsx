@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { RegionDetails } from "../../../../../config"
 import { MapEdge, MapNode, MapNodeType } from "../../../../../models/colyseus-models/map-node"
 import { Transfer } from "../../../../../types"
@@ -51,6 +51,7 @@ interface GameMapProps {
   currentFloor: number
   runHP: number
   onHide: () => void
+  readOnly?: boolean
 }
 
 export default function GameMap({
@@ -59,27 +60,81 @@ export default function GameMap({
   currentAct,
   currentFloor,
   runHP,
-  onHide
+  onHide,
+  readOnly = false
 }: GameMapProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null)
+  const isDragging = useRef(false)
+  const dragStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 })
+
   const handleNodeClick = (nodeId: string) => {
+    if (readOnly) return
     const node = mapNodes.get(nodeId)
     if (node && node.available) {
       rooms.game?.send(Transfer.SELECT_MAP_NODE, nodeId)
     }
   }
 
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    const el = scrollRef.current
+    if (!el) return
+    isDragging.current = true
+    dragStart.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop }
+    el.style.cursor = "grabbing"
+  }, [])
+
+  const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging.current || !scrollRef.current) return
+    const dx = e.clientX - dragStart.current.x
+    const dy = e.clientY - dragStart.current.y
+    scrollRef.current.scrollLeft = dragStart.current.scrollLeft - dx
+    scrollRef.current.scrollTop = dragStart.current.scrollTop - dy
+  }, [])
+
+  const onMouseUp = useCallback(() => {
+    isDragging.current = false
+    if (scrollRef.current) scrollRef.current.style.cursor = "grab"
+  }, [])
+
   const nodes = Array.from(mapNodes.values())
   const maxFloor = Math.max(...nodes.map((n) => n.floor), 1)
   const svgWidth = 1000
-  const svgHeight = maxFloor * 80 + 80
-  const floorHeight = 75
-  const nodeSpread = svgWidth * 0.8
-  const nodeOffset = svgWidth * 0.1
+  const floorHeight = 100
+  const svgHeight = maxFloor * floorHeight + 80
+  const nodeSpread = svgWidth * 0.6
+  const nodeOffset = svgWidth * 0.2
 
-  const getNodePos = (node: MapNode) => ({
-    cx: nodeOffset + (node.x / 4) * nodeSpread,
-    cy: svgHeight - (node.floor * floorHeight + 40)
-  })
+  const hashId = (id: string) => {
+    let h = 0
+    for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0
+    return h
+  }
+
+  const floorNodeCounts = new Map<number, number>()
+  nodes.forEach((n) => floorNodeCounts.set(n.floor, (floorNodeCounts.get(n.floor) ?? 0) + 1))
+
+  const getNodePos = (node: MapNode) => {
+    const h = hashId(node.id)
+    const count = floorNodeCounts.get(node.floor) ?? 1
+    const pullToCenter = count <= 2 ? 0.3 : count <= 3 ? 0.15 : 0
+    const baseX = node.x / 4
+    const centeredX = baseX + (0.5 - baseX) * pullToCenter
+    const ox = ((h % 61) - 30) * 1.2
+    const oy = (((h >> 8) % 41) - 20) * 0.6
+    return {
+      cx: nodeOffset + centeredX * nodeSpread + ox,
+      cy: svgHeight - (node.floor * floorHeight + 40) + oy
+    }
+  }
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      const currentFloorY = svgHeight - (currentFloor * floorHeight + 40)
+      const containerHeight = scrollRef.current.clientHeight
+      scrollRef.current.scrollTop = currentFloorY - containerHeight / 2
+    }
+  }, [currentFloor, svgHeight])
 
   return (
     <div
@@ -106,22 +161,34 @@ export default function GameMap({
       </div>
 
       <div
+        ref={scrollRef}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
         style={{
-          overflow: "auto",
+          overflowY: "auto",
+          overflowX: "hidden",
           maxHeight: "80vh",
+          width: "min(95vw, 1020px)",
           border: "2px solid #444",
           borderRadius: "8px",
           background: "#1a1a2e",
-          padding: "10px"
+          padding: "10px",
+          cursor: "grab",
+          userSelect: "none"
         }}
       >
-        <svg width={svgWidth} height={svgHeight}>
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} width="100%" height={svgHeight}>
           {mapEdges.map((edge, i) => {
             const fromNode = mapNodes.get(edge.from)
             const toNode = mapNodes.get(edge.to)
             if (!fromNode || !toNode) return null
             const from = getNodePos(fromNode)
             const to = getNodePos(toNode)
+            const bothVisited = fromNode.visited && toNode.visited
+            const eitherMissed = (!fromNode.visited && !fromNode.available && fromNode.floor <= currentFloor) ||
+              (!toNode.visited && !toNode.available && toNode.floor <= currentFloor)
             return (
               <line
                 key={`edge-${i}`}
@@ -129,60 +196,62 @@ export default function GameMap({
                 y1={from.cy}
                 x2={to.cx}
                 y2={to.cy}
-                stroke={fromNode.visited && toNode.visited ? "#666" : "#333"}
+                stroke={bothVisited ? "#666" : eitherMissed ? "#222" : "#333"}
                 strokeWidth={2}
+                strokeDasharray="6 4"
+                opacity={eitherMissed ? 0.4 : 1}
               />
             )
           })}
 
           {nodes.map((node) => {
             const pos = getNodePos(node)
-            const color = NODE_COLORS[node.nodeType] || "#888"
             const isAvailable = node.available
             const isVisited = node.visited
+            const isMissed = !isVisited && !isAvailable && node.floor <= currentFloor
+            const color = isMissed ? "#444" : (NODE_COLORS[node.nodeType] || "#888")
             const synergies = getRegionSynergies(node.region)
             const isWild = node.nodeType === MapNodeType.WILD_BATTLE
             const isGym = node.nodeType === MapNodeType.GYM_LEADER
             const hasSynergyIcon = (isWild && synergies.length > 0) || (isGym && node.gymLeaderSynergy)
             const nodeRadius = hasSynergyIcon ? 28 : (isAvailable ? 24 : 20)
+            const nodeOpacity = isMissed ? 0.25 : isVisited ? 0.4 : isAvailable ? 1 : 0.6
+
+            const isHovered = hoveredNode === node.id
+            const getNodeName = () => {
+              if (isWild && node.region) return node.region.replace(/([A-Z])/g, " $1").trim()
+              return NODE_NAMES[node.nodeType] || ""
+            }
 
             return (
               <g
                 key={node.id}
                 onClick={() => handleNodeClick(node.id)}
-                style={{ cursor: isAvailable ? "pointer" : "default" }}
+                onMouseEnter={() => setHoveredNode(node.id)}
+                onMouseLeave={() => setHoveredNode(null)}
+                style={{ cursor: isAvailable && !readOnly ? "pointer" : "default" }}
               >
-                {!hasSynergyIcon && (
+                {(isAvailable || isHovered) && (
                   <circle
                     cx={pos.cx}
                     cy={pos.cy}
-                    r={nodeRadius}
-                    fill={isVisited ? "#333" : color}
-                    stroke={isAvailable ? "#fff" : isVisited ? "#555" : color}
-                    strokeWidth={isAvailable ? 3 : 1}
-                    opacity={isVisited ? 0.4 : isAvailable ? 1 : 0.6}
+                    r={nodeRadius + 4}
+                    fill="none"
+                    stroke={isAvailable ? "#fff" : "#aaa"}
+                    strokeWidth={isHovered ? 3 : 2}
+                    opacity={isHovered ? 0.9 : 0.6}
                   />
                 )}
                 {isGym && node.gymLeaderSynergy ? (
-                  <>
-                    <circle
-                      cx={pos.cx}
-                      cy={pos.cy}
-                      r={nodeRadius}
-                      fill={isVisited ? "#333" : color}
-                      stroke={isAvailable ? "#fff" : isVisited ? "#555" : color}
-                      strokeWidth={isAvailable ? 3 : 1}
-                      opacity={isVisited ? 0.4 : isAvailable ? 1 : 0.6}
-                    />
-                    <image
-                      href={`/assets/item/${node.gymLeaderSynergy}_GEM.png`}
-                      x={pos.cx - 18}
-                      y={pos.cy - 18}
-                      width={36}
-                      height={36}
-                      opacity={isVisited ? 0.3 : isAvailable ? 1 : 0.6}
-                    />
-                  </>
+                  <image
+                    href={`/assets/item/${node.gymLeaderSynergy}_GEM.png`}
+                    x={pos.cx - 18}
+                    y={pos.cy - 18}
+                    width={36}
+                    height={36}
+                    opacity={nodeOpacity}
+                    style={isMissed ? { filter: "grayscale(1)" } : undefined}
+                  />
                 ) : isWild && synergies.length > 0 ? (
                   synergies.map((syn, si) => {
                     const iconSize = 40
@@ -203,42 +272,44 @@ export default function GameMap({
                         y={iy - iconSize / 2}
                         width={iconSize}
                         height={iconSize}
-                        opacity={isVisited ? 0.3 : isAvailable ? 1 : 0.5}
+                        opacity={nodeOpacity}
+                        style={isMissed ? { filter: "grayscale(1)" } : undefined}
                       />
                     )
                   })
                 ) : NODE_ICONS[node.nodeType] ? (
                   <image
                     href={NODE_ICONS[node.nodeType]}
-                    x={pos.cx - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 32 : node.nodeType === MapNodeType.POKEMON_CENTER ? 18 : 16)}
-                    y={pos.cy - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 32 : node.nodeType === MapNodeType.POKEMON_CENTER ? 30 : 16)}
-                    width={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 64 : node.nodeType === MapNodeType.POKEMON_CENTER ? 36 : 32}
-                    height={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 64 : node.nodeType === MapNodeType.POKEMON_CENTER ? 60 : 32}
-                    opacity={isVisited ? 0.3 : isAvailable ? 1 : 0.5}
-                    style={node.nodeType === MapNodeType.POKEMON_CENTER ? { imageRendering: "pixelated" as const } : undefined}
+                    x={pos.cx - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 48 : node.nodeType === MapNodeType.POKEMON_CENTER ? 27 : 24)}
+                    y={pos.cy - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 48 : node.nodeType === MapNodeType.POKEMON_CENTER ? 45 : 24)}
+                    width={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 96 : node.nodeType === MapNodeType.POKEMON_CENTER ? 54 : 48}
+                    height={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 96 : node.nodeType === MapNodeType.POKEMON_CENTER ? 90 : 48}
+                    opacity={nodeOpacity}
+                    style={isMissed
+                      ? { filter: "grayscale(1)", ...(node.nodeType === MapNodeType.POKEMON_CENTER ? { imageRendering: "pixelated" as const } : {}) }
+                      : node.nodeType === MapNodeType.POKEMON_CENTER ? { imageRendering: "pixelated" as const } : undefined}
                   />
                 ) : (
                   <text
                     x={pos.cx}
-                    y={pos.cy + 7}
+                    y={pos.cy + (node.nodeType === MapNodeType.LEGENDARY_BOSS ? 21 : 11)}
                     textAnchor="middle"
-                    fontSize="20"
-                    fill="white"
+                    fontSize={node.nodeType === MapNodeType.LEGENDARY_BOSS ? "60" : "30"}
+                    fill={isMissed ? "#555" : "white"}
+                    opacity={nodeOpacity}
                   >
                     {NODE_LABELS[node.nodeType]}
                   </text>
                 )}
-                {isAvailable && (
+                {(isAvailable || isHovered) && (
                   <text
                     x={pos.cx}
                     y={pos.cy + 42}
                     textAnchor="middle"
                     fontSize="12"
-                    fill="#ccc"
+                    fill={isAvailable ? "#ccc" : "#999"}
                   >
-                    {isWild && node.region
-                      ? node.region.replace(/([A-Z])/g, " $1").trim()
-                      : NODE_NAMES[node.nodeType]}
+                    {getNodeName()}
                   </text>
                 )}
               </g>
@@ -262,9 +333,11 @@ export default function GameMap({
         >
           Hide Map (View Board)
         </button>
-        <span style={{ fontSize: "12px", color: "#888" }}>
-          Click an available node to proceed
-        </span>
+        {!readOnly && (
+          <span style={{ fontSize: "12px", color: "#888" }}>
+            Click an available node to proceed
+          </span>
+        )}
       </div>
     </div>
   )

@@ -2,7 +2,9 @@ import React from "react"
 import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
+import { RegionDetails } from "../../../../../config"
 import { GamePhaseState } from "../../../../../types/enum/Game"
+import { DungeonPMDO } from "../../../../../types/enum/Dungeon"
 import { Pkm } from "../../../../../types/enum/Pokemon"
 import { SynergyAssociatedToWeather } from "../../../../../types/enum/Weather"
 import { selectSpectatedPlayer, useAppSelector } from "../../../hooks"
@@ -21,7 +23,6 @@ export default function GameStageInfo() {
   const currentAct = useAppSelector((state) => state.game.currentAct)
   const currentFloor = useAppSelector((state) => state.game.currentFloor)
   const runHP = useAppSelector((state) => state.game.runHP)
-  const encounterDifficulty = useAppSelector((state) => state.game.encounterDifficulty)
 
   if (!spectatedPlayer) return null
 
@@ -34,6 +35,10 @@ export default function GameStageInfo() {
     phase === GamePhaseState.FIGHT ? spectatedPlayer.opponentAvatar : ""
   const opponentTitle =
     phase === GamePhaseState.FIGHT ? spectatedPlayer.opponentTitle : ""
+  const playerMap = spectatedPlayer.map
+  const regionName = playerMap && playerMap !== "town"
+    ? playerMap.replace(/([A-Z])/g, " $1").trim()
+    : ""
 
   return (
     <>
@@ -41,8 +46,8 @@ export default function GameStageInfo() {
         <div className="stage-information">
           <p>Act {currentAct} - Floor {currentFloor}</p>
           <p style={{ fontSize: "0.7em", opacity: 0.7 }}>HP: {runHP}/100</p>
-          {encounterDifficulty > 0 && (phase === GamePhaseState.PICK || phase === GamePhaseState.FIGHT) && (
-            <p style={{ fontSize: "0.7em", color: "#f39c12" }}>Difficulty: {encounterDifficulty}</p>
+          {regionName && (phase === GamePhaseState.PICK || phase === GamePhaseState.FIGHT) && (
+            <p style={{ fontSize: "0.7em", color: "#2ecc71" }}>{regionName}</p>
           )}
         </div>
 

@@ -65,6 +65,24 @@ export const SPIRE_EVENTS: SpireEvent[] = [
       { label: "Explore", description: "Find a random item (or nothing)" },
       { label: "Mine for gems", description: "Gain 6 gold" }
     ]
+  },
+  {
+    name: "Battle Challenge",
+    description: "A martial artist blocks your path. \"Prove your strength! I'll equip the next wild Pokemon with powerful gear. Defeat them and the gear is yours.\"",
+    choices: [
+      { label: "Rocky Helmet challenge", description: "Next wild encounter: all enemies get Rocky Helmet. Win to earn one." },
+      { label: "Assault Vest challenge", description: "Next wild encounter: all enemies get Assault Vest. Win to earn one." },
+      { label: "Kings Rock challenge", description: "Next wild encounter: all enemies get Kings Rock. Win to earn one." }
+    ]
+  },
+  {
+    name: "Elemental Trial",
+    description: "An ancient guardian offers you a trial by element. \"Channel the power of the orbs — but first, you must overcome it.\"",
+    choices: [
+      { label: "Red Orb challenge", description: "Next wild encounter: all enemies get Red Orb. Win to earn one." },
+      { label: "Blue Orb challenge", description: "Next wild encounter: all enemies get Blue Orb. Win to earn one." },
+      { label: "Green Orb challenge", description: "Next wild encounter: all enemies get Green Orb. Win to earn one." }
+    ]
   }
 ]
 

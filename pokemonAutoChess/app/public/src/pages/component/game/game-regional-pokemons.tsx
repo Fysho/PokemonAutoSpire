@@ -13,7 +13,7 @@ import { getCachedPortrait } from "./game-pokemon-portrait"
 
 export function GameRegionalPokemonsIcon() {
   return (
-    <div className="my-box" style={{ padding: "5px" }}>
+    <div className="my-box" style={{ padding: "5px", cursor: "pointer", pointerEvents: "initial" }}>
       <img
         src={`assets/ui/regional.png`}
         style={{ width: "2em", height: "2em" }}
@@ -21,9 +21,10 @@ export function GameRegionalPokemonsIcon() {
       />
       <Tooltip
         id="game-regional-pokemons"
-        float
         place="top"
         className="custom-theme-tooltip"
+        style={{ zIndex: 9999 }}
+        clickable
       >
         <GameRegionalPokemons />
       </Tooltip>
@@ -35,6 +36,10 @@ export function GameRegionalPokemons() {
   const { t } = useTranslation()
   const connectedPlayer = useAppSelector(selectConnectedPlayer)
   const spectatedPlayer = useAppSelector(selectSpectatedPlayer)
+  const playerMap = spectatedPlayer?.map ?? ""
+  const regionName = playerMap && playerMap !== "town"
+    ? playerMap.replace(/([A-Z])/g, " $1").trim()
+    : ""
   const regionalPokemons: Pkm[] = (
     spectatedPlayer?.regionalPokemons ?? new Array<Pkm>()
   )
@@ -55,7 +60,7 @@ export function GameRegionalPokemons() {
   } else {
     return (
       <div className="game-regional-pokemons">
-        <h2>{t("regional_pokemons")}</h2>
+        <h2>{regionName ? `${regionName} Pokemon` : t("regional_pokemons")}</h2>
         <p className="help">{t("regional_pokemon_hint")}</p>
         <div className="grid">
           {regionalPokemons.map((p, index) => {

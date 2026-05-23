@@ -22,7 +22,7 @@ export default function GameReward({ runHP, gold }: GameRewardProps) {
     <div
       style={{
         position: "absolute",
-        bottom: "80px",
+        bottom: "170px",
         left: "50%",
         transform: "translateX(-50%)",
         display: "flex",

@@ -583,7 +583,7 @@ export default class GameScene extends Scene {
             let visible = false
             if (inBench) {
               visible = pokemon.canBeBenched
-            } else if (this.room?.state.phase === GamePhaseState.PICK) {
+            } else if (this.room?.state.phase === GamePhaseState.PICK || this.room?.state.phase === GamePhaseState.MAP || this.room?.state.phase === GamePhaseState.REWARD) {
               visible = true
             }
             spot.setVisible(visible)
@@ -661,6 +661,8 @@ export default class GameScene extends Scene {
           else if (
             dropZone.name === "board-zone" &&
             (this.room?.state.phase == GamePhaseState.PICK ||
+              this.room?.state.phase == GamePhaseState.MAP ||
+              this.room?.state.phase == GamePhaseState.REWARD ||
               dropZone.getData("y") == 0)
           ) {
             this.dispatchEvent<IDragDropItemMessage>(Transfer.DRAG_DROP_ITEM, {

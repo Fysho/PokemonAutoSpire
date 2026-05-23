@@ -72,6 +72,9 @@ import {
   setCurrentAct,
   setCurrentFloor,
   setEncounterDifficulty,
+  setEncounterPokemonCount,
+  setEncounterTotalStars,
+  setEncounterTotalItems,
   setRoundTime,
   setShopFreeRolls,
   setShopLocked,
@@ -104,6 +107,7 @@ import GamePlayers from "./component/game/game-players"
 import GameShop from "./component/game/game-shop"
 import { GameTeamInfo } from "./component/game/game-team-info"
 import GameSpectatePlayerInfo from "./component/game/game-spectate-player-info"
+import GameBalancePanel from "./component/game/game-balance-panel"
 import GameStageInfo from "./component/game/game-stage-info"
 import GameOpponentSynergies from "./component/game/game-opponent-synergies"
 import GameSynergies from "./component/game/game-synergies"
@@ -190,7 +194,7 @@ export default function Game() {
   const connecting = useRef<boolean>(false)
   const connected = useRef<boolean>(false)
   const [mapVersion, setMapVersion] = useState<number>(0)
-  const [mapHidden, setMapHidden] = useState<boolean>(false)
+  const [mapHidden, setMapHidden] = useState<boolean>(true)
   const [runComplete, setRunComplete] = useState<boolean>(false)
   const [runFailed, setRunFailed] = useState<boolean>(false)
   const [loaded, setLoaded] = useState<boolean>(false)
@@ -560,8 +564,8 @@ export default function Game() {
           }
         }
         dispatch(setPhase(newPhase))
-        if (newPhase !== GamePhaseState.MAP) {
-          setMapHidden(false)
+        if (previousPhase !== undefined) {
+          setMapHidden(newPhase !== GamePhaseState.MAP)
         }
       })
 
@@ -583,6 +587,15 @@ export default function Game() {
 
       $state.listen("encounterDifficulty", (value) => {
         dispatch(setEncounterDifficulty(value))
+      })
+      $state.listen("encounterPokemonCount", (value) => {
+        dispatch(setEncounterPokemonCount(value))
+      })
+      $state.listen("encounterTotalStars", (value) => {
+        dispatch(setEncounterTotalStars(value))
+      })
+      $state.listen("encounterTotalItems", (value) => {
+        dispatch(setEncounterTotalItems(value))
       })
 
       $state.listen("runComplete", (value) => {
@@ -908,7 +921,8 @@ export default function Game() {
   const isEventPhase = phase === GamePhaseState.EVENT
   const isShopPhase = phase === GamePhaseState.SHOP
   const isRewardPhase = phase === GamePhaseState.REWARD
-  const isBoardHidden = (isMapPhase && !mapHidden) || isRestPhase || isEventPhase
+  const isMapShowing = !mapHidden && mapVersion > 0
+  const isBoardHidden = isMapShowing || isRestPhase || isEventPhase
 
   return (
     <main id="game-wrapper" onContextMenu={(e) => e.preventDefault()}>
@@ -934,7 +948,7 @@ export default function Game() {
             leave={leave}
             visible={finalRankVisibility === FinalRankVisibility.VISIBLE}
           />
-          {isMapPhase && !mapHidden && room?.state && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 0) === 0 && (
+          {isMapShowing && room?.state && (
             <GameMap
               key={mapVersion}
               mapNodes={room.state.mapNodes as any}
@@ -943,33 +957,8 @@ export default function Game() {
               currentFloor={currentFloor}
               runHP={runHP}
               onHide={() => setMapHidden(true)}
+              readOnly={!isMapPhase}
             />
-          )}
-          {isMapPhase && mapHidden && (
-            <div style={{
-              position: "absolute",
-              top: "8px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 50
-            }}>
-              <button
-                onClick={() => setMapHidden(false)}
-                style={{
-                  padding: "8px 24px",
-                  fontSize: "14px",
-                  borderRadius: "6px",
-                  border: "2px solid #f39c12",
-                  background: "linear-gradient(180deg, #2c3e50 0%, #1a1a2e 100%)",
-                  color: "#f39c12",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)"
-                }}
-              >
-                Show Map
-              </button>
-            </div>
           )}
           {isRestPhase && room?.state && (
             <GameRest
@@ -995,6 +984,56 @@ export default function Game() {
           {isRewardPhase && (
             <GameReward runHP={runHP} gold={money} />
           )}
+          {isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
+            <div style={{
+              position: "absolute",
+              bottom: "170px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 50
+            }}>
+              <button
+                onClick={() => setMapHidden(false)}
+                style={{
+                  padding: "8px 24px",
+                  fontSize: "16px",
+                  borderRadius: "6px",
+                  border: "2px solid #fff",
+                  background: "#2ecc71",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }}
+              >
+                Continue to Map
+              </button>
+            </div>
+          )}
+          {phase === GamePhaseState.PICK && (
+            <div style={{
+              position: "absolute",
+              bottom: "170px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 50
+            }}>
+              <button
+                onClick={() => rooms.game?.send(Transfer.SKIP_REWARD)}
+                style={{
+                  padding: "8px 24px",
+                  fontSize: "16px",
+                  borderRadius: "6px",
+                  border: "2px solid #fff",
+                  background: "#e74c3c",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }}
+              >
+                Start Fight
+              </button>
+            </div>
+          )}
           {isShopPhase && (
             <div style={{
               position: "absolute", bottom: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 50
@@ -1014,8 +1053,9 @@ export default function Game() {
           {!isBoardHidden && <GameStageInfo />}
           {!isBoardHidden && <GameSynergies />}
           {!isBoardHidden && <GameOpponentSynergies />}
-          {!isBoardHidden && <GameShop />}
+          {!isBoardHidden && <GameShop onShowMap={mapHidden && mapVersion > 0 ? () => setMapHidden(false) : undefined} />}
           <GameChoice />
+          <GameBalancePanel />
           <GameDpsMeter />
           <GameToasts />
         </>

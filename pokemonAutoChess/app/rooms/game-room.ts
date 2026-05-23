@@ -628,26 +628,16 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     this.state.players.forEach((player: Player) => {
       if (!player.isBot) {
-        const firstStageStarters = [
-          Pkm.BULBASAUR,
-          Pkm.CHARMANDER,
-          Pkm.SQUIRTLE,
-          Pkm.CHIKORITA,
-          Pkm.CYNDAQUIL,
-          Pkm.TOTODILE,
-          Pkm.TREECKO,
-          Pkm.TORCHIC,
-          Pkm.MUDKIP,
-          Pkm.TURTWIG,
-          Pkm.CHIMCHAR,
-          Pkm.PIPLUP,
-          Pkm.SHINX,
-          Pkm.RIOLU,
-          Pkm.EEVEE
-        ]
         const { pickRandomIn: pickRandom } = require("../utils/random")
         const { ItemComponentsNoFossilOrScarf } = require("../types/enum/Item")
-        const starterOptions = pickNRandomIn(firstStageStarters, 3)
+        const { getPokemonData } = require("../models/precomputed/precomputed-pokemon-data")
+        const allOneStars = [
+          ...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON,
+          ...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON,
+          ...PRECOMPUTED_POKEMONS_PER_RARITY.RARE,
+          ...PRECOMPUTED_POKEMONS_PER_RARITY.EPIC
+        ].filter((p: Pkm) => getPokemonData(p).stars === 1)
+        const starterOptions = pickNRandomIn(allOneStars, 3)
         const starterItems = starterOptions.map(() => pickRandom(ItemComponentsNoFossilOrScarf))
         player.choices.push(
           new PlayerChoice({
@@ -831,7 +821,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     )
       return
 
-    if (choice.type === "wildReward" || choice.type === "wildRewardRerolled") {
+    if (choice.type === "wildReward") {
       const pkm = choice.pokemons[choiceIndex]
       if (pkm && pkm !== Pkm.DEFAULT) {
         const freeSpace = getFreeSpaceOnBench(player.board)

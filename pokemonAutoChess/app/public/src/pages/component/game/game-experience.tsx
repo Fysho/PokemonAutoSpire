@@ -1,20 +1,17 @@
 import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
 import { MAX_LEVEL } from "../../../../../config"
-import { GamePhaseState } from "../../../../../types/enum/Game"
-import { Transfer } from "../../../../../types"
 import { selectSpectatedPlayer, useAppSelector } from "../../../hooks"
-import { levelClick, rooms } from "../../../network"
+import { levelClick } from "../../../network"
 import { addIconsToDescription } from "../../utils/descriptions"
 import { Money } from "../icons/money"
 
-export default function GameExperience() {
+export default function GameExperience({ onShowMap }: { onShowMap?: () => void }) {
   const { t } = useTranslation()
 
   const experienceManager = useAppSelector(
     (state) => state.game.experienceManager
   )
-  const phase = useAppSelector((state) => state.game.phase)
   const isLevelMax = experienceManager.level >= MAX_LEVEL
   const xpNeeded = isLevelMax
     ? 0
@@ -25,6 +22,15 @@ export default function GameExperience() {
 
   return (
     <div className="game-experience">
+      {onShowMap && (
+        <button
+          className="bubbly orange show-map-button"
+          onClick={onShowMap}
+          style={{ marginRight: "4px", whiteSpace: "nowrap" }}
+        >
+          Map
+        </button>
+      )}
       <span>
         {t("lvl")} {experienceManager.level}
       </span>
@@ -37,16 +43,7 @@ export default function GameExperience() {
       >
         <Money value={t("buy_xp", { cost: xpNeeded })} />
       </button>
-      {phase === GamePhaseState.PICK && (
-        <button
-          className="bubbly red buy-xp-button"
-          onClick={() => rooms.game?.send(Transfer.SKIP_REWARD)}
-          style={{ marginLeft: "4px" }}
-        >
-          Start Fight
-        </button>
-      )}
-      <div className="progress-bar" data-tooltip-id="gold-to-levelup-tooltip">
+<div className="progress-bar" data-tooltip-id="gold-to-levelup-tooltip">
         <progress
           className="my-progress"
           value={isLevelMax ? 0 : experienceManager.experience}

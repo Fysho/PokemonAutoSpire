@@ -62,7 +62,7 @@ export function generateActMap(
   shuffleArray(lateGymIndices)
   let lateGymPick = 0
 
-  const eliteTotal = getEliteEncounterCount()
+  const eliteTotal = getEliteEncounterCount(act)
   const eliteIndices = Array.from({ length: eliteTotal }, (_, i) => i)
   shuffleArray(eliteIndices)
   let elitePick = 0

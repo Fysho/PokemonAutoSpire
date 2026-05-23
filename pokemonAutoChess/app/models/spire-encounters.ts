@@ -102,55 +102,55 @@ const WILD_ENCOUNTERS: SpireEncounterTemplate[] = [
   }
 ]
 
-// Early gym leaders (floor 9) - mostly unevolved, 2-3 Pokemon
+// Early gym leaders (floor 9)
 const EARLY_GYM_LEADERS: SpireEncounter[] = [
   {
     name: "Brock",
-    avatar: Pkm.GEODUDE,
+    avatar: Pkm.ONIX,
     synergy: Synergy.ROCK,
-    board: [[Pkm.GEODUDE, 3, 1], [Pkm.GEODUDE, 5, 1]]
+    board: [[Pkm.GEODUDE, 2, 1], [Pkm.GEODUDE, 6, 1], [Pkm.ONIX, 4, 2]]
   },
   {
     name: "Misty",
-    avatar: Pkm.STARYU,
+    avatar: Pkm.STARMIE,
     synergy: Synergy.WATER,
-    board: [[Pkm.STARYU, 3, 1], [Pkm.STARYU, 5, 1]]
+    board: [[Pkm.STARYU, 2, 1], [Pkm.STARYU, 6, 1], [Pkm.STARMIE, 4, 2]]
   },
   {
     name: "Lt. Surge",
-    avatar: Pkm.PIKACHU,
+    avatar: Pkm.RAICHU,
     synergy: Synergy.ELECTRIC,
-    board: [[Pkm.PICHU, 2, 1], [Pkm.PIKACHU, 4, 1], [Pkm.VOLTORB, 6, 1]]
+    board: [[Pkm.PIKACHU, 2, 1], [Pkm.PIKACHU, 6, 1], [Pkm.RAICHU, 4, 2], [Pkm.VOLTORB, 4, 1]]
   },
   {
     name: "Erika",
-    avatar: Pkm.GLOOM,
+    avatar: Pkm.VILEPLUME,
     synergy: Synergy.GRASS,
-    board: [[Pkm.ODDISH, 3, 1], [Pkm.BELLSPROUT, 5, 1], [Pkm.GLOOM, 4, 2]]
+    board: [[Pkm.ODDISH, 2, 1], [Pkm.BELLSPROUT, 6, 1], [Pkm.VILEPLUME, 4, 2], [Pkm.GLOOM, 3, 1]]
   },
   {
     name: "Koga",
-    avatar: Pkm.KOFFING,
+    avatar: Pkm.MUK,
     synergy: Synergy.POISON,
-    board: [[Pkm.KOFFING, 3, 1], [Pkm.GRIMER, 5, 1]]
+    board: [[Pkm.KOFFING, 2, 1], [Pkm.GRIMER, 6, 1], [Pkm.MUK, 4, 2], [Pkm.KOFFING, 5, 1]]
   },
   {
     name: "Flannery",
-    avatar: Pkm.SLUGMA,
+    avatar: Pkm.TORKOAL,
     synergy: Synergy.FIRE,
-    board: [[Pkm.SLUGMA, 3, 1], [Pkm.NUMEL, 5, 1], [Pkm.GROWLITHE, 4, 1]]
+    board: [[Pkm.SLUGMA, 2, 1], [Pkm.NUMEL, 6, 1], [Pkm.TORKOAL, 4, 2], [Pkm.MAGCARGO, 5, 1]]
   },
   {
     name: "Norman",
-    avatar: Pkm.VIGOROTH,
+    avatar: Pkm.SLAKING,
     synergy: Synergy.NORMAL,
-    board: [[Pkm.SLAKOTH, 3, 1], [Pkm.VIGOROTH, 5, 2]]
+    board: [[Pkm.SLAKOTH, 2, 1], [Pkm.VIGOROTH, 6, 1], [Pkm.SLAKING, 4, 2]]
   },
   {
     name: "Winona",
-    avatar: Pkm.SWABLU,
+    avatar: Pkm.ALTARIA,
     synergy: Synergy.FLYING,
-    board: [[Pkm.SWABLU, 3, 1], [Pkm.TAILLOW, 5, 1]]
+    board: [[Pkm.SWABLU, 2, 1], [Pkm.TAILLOW, 6, 1], [Pkm.ALTARIA, 4, 2], [Pkm.SKARMORY, 3, 2]]
   }
 ]
 
@@ -194,9 +194,9 @@ const LATE_GYM_LEADERS: SpireEncounter[] = [
   },
   {
     name: "Clair",
-    avatar: Pkm.DRAGONITE,
+    avatar: Pkm.DRAGONAIR,
     synergy: Synergy.DRAGON,
-    board: [[Pkm.DRATINI, 2, 1], [Pkm.DRAGONAIR, 6, 1], [Pkm.DRAGONITE, 4, 2], [Pkm.KINGDRA, 3, 2]]
+    board: [[Pkm.DRATINI, 2, 1], [Pkm.DRATINI, 6, 1], [Pkm.DRAGONAIR, 4, 2]]
   },
   {
     name: "Volkner",
@@ -212,205 +212,132 @@ export type EliteEncounterTemplate = {
   name: string
   avatar: Pkm
   pokemon: Pkm[]
-  tiers: {
-    1: [pkm: Pkm, x: number, y: number][]
-    2: [pkm: Pkm, x: number, y: number][]
-    3: [pkm: Pkm, x: number, y: number][]
-  }
+  rewards: Pkm[]
+  board: [pkm: Pkm, x: number, y: number][]
 }
 
-const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
+// Act 1: Baby/basic Pokemon fights, reward 1-star Pokemon
+const ACT1_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
   {
     name: "Eeveelution Squad",
     avatar: Pkm.EEVEE,
     pokemon: [Pkm.VAPOREON, Pkm.JOLTEON, Pkm.FLAREON, Pkm.ESPEON, Pkm.UMBREON, Pkm.LEAFEON, Pkm.GLACEON, Pkm.SYLVEON],
-    tiers: {
-      1: [[Pkm.EEVEE, 2, 1], [Pkm.EEVEE, 6, 1], [Pkm.EEVEE, 4, 1]],
-      2: [[Pkm.VAPOREON, 2, 1], [Pkm.JOLTEON, 6, 1], [Pkm.FLAREON, 4, 2]],
-      3: [[Pkm.VAPOREON, 2, 1], [Pkm.JOLTEON, 6, 1], [Pkm.FLAREON, 4, 2], [Pkm.ESPEON, 3, 2], [Pkm.UMBREON, 5, 2]]
-    }
+    rewards: [Pkm.EEVEE],
+    board: []
   },
   {
-    name: "Lake Guardians",
-    avatar: Pkm.GYARADOS,
-    pokemon: [Pkm.GYARADOS, Pkm.MILOTIC, Pkm.LAPRAS],
-    tiers: {
-      1: [[Pkm.MAGIKARP, 3, 1], [Pkm.FEEBAS, 5, 1], [Pkm.MAGIKARP, 4, 1]],
-      2: [[Pkm.GYARADOS, 4, 2], [Pkm.FEEBAS, 2, 1], [Pkm.MAGIKARP, 6, 1]],
-      3: [[Pkm.GYARADOS, 2, 2], [Pkm.MILOTIC, 6, 2], [Pkm.LAPRAS, 4, 3]]
-    }
+    name: "Psychic Circle",
+    avatar: Pkm.KADABRA,
+    pokemon: [Pkm.KADABRA, Pkm.KIRLIA, Pkm.DROWZEE, Pkm.MR_MIME, Pkm.JYNX],
+    rewards: [Pkm.ABRA, Pkm.RALTS, Pkm.DROWZEE, Pkm.MIME_JR, Pkm.SMOOCHUM],
+    board: []
   },
   {
-    name: "Dragon's Den",
-    avatar: Pkm.SALAMENCE,
-    pokemon: [Pkm.SALAMENCE, Pkm.GARCHOMP, Pkm.DRAGONITE],
-    tiers: {
-      1: [[Pkm.BAGON, 3, 1], [Pkm.DRATINI, 5, 1], [Pkm.BAGON, 4, 1]],
-      2: [[Pkm.SHELGON, 3, 1], [Pkm.DRAGONAIR, 5, 1], [Pkm.SALAMENCE, 4, 2]],
-      3: [[Pkm.SALAMENCE, 2, 2], [Pkm.GARCHOMP, 6, 2], [Pkm.DRAGONITE, 4, 3]]
-    }
-  },
+    name: "Rival Flames",
+    avatar: Pkm.ELECTABUZZ,
+    pokemon: [Pkm.ELECTABUZZ, Pkm.MAGMAR],
+    rewards: [Pkm.ELEKID, Pkm.MAGBY],
+    board: [[Pkm.ELECTABUZZ, 3, 2], [Pkm.MAGMAR, 5, 2]]
+  }
+]
+
+// Act 2: Mid evolutions, reward 2-star Pokemon
+const ACT2_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
   {
     name: "Iron Defense",
-    avatar: Pkm.METAGROSS,
-    pokemon: [Pkm.METAGROSS, Pkm.LUCARIO, Pkm.SCIZOR],
-    tiers: {
-      1: [[Pkm.BELDUM, 3, 1], [Pkm.RIOLU, 5, 1], [Pkm.SCYTHER, 4, 1]],
-      2: [[Pkm.METANG, 4, 2], [Pkm.LUCARIO, 2, 1], [Pkm.SCIZOR, 6, 1]],
-      3: [[Pkm.METAGROSS, 4, 3], [Pkm.LUCARIO, 2, 2], [Pkm.SCIZOR, 6, 2], [Pkm.MAGNETON, 4, 1]]
-    }
-  },
-  {
-    name: "Tyrant's Court",
-    avatar: Pkm.TYRANITAR,
-    pokemon: [Pkm.TYRANITAR, Pkm.AERODACTYL, Pkm.HERACROSS],
-    tiers: {
-      1: [[Pkm.LARVITAR, 3, 1], [Pkm.LARVITAR, 5, 1], [Pkm.HERACROSS, 4, 1]],
-      2: [[Pkm.PUPITAR, 4, 2], [Pkm.HERACROSS, 2, 1], [Pkm.AERODACTYL, 6, 1]],
-      3: [[Pkm.TYRANITAR, 4, 3], [Pkm.HERACROSS, 2, 1], [Pkm.AERODACTYL, 6, 2], [Pkm.PUPITAR, 3, 1]]
-    }
+    avatar: Pkm.METANG,
+    pokemon: [Pkm.METANG, Pkm.LUCARIO, Pkm.SCIZOR],
+    rewards: [Pkm.METANG, Pkm.LUCARIO, Pkm.SCIZOR],
+    board: [[Pkm.METANG, 4, 2], [Pkm.LUCARIO, 2, 1], [Pkm.SCIZOR, 6, 1]]
   },
   {
     name: "Psychic Conclave",
-    avatar: Pkm.GARDEVOIR,
-    pokemon: [Pkm.GARDEVOIR, Pkm.GALLADE, Pkm.ALAKAZAM],
-    tiers: {
-      1: [[Pkm.RALTS, 3, 1], [Pkm.ABRA, 5, 1], [Pkm.RALTS, 4, 1]],
-      2: [[Pkm.KIRLIA, 3, 1], [Pkm.KADABRA, 5, 1], [Pkm.GARDEVOIR, 4, 2]],
-      3: [[Pkm.GARDEVOIR, 2, 2], [Pkm.GALLADE, 6, 2], [Pkm.ALAKAZAM, 4, 3]]
-    }
-  },
-  {
-    name: "Celestial Duo",
-    avatar: Pkm.TOGEKISS,
-    pokemon: [Pkm.TOGEKISS, Pkm.MILOTIC, Pkm.GARDEVOIR],
-    tiers: {
-      1: [[Pkm.TOGEPI, 3, 1], [Pkm.FEEBAS, 5, 1], [Pkm.RALTS, 4, 1]],
-      2: [[Pkm.TOGETIC, 4, 2], [Pkm.MILOTIC, 2, 1], [Pkm.KIRLIA, 6, 1]],
-      3: [[Pkm.TOGEKISS, 4, 3], [Pkm.MILOTIC, 2, 2], [Pkm.GARDEVOIR, 6, 2]]
-    }
-  },
-  {
-    name: "Power Plant",
-    avatar: Pkm.ELECTIVIRE,
-    pokemon: [Pkm.ELECTIVIRE, Pkm.MAGMORTAR, Pkm.PORYGON_Z],
-    tiers: {
-      1: [[Pkm.ELEKID, 3, 1], [Pkm.MAGBY, 5, 1], [Pkm.PORYGON, 4, 1]],
-      2: [[Pkm.ELECTABUZZ, 3, 1], [Pkm.MAGMAR, 5, 1], [Pkm.PORYGON_2, 4, 2]],
-      3: [[Pkm.ELECTIVIRE, 2, 2], [Pkm.MAGMORTAR, 6, 2], [Pkm.PORYGON_Z, 4, 3]]
-    }
+    avatar: Pkm.KIRLIA,
+    pokemon: [Pkm.KIRLIA, Pkm.KADABRA, Pkm.GARDEVOIR],
+    rewards: [Pkm.KIRLIA, Pkm.KADABRA],
+    board: [[Pkm.KIRLIA, 3, 1], [Pkm.KADABRA, 5, 1], [Pkm.GARDEVOIR, 4, 2]]
   },
   {
     name: "Sleeping Giant",
     avatar: Pkm.SNORLAX,
-    pokemon: [Pkm.SNORLAX, Pkm.SLAKING, Pkm.DITTO],
-    tiers: {
-      1: [[Pkm.MUNCHLAX, 3, 1], [Pkm.SLAKOTH, 5, 1], [Pkm.DITTO, 4, 1]],
-      2: [[Pkm.SNORLAX, 4, 2], [Pkm.VIGOROTH, 2, 1], [Pkm.DITTO, 6, 1]],
-      3: [[Pkm.SNORLAX, 4, 3], [Pkm.SLAKING, 2, 2], [Pkm.DITTO, 6, 1], [Pkm.MUNCHLAX, 4, 1]]
-    }
+    pokemon: [Pkm.SNORLAX, Pkm.VIGOROTH, Pkm.DITTO],
+    rewards: [Pkm.SNORLAX, Pkm.VIGOROTH, Pkm.DITTO],
+    board: [[Pkm.SNORLAX, 4, 2], [Pkm.VIGOROTH, 2, 1], [Pkm.DITTO, 6, 1]]
   },
   {
     name: "Poltergeist",
     avatar: Pkm.ROTOM,
-    pokemon: [Pkm.ROTOM, Pkm.ROTOM_WASH, Pkm.ROTOM_HEAT, Pkm.ROTOM_FROST, Pkm.ROTOM_FAN, Pkm.ROTOM_MOW],
-    tiers: {
-      1: [[Pkm.ROTOM, 3, 1], [Pkm.ROTOM, 5, 1]],
-      2: [[Pkm.ROTOM, 4, 2], [Pkm.ROTOM_WASH, 2, 1], [Pkm.ROTOM_HEAT, 6, 1]],
-      3: [[Pkm.ROTOM, 4, 3], [Pkm.ROTOM_WASH, 2, 2], [Pkm.ROTOM_HEAT, 6, 2], [Pkm.ROTOM_FROST, 3, 1], [Pkm.ROTOM_MOW, 5, 1]]
-    }
-  },
-  {
-    name: "Mother's Fury",
-    avatar: Pkm.KANGASKHAN,
-    pokemon: [Pkm.KANGASKHAN],
-    tiers: {
-      1: [[Pkm.KANGASKHAN, 4, 1]],
-      2: [[Pkm.KANGASKHAN, 4, 2], [Pkm.KANGASKHAN, 2, 1]],
-      3: [[Pkm.KANGASKHAN, 4, 3], [Pkm.KANGASKHAN, 2, 2], [Pkm.KANGASKHAN, 6, 2]]
-    }
-  },
-  {
-    name: "Cheer Squad",
-    avatar: Pkm.PLUSLE,
-    pokemon: [Pkm.PLUSLE, Pkm.MINUN, Pkm.PACHIRISU, Pkm.DEDENNE, Pkm.TOGEDEMARU],
-    tiers: {
-      1: [[Pkm.PLUSLE, 3, 1], [Pkm.MINUN, 5, 1]],
-      2: [[Pkm.PLUSLE, 2, 1], [Pkm.MINUN, 6, 1], [Pkm.PACHIRISU, 4, 2]],
-      3: [[Pkm.PLUSLE, 2, 1], [Pkm.MINUN, 6, 1], [Pkm.PACHIRISU, 4, 2], [Pkm.DEDENNE, 3, 2], [Pkm.TOGEDEMARU, 5, 2]]
-    }
-  },
-  {
-    name: "Bug Rivalry",
-    avatar: Pkm.HERACROSS,
-    pokemon: [Pkm.HERACROSS, Pkm.PINSIR],
-    tiers: {
-      1: [[Pkm.HERACROSS, 3, 1], [Pkm.PINSIR, 5, 1]],
-      2: [[Pkm.HERACROSS, 3, 2], [Pkm.PINSIR, 5, 2]],
-      3: [[Pkm.HERACROSS, 3, 2], [Pkm.PINSIR, 5, 2], [Pkm.HERACROSS, 2, 1], [Pkm.PINSIR, 6, 1]]
-    }
-  },
-  {
-    name: "Grudge Match",
-    avatar: Pkm.ZANGOOSE,
-    pokemon: [Pkm.ZANGOOSE, Pkm.SEVIPER],
-    tiers: {
-      1: [[Pkm.ZANGOOSE, 3, 1], [Pkm.SEVIPER, 5, 1]],
-      2: [[Pkm.ZANGOOSE, 3, 2], [Pkm.SEVIPER, 5, 2]],
-      3: [[Pkm.ZANGOOSE, 2, 2], [Pkm.ZANGOOSE, 4, 1], [Pkm.SEVIPER, 6, 2], [Pkm.SEVIPER, 4, 2]]
-    }
-  },
-  {
-    name: "Weather Report",
-    avatar: Pkm.CASTFORM,
-    pokemon: [Pkm.CASTFORM, Pkm.CASTFORM_SUN, Pkm.CASTFORM_RAIN, Pkm.CASTFORM_HAIL],
-    tiers: {
-      1: [[Pkm.CASTFORM, 3, 1], [Pkm.CASTFORM, 5, 1]],
-      2: [[Pkm.CASTFORM_SUN, 2, 1], [Pkm.CASTFORM_RAIN, 6, 1], [Pkm.CASTFORM, 4, 2]],
-      3: [[Pkm.CASTFORM_SUN, 2, 2], [Pkm.CASTFORM_RAIN, 6, 2], [Pkm.CASTFORM_HAIL, 4, 2], [Pkm.CASTFORM, 3, 1], [Pkm.CASTFORM, 5, 1]]
-    }
+    pokemon: [Pkm.ROTOM, Pkm.ROTOM_WASH, Pkm.ROTOM_HEAT],
+    rewards: [Pkm.ROTOM, Pkm.ROTOM_WASH, Pkm.ROTOM_HEAT],
+    board: [[Pkm.ROTOM, 4, 2], [Pkm.ROTOM_WASH, 2, 1], [Pkm.ROTOM_HEAT, 6, 1]]
   },
   {
     name: "Dark Omen",
     avatar: Pkm.ABSOL,
     pokemon: [Pkm.ABSOL, Pkm.SPIRITOMB],
-    tiers: {
-      1: [[Pkm.ABSOL, 4, 1]],
-      2: [[Pkm.ABSOL, 3, 2], [Pkm.SPIRITOMB, 5, 2]],
-      3: [[Pkm.ABSOL, 2, 2], [Pkm.SPIRITOMB, 6, 2], [Pkm.ABSOL, 4, 3]]
-    }
+    rewards: [Pkm.ABSOL, Pkm.SPIRITOMB],
+    board: [[Pkm.ABSOL, 3, 2], [Pkm.SPIRITOMB, 5, 2]]
   },
   {
     name: "Masquerade",
     avatar: Pkm.MIMIKYU,
     pokemon: [Pkm.MIMIKYU, Pkm.DITTO, Pkm.ZORUA],
-    tiers: {
-      1: [[Pkm.MIMIKYU, 4, 1], [Pkm.DITTO, 3, 1]],
-      2: [[Pkm.MIMIKYU, 4, 2], [Pkm.DITTO, 2, 1], [Pkm.ZORUA, 6, 1]],
-      3: [[Pkm.MIMIKYU, 4, 3], [Pkm.DITTO, 2, 1], [Pkm.DITTO, 6, 1], [Pkm.ZORUA, 3, 2], [Pkm.MIMIKYU, 5, 1]]
-    }
+    rewards: [Pkm.MIMIKYU, Pkm.DITTO, Pkm.ZORUA],
+    board: [[Pkm.MIMIKYU, 4, 2], [Pkm.DITTO, 2, 1], [Pkm.ZORUA, 6, 1]]
+  }
+]
+
+// Act 3: Fully evolved, reward 3-star Pokemon
+const ACT3_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
+  {
+    name: "Dragon's Den",
+    avatar: Pkm.SALAMENCE,
+    pokemon: [Pkm.SALAMENCE, Pkm.GARCHOMP, Pkm.DRAGONITE],
+    rewards: [Pkm.SALAMENCE, Pkm.GARCHOMP, Pkm.DRAGONITE],
+    board: [[Pkm.SALAMENCE, 2, 2], [Pkm.GARCHOMP, 6, 2], [Pkm.DRAGONITE, 4, 3]]
+  },
+  {
+    name: "Tyrant's Court",
+    avatar: Pkm.TYRANITAR,
+    pokemon: [Pkm.TYRANITAR, Pkm.HERACROSS, Pkm.AERODACTYL],
+    rewards: [Pkm.TYRANITAR, Pkm.AERODACTYL],
+    board: [[Pkm.TYRANITAR, 4, 3], [Pkm.HERACROSS, 2, 1], [Pkm.AERODACTYL, 6, 2], [Pkm.PUPITAR, 3, 1]]
+  },
+  {
+    name: "Celestial Duo",
+    avatar: Pkm.TOGEKISS,
+    pokemon: [Pkm.TOGEKISS, Pkm.MILOTIC, Pkm.GARDEVOIR],
+    rewards: [Pkm.TOGEKISS, Pkm.MILOTIC, Pkm.GARDEVOIR],
+    board: [[Pkm.TOGEKISS, 4, 3], [Pkm.MILOTIC, 2, 2], [Pkm.GARDEVOIR, 6, 2]]
+  },
+  {
+    name: "Mother's Fury",
+    avatar: Pkm.KANGASKHAN,
+    pokemon: [Pkm.KANGASKHAN, Pkm.KANGASKHAN, Pkm.KANGASKHAN],
+    rewards: [Pkm.KANGASKHAN],
+    board: [[Pkm.KANGASKHAN, 4, 3], [Pkm.KANGASKHAN, 2, 2], [Pkm.KANGASKHAN, 6, 2]]
   },
   {
     name: "Luchador Ring",
     avatar: Pkm.HAWLUCHA,
     pokemon: [Pkm.HAWLUCHA, Pkm.TAUROS, Pkm.KANGASKHAN],
-    tiers: {
-      1: [[Pkm.HAWLUCHA, 4, 1], [Pkm.TAUROS, 3, 1]],
-      2: [[Pkm.HAWLUCHA, 4, 2], [Pkm.TAUROS, 2, 1], [Pkm.KANGASKHAN, 6, 1]],
-      3: [[Pkm.HAWLUCHA, 4, 3], [Pkm.TAUROS, 2, 2], [Pkm.KANGASKHAN, 6, 2], [Pkm.HAWLUCHA, 3, 1]]
-    }
+    rewards: [Pkm.HAWLUCHA, Pkm.TAUROS, Pkm.KANGASKHAN],
+    board: [[Pkm.HAWLUCHA, 4, 3], [Pkm.TAUROS, 2, 2], [Pkm.KANGASKHAN, 6, 2], [Pkm.HAWLUCHA, 3, 1]]
   },
   {
-    name: "Old & Wise",
-    avatar: Pkm.DRAMPA,
-    pokemon: [Pkm.DRAMPA, Pkm.KOMALA, Pkm.MILTANK],
-    tiers: {
-      1: [[Pkm.KOMALA, 3, 1], [Pkm.MILTANK, 5, 1]],
-      2: [[Pkm.DRAMPA, 4, 2], [Pkm.KOMALA, 2, 1], [Pkm.MILTANK, 6, 1]],
-      3: [[Pkm.DRAMPA, 4, 3], [Pkm.KOMALA, 2, 2], [Pkm.MILTANK, 6, 2], [Pkm.DRAMPA, 3, 1]]
-    }
+    name: "Weather Report",
+    avatar: Pkm.CASTFORM,
+    pokemon: [Pkm.CASTFORM_SUN, Pkm.CASTFORM_RAIN, Pkm.CASTFORM_HAIL, Pkm.CASTFORM],
+    rewards: [Pkm.CASTFORM_SUN, Pkm.CASTFORM_RAIN, Pkm.CASTFORM_HAIL],
+    board: [[Pkm.CASTFORM_SUN, 2, 2], [Pkm.CASTFORM_RAIN, 6, 2], [Pkm.CASTFORM_HAIL, 4, 2], [Pkm.CASTFORM, 3, 1], [Pkm.CASTFORM, 5, 1]]
   }
 ]
+
+const ELITE_ENCOUNTERS_BY_ACT: { [act: number]: EliteEncounterTemplate[] } = {
+  1: ACT1_ELITE_ENCOUNTERS,
+  2: ACT2_ELITE_ENCOUNTERS,
+  3: ACT3_ELITE_ENCOUNTERS
+}
 
 const LEGENDARY_BOSSES: { [act: number]: SpireEncounter } = {
   1: {
@@ -418,8 +345,8 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter } = {
     avatar: Pkm.MEWTWO,
     board: [[Pkm.MEWTWO, 4, 3], [Pkm.MEW, 2, 2]],
     items: [
-      [Item.CHOICE_SPECS, Item.WISE_GLASSES, Item.SOUL_DEW],
-      [Item.SHELL_BELL, Item.LEFTOVERS, Item.AQUA_EGG]
+      [Item.CHOICE_SPECS],
+      [Item.SHELL_BELL]
     ],
     bonusHP: 100,
     bonusAtk: 5,
@@ -474,11 +401,11 @@ function getDifficultyConfig(act: number, floor: number): DifficultyConfig {
   } else if (progress <= 8) {
     return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 12) {
-    return { pokemonCount: randomBetween(4, 5), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
+    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 16) {
-    return { pokemonCount: randomBetween(4, 6), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: true }
+    return { pokemonCount: randomBetween(3, 5), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 20) {
-    return { pokemonCount: randomBetween(5, 6), maxStars: 2, allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
+    return { pokemonCount: randomBetween(4, 5), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: true }
   // --- Act 2 ---
   } else if (progress <= 25) {
     return { pokemonCount: randomBetween(5, 7), maxStars: 3, allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
@@ -655,23 +582,56 @@ export function getGymLeaderGem(synergy: Synergy): Item {
 }
 
 export function getEliteEncounter(index: number, act: number, floor: number): SpireEncounter {
-  const template = ELITE_ENCOUNTERS[index % ELITE_ENCOUNTERS.length]
-  const tier = getEncounterTier(act, floor)
-  const board = template.tiers[tier] || template.tiers[1]
+  const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
+  const template = encounters[index % encounters.length]
+
+  if (template.name === "Eeveelution Squad") {
+    const count = floor <= 8 ? 3 : floor <= 14 ? 4 : 5
+    const eeveelutions = pickNRandomIn(template.pokemon, count)
+    const positions: [number, number][] = [[4, 1], [2, 1], [6, 1], [3, 2], [5, 2]]
+    const board: [Pkm, number, number][] = eeveelutions.map((pkm, i) =>
+      [pkm, positions[i][0], positions[i][1]]
+    )
+    return { name: template.name, avatar: eeveelutions[0], board }
+  }
+
+  if (template.name === "Psychic Circle") {
+    const count = floor <= 8 ? 3 : floor <= 14 ? 4 : 5
+    const psychics = pickNRandomIn(template.pokemon, count)
+    const positions: [number, number][] = [[4, 1], [2, 1], [6, 1], [3, 2], [5, 2]]
+    const board: [Pkm, number, number][] = psychics.map((pkm, i) =>
+      [pkm, positions[i][0], positions[i][1]]
+    )
+    return { name: template.name, avatar: psychics[0], board }
+  }
+
+  if (template.name === "Rival Flames") {
+    const board: [Pkm, number, number][] = [[Pkm.ELECTABUZZ, 3, 2], [Pkm.MAGMAR, 5, 2]]
+    if (floor >= 12) {
+      board.push([Pkm.ELEKID, 2, 1], [Pkm.MAGBY, 6, 1])
+    }
+    return { name: template.name, avatar: template.avatar, board }
+  }
+
   return {
     name: template.name,
     avatar: template.avatar,
-    board: [...board]
+    board: [...template.board]
   }
 }
 
-export function getEliteEncounterCount(): number {
-  return ELITE_ENCOUNTERS.length
+export function getEliteEncountersForAct(act: number): EliteEncounterTemplate[] {
+  return ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
 }
 
-export function getEliteEncounterPokemon(index: number): Pkm[] {
-  const template = ELITE_ENCOUNTERS[index % ELITE_ENCOUNTERS.length]
-  return template.pokemon
+export function getEliteEncounterCount(act: number): number {
+  return (ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS).length
+}
+
+export function getEliteEncounterPokemon(index: number, act: number): Pkm[] {
+  const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
+  const template = encounters[index % encounters.length]
+  return template.rewards
 }
 
 export function getLegendaryBossEncounter(act: number): SpireEncounter {
@@ -711,29 +671,39 @@ const RARITY_WEIGHT: Record<string, number> = {
   SPECIAL: 10
 }
 
-export function calculateEncounterDifficulty(encounter: SpireEncounter): number {
+export interface EncounterStats {
+  difficulty: number
+  pokemonCount: number
+  totalStars: number
+  totalItems: number
+}
+
+export function calculateEncounterStats(encounter: SpireEncounter): EncounterStats {
   const board = encounter.board
-  if (board.length === 0) return 0
+  if (board.length === 0) return { difficulty: 0, pokemonCount: 0, totalStars: 0, totalItems: 0 }
 
   const typeCounts = new Map<string, number>()
   let totalScore = 0
+  let totalStars = 0
+  let totalItems = 0
 
   for (let i = 0; i < board.length; i++) {
     const [pkm] = board[i]
     const data = getPokemonData(pkm)
 
+    totalStars += data.stars
+    const itemCount = encounter.items?.[i]?.length ?? 0
+    totalItems += itemCount
+
     const rarityBase = RARITY_WEIGHT[data.rarity] ?? 2
     const starMult = data.stars <= 1 ? 1 : data.stars === 2 ? 2.5 : 5
-    const itemCount = encounter.items?.[i]?.length ?? 0
     const itemMult = 1 + 0.3 * itemCount
 
-    let score = rarityBase * starMult * itemMult
+    totalScore += rarityBase * starMult * itemMult
 
     for (const t of data.types) {
       typeCounts.set(t, (typeCounts.get(t) ?? 0) + 1)
     }
-
-    totalScore += score
   }
 
   let synergyBonus = 0
@@ -746,12 +716,17 @@ export function calculateEncounterDifficulty(encounter: SpireEncounter): number 
   if (encounter.bonusAtk) totalScore += encounter.bonusAtk * 2
   if (encounter.bonusAP) totalScore += encounter.bonusAP * 0.5
 
-  return Math.round(totalScore)
+  return {
+    difficulty: Math.round(totalScore),
+    pokemonCount: board.length,
+    totalStars,
+    totalItems
+  }
 }
 
 export function getGoldReward(nodeType: string, act: number): number {
   switch (nodeType) {
-    case "WILD_BATTLE": return 2 + act
+    case "WILD_BATTLE": return 3 + act
     case "ELITE": return 4 + act * 2
     case "GYM_LEADER": return 6 + act * 3
     case "LEGENDARY_BOSS": return 12 + act * 4

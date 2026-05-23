@@ -44,7 +44,7 @@ import { canSell, PokemonEntity } from "../../core/pokemon-entity"
 import Simulation from "../../core/simulation"
 import { MapNodeType } from "../../models/colyseus-models/map-node"
 import {
-  calculateEncounterDifficulty,
+  calculateEncounterStats,
   getEliteEncounter,
   getEliteEncounterPokemon,
   getGoldReward,
@@ -370,8 +370,8 @@ export class OnDragDropPokemonCommand extends Command<
           // Drag and drop pokemons through bench has no limitation
           this.swapPokemonPositions(player, pokemon, x, y)
           success = true
-        } else if (this.state.phase == GamePhaseState.PICK) {
-          // On pick, allow to drop on / from board
+        } else if (this.state.phase == GamePhaseState.PICK || this.state.phase == GamePhaseState.MAP || this.state.phase == GamePhaseState.REWARD) {
+          // On pick, map, or reward, allow to drop on / from board
           const teamSize = this.room.getTeamSize(player.board)
           const isBoardFull =
             teamSize >=
@@ -1153,7 +1153,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     player.choices.push(
       new PlayerChoice({
-        type: rerolled ? "wildRewardRerolled" : "wildReward",
+        type: "wildReward",
         pokemons,
         items
       })
@@ -1201,11 +1201,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     markAvailableNodes(nodeId, this.state.mapNodes, this.state.mapEdges)
 
-    // Set player map to region for background tilemap
+    // Set player map to region for background tilemap and update regional pool
     if (node.region && node.nodeType === MapNodeType.WILD_BATTLE) {
       this.state.players.forEach((player: Player) => {
         if (!player.isBot) {
+          const previousMap = player.map
           player.map = node.region as any
+          player.updateRegionalPool(this.state, true, previousMap)
         }
       })
     }
@@ -1237,7 +1239,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             return `${pkm},${x},${y}${itemStr}`
           })
         )
-        this.state.encounterDifficulty = calculateEncounterDifficulty(encounter)
+        const stats = calculateEncounterStats(encounter)
+        this.state.encounterDifficulty = stats.difficulty
+        this.state.encounterPokemonCount = stats.pokemonCount
+        this.state.encounterTotalStars = stats.totalStars
+        this.state.encounterTotalItems = stats.totalItems
         this.initializePickingPhase()
         break
       }
@@ -1345,8 +1351,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     if (!label) return
 
     if (label.includes("egg")) {
-      const eggPokemon = pickRandomIn([Pkm.TOGEPI, Pkm.PICHU, Pkm.CLEFFA, Pkm.IGGLYBUFF, Pkm.HAPPINY])
-      this.room.spawnOnBench(player, eggPokemon)
+      giveRandomEgg(player)
     } else if (label.includes("search") || label.includes("explore")) {
       const items = getEventItems(2)
       items.forEach(item => player.items.push(item))
@@ -1379,6 +1384,18 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     } else if (label.includes("rob")) {
       this.state.runHP = Math.max(0, this.state.runHP - 10)
       player.addMoney(15, true, null)
+    } else if (label.includes("rocky helmet challenge")) {
+      this.state.challengeItem = Item.ROCKY_HELMET
+    } else if (label.includes("assault vest challenge")) {
+      this.state.challengeItem = Item.ASSAULT_VEST
+    } else if (label.includes("kings rock challenge")) {
+      this.state.challengeItem = Item.KINGS_ROCK
+    } else if (label.includes("red orb challenge")) {
+      this.state.challengeItem = Item.RED_ORB
+    } else if (label.includes("blue orb challenge")) {
+      this.state.challengeItem = Item.BLUE_ORB
+    } else if (label.includes("green orb challenge")) {
+      this.state.challengeItem = Item.GREEN_ORB
     }
   }
 
@@ -1418,12 +1435,48 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           player.experienceManager.addExperience(bonusXP)
         }
 
+        // Challenge item reward
+        if (this.state.challengeItem && node.nodeType === MapNodeType.WILD_BATTLE) {
+          if (won) {
+            player.items.push(this.state.challengeItem as Item)
+          }
+          this.state.challengeItem = ""
+        }
+
         // Reward offers
         if (node.nodeType === MapNodeType.WILD_BATTLE) {
           this.generateWildRewardChoice(player, node, won)
         } else if (node.nodeType === MapNodeType.ELITE && node.eliteEncounterIndex >= 0) {
-          if (won) {
-            const elitePokemon = getEliteEncounterPokemon(node.eliteEncounterIndex)
+          const eliteEncounters = (require("../../models/spire-encounters") as any)
+          const encounters = eliteEncounters.getEliteEncountersForAct(this.state.currentAct)
+          const template = encounters[node.eliteEncounterIndex % encounters.length]
+
+          if (won && template.name === "Eeveelution Squad") {
+            const evoStones = [
+              Item.WATER_STONE, Item.THUNDER_STONE, Item.FIRE_STONE,
+              Item.LEAF_STONE, Item.ICE_STONE, Item.MOON_STONE,
+              Item.SUN_STONE, Item.DUSK_STONE, Item.DAWN_STONE
+            ]
+            const stones = pickNRandomIn(evoStones, 2)
+            const pokemons: Pkm[] = [Pkm.EEVEE, Pkm.DEFAULT, Pkm.DEFAULT]
+            const items: Item[] = [Item.FOSSIL_STONE, stones[0], stones[1]]
+            player.choices.push(
+              new PlayerChoice({ type: "wildReward", pokemons, items })
+            )
+          } else if (won && template.name === "Psychic Circle") {
+            const offers = pickNRandomIn(template.rewards, 3)
+            player.choices.push(
+              new PlayerChoice({ type: "addPick", pokemons: offers })
+            )
+          } else if (won && template.name === "Rival Flames") {
+            const synergyItem = pickRandomIn([Item.ELECTIRIZER, Item.MAGMARIZER])
+            const pokemons: Pkm[] = [Pkm.ELEKID, Pkm.MAGBY, Pkm.DEFAULT]
+            const items: Item[] = [Pkm.DEFAULT as any, Pkm.DEFAULT as any, synergyItem]
+            player.choices.push(
+              new PlayerChoice({ type: "wildReward", pokemons, items })
+            )
+          } else if (won) {
+            const elitePokemon = getEliteEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct)
             if (elitePokemon.length > 0) {
               const offers = pickNRandomIn(elitePokemon, Math.min(3, elitePokemon.length))
               const pairedItems: Item[] = offers.map(() =>
@@ -1434,17 +1487,31 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               )
             }
           } else {
-            const pokemonOffers: Pkm[] = []
-            while (pokemonOffers.length < 3) {
-              const p = this.state.shop.pickPokemon(player, this.state)
-              if (p) pokemonOffers.push(p)
-              else break
+            this.generateWildRewardChoice(player, node, false)
+          }
+        } else if (node.nodeType === MapNodeType.GYM_LEADER) {
+          // Gym leader rewards
+          if (won && node.gymLeaderSynergy) {
+            const gem = getGymLeaderGem(node.gymLeaderSynergy as Synergy)
+            player.items.push(gem)
+            const synType = SynergyGivenByGem[gem]
+            if (synType) {
+              player.bonusSynergies.set(synType, (player.bonusSynergies.get(synType) ?? 0) + 1)
+              player.updateSynergies()
             }
-            if (pokemonOffers.length > 0) {
-              player.choices.push(
-                new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
-              )
-            }
+          }
+          if (won) {
+            // Choose one: a crafted item OR a pokemon + item component
+            const craftedItem = pickRandomIn(getRandomItemChoices(player.items, 3) as Item[])
+            const pokemon = this.state.shop.pickPokemon(player, this.state) ?? Pkm.DITTO
+            const component = pickRandomIn(ItemComponentsNoFossilOrScarf)
+            const pokemons: Pkm[] = [Pkm.DEFAULT, pokemon]
+            const items: Item[] = [craftedItem, component]
+            player.choices.push(
+              new PlayerChoice({ type: "wildReward", pokemons, items })
+            )
+          } else {
+            this.generateWildRewardChoice(player, node, false)
           }
         } else {
           const offerCount = getRelicPokemonOfferCount(player.items)
@@ -1464,27 +1531,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           } else if (pokemonOffers.length > 0) {
             player.choices.push(
               new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
-            )
-          }
-        }
-
-        // Synergy gem reward for gym leaders
-        if (won && node.nodeType === MapNodeType.GYM_LEADER && node.gymLeaderSynergy) {
-          const gem = getGymLeaderGem(node.gymLeaderSynergy as Synergy)
-          player.items.push(gem)
-          const synType = SynergyGivenByGem[gem]
-          if (synType) {
-            player.bonusSynergies.set(synType, (player.bonusSynergies.get(synType) ?? 0) + 1)
-            player.updateSynergies()
-          }
-        }
-
-        // Item reward for gym leaders and bosses
-        if (won && node.nodeType === MapNodeType.GYM_LEADER) {
-          const itemChoices = getRandomItemChoices(player.items, 3)
-          if (itemChoices.length > 0) {
-            player.choices.push(
-              new PlayerChoice({ type: "item", items: itemChoices as any[] })
             )
           }
         }
@@ -2239,6 +2285,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               if (encounter.bonusHP) pkm.addMaxHP(encounter.bonusHP)
               if (encounter.bonusAtk) pkm.addAttack(encounter.bonusAtk)
               if (encounter.bonusAP) pkm.addAbilityPower(encounter.bonusAP)
+            })
+          }
+          if (this.state.challengeItem && node?.nodeType === MapNodeType.WILD_BATTLE) {
+            pvePokemons.forEach((pkm) => {
+              pkm.items.add(this.state.challengeItem as Item)
             })
           }
           const weather = getWeather(player, null, pveBoard)

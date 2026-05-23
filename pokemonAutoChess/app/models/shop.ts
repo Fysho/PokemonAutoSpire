@@ -114,7 +114,7 @@ export function getSellPrice(
   specialGameRule?: SpecialGameRule | null,
   ignoreRareCandy = false
 ): number {
-  return 1
+  return 3
 
   // Original sell price logic below (disabled for PokemonAutoSpire)
   const name = pokemon.name

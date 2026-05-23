@@ -68,8 +68,7 @@ export default function GameChoice() {
   }
 
   const choice = choices[0]
-  const isWildReward = choice.type === "wildReward" || choice.type === "wildRewardRerolled"
-  const canReroll = choice.type === "wildReward"
+  const isWildReward = choice.type === "wildReward"
 
   let message: string | null = null
   if (isWildReward) {
@@ -266,9 +265,8 @@ export default function GameChoice() {
         {isWildReward && (
           <button
             className={`bubbly blue active`}
-            style={{ marginLeft: "0.5em", opacity: canReroll ? 1 : 0.4, pointerEvents: canReroll ? "auto" : "none" }}
+            style={{ marginLeft: "0.5em" }}
             onClick={() => {
-              if (!canReroll) return
               playSound(SOUNDS.BUTTON_CLICK)
               rooms.game?.send(Transfer.REROLL_REWARD)
             }}
