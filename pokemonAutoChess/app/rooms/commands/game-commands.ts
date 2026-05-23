@@ -44,6 +44,7 @@ import { canSell, PokemonEntity } from "../../core/pokemon-entity"
 import Simulation from "../../core/simulation"
 import { MapNodeType } from "../../models/colyseus-models/map-node"
 import {
+  calculateEncounterDifficulty,
   getEliteEncounter,
   getEliteEncounterPokemon,
   getGoldReward,
@@ -1236,6 +1237,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             return `${pkm},${x},${y}${itemStr}`
           })
         )
+        this.state.encounterDifficulty = calculateEncounterDifficulty(encounter)
         this.initializePickingPhase()
         break
       }

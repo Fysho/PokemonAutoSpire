@@ -699,6 +699,56 @@ export function getRegionalPokemonForReward(region: string, act: number): Pkm | 
   return candidates.length > 0 ? pickRandomIn(candidates) : null
 }
 
+const RARITY_WEIGHT: Record<string, number> = {
+  COMMON: 1,
+  UNCOMMON: 2,
+  RARE: 4,
+  EPIC: 8,
+  ULTRA: 16,
+  UNIQUE: 20,
+  LEGENDARY: 30,
+  HATCH: 6,
+  SPECIAL: 10
+}
+
+export function calculateEncounterDifficulty(encounter: SpireEncounter): number {
+  const board = encounter.board
+  if (board.length === 0) return 0
+
+  const typeCounts = new Map<string, number>()
+  let totalScore = 0
+
+  for (let i = 0; i < board.length; i++) {
+    const [pkm] = board[i]
+    const data = getPokemonData(pkm)
+
+    const rarityBase = RARITY_WEIGHT[data.rarity] ?? 2
+    const starMult = data.stars <= 1 ? 1 : data.stars === 2 ? 2.5 : 5
+    const itemCount = encounter.items?.[i]?.length ?? 0
+    const itemMult = 1 + 0.3 * itemCount
+
+    let score = rarityBase * starMult * itemMult
+
+    for (const t of data.types) {
+      typeCounts.set(t, (typeCounts.get(t) ?? 0) + 1)
+    }
+
+    totalScore += score
+  }
+
+  let synergyBonus = 0
+  typeCounts.forEach((count) => {
+    if (count >= 2) synergyBonus += count * 0.5
+  })
+  totalScore *= (1 + synergyBonus * 0.1)
+
+  if (encounter.bonusHP) totalScore += encounter.bonusHP * 0.1
+  if (encounter.bonusAtk) totalScore += encounter.bonusAtk * 2
+  if (encounter.bonusAP) totalScore += encounter.bonusAP * 0.5
+
+  return Math.round(totalScore)
+}
+
 export function getGoldReward(nodeType: string, act: number): number {
   switch (nodeType) {
     case "WILD_BATTLE": return 2 + act

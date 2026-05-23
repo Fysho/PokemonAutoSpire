@@ -62,6 +62,7 @@ export default class GameState extends Schema {
   @type("boolean") runComplete: boolean = false
   @type("boolean") runFailed: boolean = false
   @type(["string"]) spireEncounterBoard = new ArraySchema<string>()
+  @type("uint16") encounterDifficulty: number = 0
   @type("string") spireEventName: string = ""
   @type("string") spireEventDescription: string = ""
   @type(["string"]) spireEventChoiceLabels = new ArraySchema<string>()

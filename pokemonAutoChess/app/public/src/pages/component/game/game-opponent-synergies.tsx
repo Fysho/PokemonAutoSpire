@@ -52,7 +52,7 @@ export default function GameOpponentSynergies() {
     }
   }, [phase, stageLevel])
 
-  if (synergies.length === 0) return null
+  if (phase !== GamePhaseState.PICK && phase !== GamePhaseState.FIGHT) return null
 
   const offsetPosition = position
     ? { x: position.x + 220, y: position.y }
