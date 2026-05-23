@@ -180,7 +180,7 @@ export default class GameScene extends Scene {
       this.lastPokemonDetail.updateTooltipPosition()
     }
     if (
-      this.room?.state?.phase === GamePhaseState.TOWN &&
+      (this.room?.state?.phase === GamePhaseState.TOWN || this.room?.state?.phase === GamePhaseState.SHOP) &&
       this.minigameManager
     ) {
       this.minigameManager.update()
@@ -476,7 +476,7 @@ export default class GameScene extends Scene {
       if (
         pointer.leftButtonDown() &&
         this.minigameManager &&
-        this.room?.state.phase === GamePhaseState.TOWN &&
+        (this.room?.state.phase === GamePhaseState.TOWN || this.room?.state.phase === GamePhaseState.SHOP) &&
         !this.spectate
       ) {
         // compute actual x/y coordinates after taking into account camera scroll and zoom

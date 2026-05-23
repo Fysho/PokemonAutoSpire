@@ -123,23 +123,25 @@ export class MiniGame {
       })
     )
     Events.on(this.engine, "beforeUpdate", () => {
-      this.items?.forEach((item) => {
-        if (item.avatarId === "") {
-          const itemBody = this.bodies.get(item.id)
-          if (itemBody) {
-            const t = this.timeElapsed * ITEM_ROTATION_SPEED
-            const x =
-              this.centerX +
-              Math.cos(t + (Math.PI * 2 * item.index) / this.items!.size) *
-                CAROUSEL_RADIUS_X
-            const y =
-              this.centerY +
-              Math.sin(t + (Math.PI * 2 * item.index) / this.items!.size) *
-                CAROUSEL_RADIUS_Y
-            Body.setPosition(itemBody, { x, y })
+      if (!this.shopMode) {
+        this.items?.forEach((item) => {
+          if (item.avatarId === "") {
+            const itemBody = this.bodies.get(item.id)
+            if (itemBody) {
+              const t = this.timeElapsed * ITEM_ROTATION_SPEED
+              const x =
+                this.centerX +
+                Math.cos(t + (Math.PI * 2 * item.index) / this.items!.size) *
+                  CAROUSEL_RADIUS_X
+              const y =
+                this.centerY +
+                Math.sin(t + (Math.PI * 2 * item.index) / this.items!.size) *
+                  CAROUSEL_RADIUS_Y
+              Body.setPosition(itemBody, { x, y })
+            }
           }
-        }
-      })
+        })
+      }
 
       this.portals?.forEach((portal) => {
         if (portal.avatarId === "") {
@@ -469,6 +471,16 @@ export class MiniGame {
 
   initializeShopCarousel(shopItems: { type: string; item?: string; pokemon?: string; price: number }[]) {
     this.shopMode = true
+
+    // Immediately enable all avatars (no retention delay)
+    this.avatars?.forEach((avatar) => {
+      avatar.timer = 0
+      const body = this.bodies.get(avatar.id)
+      if (body) {
+        body.collisionFilter.mask = 1
+      }
+    })
+
     for (let j = 0; j < shopItems.length; j++) {
       const angle = (Math.PI * 2 * j) / shopItems.length
       const x = this.centerX + Math.cos(angle) * 120

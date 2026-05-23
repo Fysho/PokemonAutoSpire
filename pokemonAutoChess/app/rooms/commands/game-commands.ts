@@ -1056,7 +1056,7 @@ export class OnUpdateCommand extends Command<
           this.state.time = 3000
           this.state.updatePhaseNeeded = true
         }
-      } else if (this.state.phase === GamePhaseState.TOWN) {
+      } else if (this.state.phase === GamePhaseState.TOWN || this.state.phase === GamePhaseState.SHOP) {
         this.room.miniGame.update(deltaTime)
       }
       if (this.state.updatePhaseNeeded && this.state.time < 0) {
