@@ -141,27 +141,28 @@ export default function GameMap({
                 onClick={() => handleNodeClick(node.id)}
                 style={{ cursor: isAvailable ? "pointer" : "default" }}
               >
-                <circle
-                  cx={pos.cx}
-                  cy={pos.cy}
-                  r={nodeRadius}
-                  fill={isVisited ? "#333" : (isWild ? "#1a1a2e" : color)}
-                  stroke={isAvailable ? "#fff" : isVisited ? "#555" : color}
-                  strokeWidth={isAvailable ? 3 : 1}
-                  opacity={isVisited ? 0.4 : isAvailable ? 1 : 0.6}
-                />
+                {!(isWild && synergies.length > 0) && (
+                  <circle
+                    cx={pos.cx}
+                    cy={pos.cy}
+                    r={nodeRadius}
+                    fill={isVisited ? "#333" : color}
+                    stroke={isAvailable ? "#fff" : isVisited ? "#555" : color}
+                    strokeWidth={isAvailable ? 3 : 1}
+                    opacity={isVisited ? 0.4 : isAvailable ? 1 : 0.6}
+                  />
+                )}
                 {isWild && synergies.length > 0 ? (
                   synergies.map((syn, si) => {
-                    const iconSize = 18
+                    const iconSize = 32
                     let ix = pos.cx
                     let iy = pos.cy
                     if (synergies.length === 2) {
-                      ix = pos.cx + (si === 0 ? -6 : 6)
+                      ix = pos.cx + (si === 0 ? -10 : 10)
                     } else if (synergies.length === 3) {
-                      // triangle: top-center, bottom-left, bottom-right
-                      if (si === 0) { ix = pos.cx; iy = pos.cy - 7 }
-                      else if (si === 1) { ix = pos.cx - 8; iy = pos.cy + 5 }
-                      else { ix = pos.cx + 8; iy = pos.cy + 5 }
+                      if (si === 0) { ix = pos.cx; iy = pos.cy - 12 }
+                      else if (si === 1) { ix = pos.cx - 13; iy = pos.cy + 8 }
+                      else { ix = pos.cx + 13; iy = pos.cy + 8 }
                     }
                     return (
                       <image

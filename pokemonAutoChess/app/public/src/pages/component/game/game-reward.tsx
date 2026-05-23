@@ -1,5 +1,6 @@
 import React from "react"
 import { Transfer } from "../../../../../types"
+import { selectConnectedPlayer, useAppSelector } from "../../../hooks"
 import { rooms } from "../../../network"
 
 interface GameRewardProps {
@@ -8,6 +9,11 @@ interface GameRewardProps {
 }
 
 export default function GameReward({ runHP, gold }: GameRewardProps) {
+  const connectedPlayer = useAppSelector(selectConnectedPlayer)
+  const hasChoices = (connectedPlayer?.choices?.length ?? 0) > 0
+
+  if (hasChoices) return null
+
   const handleContinue = () => {
     rooms.game?.send(Transfer.SKIP_REWARD)
   }
@@ -26,20 +32,6 @@ export default function GameReward({ runHP, gold }: GameRewardProps) {
         zIndex: 50
       }}
     >
-      <div
-        style={{
-          background: "rgba(0,0,0,0.7)",
-          borderRadius: "8px",
-          padding: "10px 20px",
-          color: "white",
-          fontSize: "16px",
-          display: "flex",
-          gap: "20px"
-        }}
-      >
-        <span>HP: {runHP}/100</span>
-        <span>Gold: {gold}</span>
-      </div>
       <button
         onClick={handleContinue}
         style={{

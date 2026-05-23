@@ -606,11 +606,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
           })
         )
 
-        const commons = PRECOMPUTED_POKEMONS_PER_RARITY.COMMON
-        const randomCommons = pickNRandomIn(commons, 2)
-        randomCommons.forEach((pkm: Pkm) => {
-          this.spawnOnBench(player, pkm)
-        })
+        this.spawnOnBench(player, Pkm.MEWTWO)
+        this.spawnOnBench(player, Pkm.MEWTWO)
       }
     })
   }
@@ -883,6 +880,11 @@ export default class GameRoom extends Room<{ state: GameState }> {
     }
 
     removeInArray(player.choices, choice)
+
+    if (this.state.phase === GamePhaseState.REWARD && player.choices.length === 0) {
+      this.state.updatePhaseNeeded = true
+      this.state.time = 0
+    }
   }
 
   computeRoundDamage(
