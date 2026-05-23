@@ -93,11 +93,15 @@ import GameMap from "./component/game/game-map"
 import GameRest from "./component/game/game-rest"
 import GameReward from "./component/game/game-reward"
 import GameDpsMeter from "./component/game/game-dps-meter"
+import GameExperience from "./component/game/game-experience"
 import GameExpeditions from "./component/game/game-expeditions"
 import GameFinalRank from "./component/game/game-final-rank"
+import { GameLifeInfo } from "./component/game/game-life-info"
 import GameLoadingScreen from "./component/game/game-loading-screen"
+import { GameMoneyInfo } from "./component/game/game-money-info"
 import GamePlayers from "./component/game/game-players"
 import GameShop from "./component/game/game-shop"
+import { GameTeamInfo } from "./component/game/game-team-info"
 import GameSpectatePlayerInfo from "./component/game/game-spectate-player-info"
 import GameStageInfo from "./component/game/game-stage-info"
 import GameSynergies from "./component/game/game-synergies"
@@ -969,6 +973,16 @@ export default function Game() {
           )}
           {!isBoardHidden && <GameStageInfo />}
           {!isBoardHidden && <GameSynergies />}
+          {!isBoardHidden && (
+            <div className="game-shop my-container" style={{ pointerEvents: "auto" }}>
+              <div id="game-shop-info">
+                <GameLifeInfo />
+                <GameMoneyInfo />
+                <GameTeamInfo />
+              </div>
+              <GameExperience />
+            </div>
+          )}
           <GameChoice />
           <GameDpsMeter />
           {phase === GamePhaseState.PICK && (
