@@ -973,16 +973,7 @@ export default function Game() {
           )}
           {!isBoardHidden && <GameStageInfo />}
           {!isBoardHidden && <GameSynergies />}
-          {!isBoardHidden && (
-            <div className="game-shop my-container" style={{ pointerEvents: "auto" }}>
-              <div id="game-shop-info">
-                <GameLifeInfo />
-                <GameMoneyInfo />
-                <GameTeamInfo />
-              </div>
-              <GameExperience />
-            </div>
-          )}
+          {!isBoardHidden && <GameShop />}
           <GameChoice />
           <GameDpsMeter />
           {phase === GamePhaseState.PICK && (
