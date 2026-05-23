@@ -1330,13 +1330,18 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             else break
           }
 
+          // Add Ditto as 4th option for wild encounter wins
+          if (won && node.nodeType === MapNodeType.WILD_BATTLE) {
+            pokemonOffers.push(Pkm.DITTO)
+          }
+
           if (pokemonOffers.length > 0) {
             player.choices.push(
               new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
             )
           }
 
-          // Component item pick (only on victory)
+          // Component item pick (only on victory, skipped if player picks Ditto)
           if (won) {
             const componentChoices = pickNRandomIn(ItemComponents, 3)
             player.choices.push(

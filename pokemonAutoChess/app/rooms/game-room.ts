@@ -894,6 +894,18 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     removeInArray(player.choices, choice)
 
+    // If player picked Ditto from a reward, skip the item component choice
+    if (
+      this.state.phase === GamePhaseState.REWARD &&
+      choice.type === "addPick" &&
+      choice.pokemons[choiceIndex] === Pkm.DITTO
+    ) {
+      const itemChoice = player.choices.find((c) => c.type === "item")
+      if (itemChoice) {
+        removeInArray(player.choices, itemChoice)
+      }
+    }
+
     if (this.state.phase === GamePhaseState.REWARD && player.choices.length === 0) {
       this.state.updatePhaseNeeded = true
       this.state.time = 0
