@@ -1010,35 +1010,6 @@ export default function Game() {
           {!isBoardHidden && <GameShop />}
           <GameChoice />
           <GameDpsMeter />
-          {phase === GamePhaseState.PICK && (
-            <div style={{
-              position: "absolute",
-              right: "5vw",
-              top: "50%",
-              transform: "translateY(-50%)",
-              zIndex: 50
-            }}>
-              <button
-                onClick={() => rooms.game?.send(Transfer.SKIP_REWARD)}
-                style={{
-                  padding: "12px 28px",
-                  fontSize: "18px",
-                  borderRadius: "8px",
-                  border: "2px solid #e74c3c",
-                  background: "linear-gradient(180deg, #e74c3c 0%, #c0392b 100%)",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                  boxShadow: "0 4px 12px rgba(231, 76, 60, 0.4)",
-                  transition: "transform 0.1s",
-                }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.95)")}
-                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-              >
-                Start Fight
-              </button>
-            </div>
-          )}
           <GameToasts />
         </>
       ) : (
