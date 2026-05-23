@@ -1195,7 +1195,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     const shopItems = generateShopItems(this.state.currentAct)
 
-    this.room.miniGame.initialize(this.state, this.room)
+    this.room.miniGame.initialize(this.state, this.room, true)
     this.room.miniGame.initializeShopCarousel(
       shopItems.map((si) => ({
         type: si.type,

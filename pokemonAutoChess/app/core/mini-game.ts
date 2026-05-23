@@ -291,13 +291,13 @@ export class MiniGame {
     this.symbols = symbols
   }
 
-  initialize(state: GameState, room: GameRoom) {
+  initialize(state: GameState, room: GameRoom, skipEncounters: boolean = false) {
     const { players, stageLevel } = state
     this.timeElapsed = 0
     this.rotationDirection = 1
     this.shopMode = false
 
-    if (stageLevel in TownEncountersByStage) {
+    if (!skipEncounters && stageLevel in TownEncountersByStage) {
       let encounter = randomWeighted(
         TownEncountersByStage[stageLevel],
         state.specialGameRule === SpecialGameRule.TOWN_FESTIVAL ? undefined : 1
@@ -382,17 +382,19 @@ export class MiniGame {
       Composite.add(this.engine.world, body)
     })
 
-    if (PortalCarouselStages.includes(stageLevel)) {
-      this.initializePortalCarousel(stageLevel, room)
-      room.broadcast(
-        Transfer.PRELOAD_MAPS,
-        schemaValues(this.portals!).map((p) => p.map)
-      )
-    } else if (ItemCarouselStages.includes(stageLevel)) {
-      this.initializeItemsCarousel(state)
+    if (!skipEncounters) {
+      if (PortalCarouselStages.includes(stageLevel)) {
+        this.initializePortalCarousel(stageLevel, room)
+        room.broadcast(
+          Transfer.PRELOAD_MAPS,
+          schemaValues(this.portals!).map((p) => p.map)
+        )
+      } else if (ItemCarouselStages.includes(stageLevel)) {
+        this.initializeItemsCarousel(state)
+      }
     }
 
-    if (state.townEncounter === TownEncounters.SPINDA) {
+    if (!skipEncounters && state.townEncounter === TownEncounters.SPINDA) {
       this.rotationDirection = chance(1 / 2) ? 1.5 : -1.5
       for (let i = 0; i < randomBetween(1, 3); i++) {
         room.clock.setTimeout(
