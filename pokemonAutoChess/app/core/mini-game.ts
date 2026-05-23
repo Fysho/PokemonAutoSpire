@@ -485,8 +485,8 @@ export class MiniGame {
 
     for (let j = 0; j < shopItems.length; j++) {
       const angle = (Math.PI * 2 * j) / shopItems.length
-      const x = this.centerX + Math.cos(angle) * 120
-      const y = this.centerY + Math.sin(angle) * 100
+      const x = this.centerX + Math.cos(angle) * 200
+      const y = this.centerY + Math.sin(angle) * 160
       const shopItem = shopItems[j]
       const itemName = shopItem.type === "pokemon" ? Item.EGG_FOR_SELL : (shopItem.item as Item || Item.FOSSIL_STONE)
       const floatingItem = new FloatingItem(
