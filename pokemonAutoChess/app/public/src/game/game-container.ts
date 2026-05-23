@@ -568,6 +568,20 @@ class GameContainer {
       }
     })
 
+    $player.listen("map", async (value) => {
+      if (player.id === this.playerIdSpectated && this.gameScene) {
+        if (value && value !== "town") {
+          await this.gameScene.preloadMaps([value as any])
+          this.gameScene.load.start()
+          this.gameScene.load.once("complete", () => {
+            this.gameScene?.setMap(value as any)
+          })
+        } else {
+          this.gameScene.setMap("town")
+        }
+      }
+    })
+
     $player.synergies.onChange((level, synergy) => {
       if (
         player.id === this.playerIdSpectated &&

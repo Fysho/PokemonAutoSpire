@@ -1,6 +1,9 @@
 import { ArraySchema, MapSchema } from "@colyseus/schema"
 import { MapEdge, MapNode, MapNodeType } from "../models/colyseus-models/map-node"
+import { DungeonPMDO } from "../types/enum/Dungeon"
 import { pickRandomIn, randomBetween } from "../utils/random"
+
+const ALL_DUNGEONS = Object.values(DungeonPMDO)
 
 const FLOORS_PER_ACT = 15
 const MIN_NODES_PER_FLOOR = 2
@@ -62,8 +65,8 @@ export function generateActMap(
       const x = nodeCount === 1 ? 2 : Math.round((col / (nodeCount - 1)) * 4)
       const nodeType = assignNodeType(act, floor, totalFloors)
 
-      const node = new MapNode(id, nodeType, x, floor, act, floor)
-      node.encounterKey = `act${act}_floor${floor}_${col}`
+      const region = nodeType === MapNodeType.WILD_BATTLE ? pickRandomIn(ALL_DUNGEONS) : ""
+      const node = new MapNode(id, nodeType, x, floor, act, floor, `act${act}_floor${floor}_${col}`, region)
 
       if (floor === 1) {
         node.available = true

@@ -19,6 +19,7 @@ export class MapNode extends Schema {
   @type("boolean") visited: boolean = false
   @type("boolean") available: boolean = false
   @type("string") encounterKey: string = ""
+  @type("string") region: string = ""
 
   constructor(
     id: string,
@@ -27,7 +28,8 @@ export class MapNode extends Schema {
     y: number,
     act: number,
     floor: number,
-    encounterKey: string = ""
+    encounterKey: string = "",
+    region: string = ""
   ) {
     super()
     this.id = id
@@ -37,6 +39,7 @@ export class MapNode extends Schema {
     this.act = act
     this.floor = floor
     this.encounterKey = encounterKey
+    this.region = region
   }
 }
 

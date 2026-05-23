@@ -1,5 +1,12 @@
+import { RegionDetails } from "../config"
+import { PRECOMPUTED_REGIONAL_MONS } from "./precomputed/precomputed-pokemon-data"
+import { getPokemonData } from "./precomputed/precomputed-pokemon-data"
+import { PRECOMPUTED_POKEMONS_PER_TYPE } from "./precomputed/precomputed-types"
+import { DungeonPMDO } from "../types/enum/Dungeon"
 import { Pkm } from "../types/enum/Pokemon"
 import { Item } from "../types/enum/Item"
+import { Synergy } from "../types/enum/Synergy"
+import { pickNRandomIn, pickRandomIn, randomBetween } from "../utils/random"
 
 export type SpireEncounter = {
   name: string
@@ -92,6 +99,7 @@ const WILD_ENCOUNTERS: SpireEncounterTemplate[] = [
 ]
 
 const GYM_LEADERS: SpireEncounter[] = [
+  // --- Kanto ---
   {
     name: "Brock",
     avatar: Pkm.ONIX,
@@ -121,6 +129,59 @@ const GYM_LEADERS: SpireEncounter[] = [
     name: "Blaine",
     avatar: Pkm.ARCANINE,
     board: [[Pkm.GROWLITHE, 2, 1], [Pkm.GROWLITHE, 6, 1], [Pkm.ARCANINE, 4, 2], [Pkm.VULPIX, 4, 1]]
+  },
+  {
+    name: "Koga",
+    avatar: Pkm.MUK,
+    board: [[Pkm.KOFFING, 2, 1], [Pkm.GRIMER, 6, 1], [Pkm.MUK, 4, 2], [Pkm.KOFFING, 5, 1]]
+  },
+  {
+    name: "Giovanni",
+    avatar: Pkm.NIDOKING,
+    board: [[Pkm.RHYHORN, 2, 1], [Pkm.NIDORINO, 6, 1], [Pkm.NIDOKING, 4, 2], [Pkm.DUGTRIO, 4, 1]]
+  },
+  // --- Johto ---
+  {
+    name: "Morty",
+    avatar: Pkm.GENGAR,
+    board: [[Pkm.GASTLY, 2, 1], [Pkm.HAUNTER, 6, 1], [Pkm.GENGAR, 4, 2], [Pkm.MISDREAVUS, 3, 1]]
+  },
+  {
+    name: "Chuck",
+    avatar: Pkm.POLIWRATH,
+    board: [[Pkm.MACHOP, 2, 1], [Pkm.PRIMEAPE, 6, 1], [Pkm.POLIWRATH, 4, 2], [Pkm.MACHOKE, 5, 1]]
+  },
+  {
+    name: "Jasmine",
+    avatar: Pkm.STEELIX,
+    board: [[Pkm.MAGNEMITE, 2, 1], [Pkm.MAGNEMITE, 6, 1], [Pkm.STEELIX, 4, 2], [Pkm.MAGNETON, 4, 1]]
+  },
+  {
+    name: "Clair",
+    avatar: Pkm.DRAGONITE,
+    board: [[Pkm.DRATINI, 2, 1], [Pkm.DRAGONAIR, 6, 1], [Pkm.DRAGONITE, 4, 2], [Pkm.KINGDRA, 3, 2]]
+  },
+  // --- Hoenn ---
+  {
+    name: "Flannery",
+    avatar: Pkm.TORKOAL,
+    board: [[Pkm.SLUGMA, 2, 1], [Pkm.NUMEL, 6, 1], [Pkm.TORKOAL, 4, 2], [Pkm.MAGCARGO, 5, 1]]
+  },
+  {
+    name: "Norman",
+    avatar: Pkm.SLAKING,
+    board: [[Pkm.SLAKOTH, 2, 1], [Pkm.VIGOROTH, 6, 1], [Pkm.SLAKING, 4, 2]]
+  },
+  {
+    name: "Winona",
+    avatar: Pkm.ALTARIA,
+    board: [[Pkm.SWABLU, 2, 1], [Pkm.TAILLOW, 6, 1], [Pkm.ALTARIA, 4, 2], [Pkm.SKARMORY, 3, 2]]
+  },
+  // --- Sinnoh ---
+  {
+    name: "Volkner",
+    avatar: Pkm.LUXRAY,
+    board: [[Pkm.SHINX, 2, 1], [Pkm.LUXIO, 6, 1], [Pkm.LUXRAY, 4, 2], [Pkm.ELECTRODE, 4, 1]]
   }
 ]
 
@@ -149,6 +210,51 @@ function getEncounterTier(act: number, floor: number): number {
   return 3
 }
 
+export function getRegionalWildEncounter(act: number, floor: number, region: string): SpireEncounter {
+  const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
+  if (synergies.length === 0) {
+    return getWildEncounter(act, floor, 0)
+  }
+
+  const tier = getEncounterTier(act, floor)
+  const pokemonCount = tier === 1 ? randomBetween(2, 3) : tier === 2 ? randomBetween(3, 4) : randomBetween(4, 6)
+
+  const candidatePool: Pkm[] = []
+  for (const syn of synergies) {
+    const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn]
+    if (typed) {
+      for (const pkm of typed) {
+        const data = getPokemonData(pkm)
+        if (data.stars === 1 && !candidatePool.includes(pkm)) {
+          candidatePool.push(pkm)
+        }
+      }
+    }
+  }
+
+  if (candidatePool.length === 0) {
+    return getWildEncounter(act, floor, 0)
+  }
+
+  const selected = pickNRandomIn(candidatePool, pokemonCount)
+  const positions = [
+    [2, 1], [3, 1], [4, 1], [5, 1], [6, 1], [3, 2], [5, 2]
+  ]
+  const board: [Pkm, number, number][] = selected.map((pkm, i) => {
+    const pos = positions[i % positions.length]
+    return [pkm, pos[0], pos[1]]
+  })
+
+  const avatar = selected[0]
+  const regionName = (region as string).replace(/([A-Z])/g, " $1").trim()
+
+  return {
+    name: regionName,
+    avatar,
+    board
+  }
+}
+
 export function getWildEncounter(act: number, floor: number, seed: number): SpireEncounter {
   const template = WILD_ENCOUNTERS[seed % WILD_ENCOUNTERS.length]
   const tier = getEncounterTier(act, floor)
@@ -167,6 +273,27 @@ export function getGymLeaderEncounter(act: number, floor: number): SpireEncounte
 
 export function getLegendaryBossEncounter(act: number): SpireEncounter {
   return LEGENDARY_BOSSES[act] || LEGENDARY_BOSSES[1]
+}
+
+export function getRegionalPokemonForReward(region: string, act: number): Pkm | null {
+  const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
+  if (synergies.length === 0) return null
+
+  const candidates: Pkm[] = []
+  for (const syn of synergies) {
+    const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn]
+    if (typed) {
+      for (const pkm of typed) {
+        const data = getPokemonData(pkm)
+        const maxStars = act === 1 ? 1 : act === 2 ? 1 : 2
+        if (data.stars <= maxStars && !candidates.includes(pkm)) {
+          candidates.push(pkm)
+        }
+      }
+    }
+  }
+
+  return candidates.length > 0 ? pickRandomIn(candidates) : null
 }
 
 export function getGoldReward(nodeType: string, act: number): number {

@@ -1,6 +1,9 @@
 import React from "react"
+import { RegionDetails } from "../../../../../config"
 import { MapEdge, MapNode, MapNodeType } from "../../../../../models/colyseus-models/map-node"
 import { Transfer } from "../../../../../types"
+import { DungeonPMDO } from "../../../../../types/enum/Dungeon"
+import { Synergy } from "../../../../../types/enum/Synergy"
 import { rooms } from "../../../network"
 
 const NODE_COLORS: Record<string, string> = {
@@ -13,7 +16,6 @@ const NODE_COLORS: Record<string, string> = {
 }
 
 const NODE_LABELS: Record<string, string> = {
-  [MapNodeType.WILD_BATTLE]: "⚔️",
   [MapNodeType.GYM_LEADER]: "🏅",
   [MapNodeType.POKEMART]: "🛒",
   [MapNodeType.POKEMON_CENTER]: "❤️",
@@ -28,6 +30,12 @@ const NODE_NAMES: Record<string, string> = {
   [MapNodeType.POKEMON_CENTER]: "Pokemon Center",
   [MapNodeType.MYSTERY_ENCOUNTER]: "Mystery",
   [MapNodeType.LEGENDARY_BOSS]: "BOSS"
+}
+
+function getRegionSynergies(region: string): Synergy[] {
+  if (!region || region === "") return []
+  const details = RegionDetails[region as DungeonPMDO]
+  return details?.synergies ?? []
 }
 
 interface GameMapProps {
@@ -123,6 +131,9 @@ export default function GameMap({
             const color = NODE_COLORS[node.nodeType] || "#888"
             const isAvailable = node.available
             const isVisited = node.visited
+            const synergies = getRegionSynergies(node.region)
+            const isWild = node.nodeType === MapNodeType.WILD_BATTLE
+            const nodeRadius = isWild && synergies.length > 0 ? 20 : (isAvailable ? 18 : 14)
 
             return (
               <g
@@ -133,30 +144,51 @@ export default function GameMap({
                 <circle
                   cx={pos.cx}
                   cy={pos.cy}
-                  r={isAvailable ? 18 : 14}
-                  fill={isVisited ? "#333" : color}
+                  r={nodeRadius}
+                  fill={isVisited ? "#333" : (isWild ? "#1a1a2e" : color)}
                   stroke={isAvailable ? "#fff" : isVisited ? "#555" : color}
                   strokeWidth={isAvailable ? 3 : 1}
                   opacity={isVisited ? 0.4 : isAvailable ? 1 : 0.6}
                 />
-                <text
-                  x={pos.cx}
-                  y={pos.cy + 5}
-                  textAnchor="middle"
-                  fontSize="14"
-                  fill="white"
-                >
-                  {NODE_LABELS[node.nodeType]}
-                </text>
+                {isWild && synergies.length > 0 ? (
+                  synergies.map((syn, si) => {
+                    const iconSize = 14
+                    const totalWidth = synergies.length * (iconSize + 2) - 2
+                    const startX = pos.cx - totalWidth / 2 + si * (iconSize + 2)
+                    return (
+                      <image
+                        key={`${node.id}-syn-${si}`}
+                        href={`/assets/types/${syn}.svg`}
+                        x={startX}
+                        y={pos.cy - iconSize / 2}
+                        width={iconSize}
+                        height={iconSize}
+                        opacity={isVisited ? 0.3 : isAvailable ? 1 : 0.5}
+                      />
+                    )
+                  })
+                ) : (
+                  <text
+                    x={pos.cx}
+                    y={pos.cy + 5}
+                    textAnchor="middle"
+                    fontSize="14"
+                    fill="white"
+                  >
+                    {NODE_LABELS[node.nodeType]}
+                  </text>
+                )}
                 {isAvailable && (
                   <text
                     x={pos.cx}
-                    y={pos.cy + 32}
+                    y={pos.cy + 34}
                     textAnchor="middle"
                     fontSize="10"
                     fill="#ccc"
                   >
-                    {NODE_NAMES[node.nodeType]}
+                    {isWild && node.region
+                      ? node.region.replace(/([A-Z])/g, " $1").trim()
+                      : NODE_NAMES[node.nodeType]}
                   </text>
                 )}
               </g>

@@ -47,6 +47,7 @@ import {
   getGoldReward,
   getGymLeaderEncounter,
   getLegendaryBossEncounter,
+  getRegionalWildEncounter,
   getWildEncounter,
   SpireEncounter
 } from "../../models/spire-encounters"
@@ -1114,6 +1115,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.roundTime = 999
     this.syncRunHPToPlayers()
     resetArraySchema(this.state.spireEncounterBoard, [])
+    this.state.players.forEach((player: Player) => {
+      if (!player.isBot) {
+        player.map = "town"
+      }
+    })
 
     if (this.state.mapNodes.size === 0) {
       generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges)
@@ -1130,6 +1136,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     markAvailableNodes(nodeId, this.state.mapNodes, this.state.mapEdges)
 
+    // Set player map to region for background tilemap
+    if (node.region && node.nodeType === MapNodeType.WILD_BATTLE) {
+      this.state.players.forEach((player: Player) => {
+        if (!player.isBot) {
+          player.map = node.region as any
+        }
+      })
+    }
+
     switch (node.nodeType) {
       case MapNodeType.WILD_BATTLE:
       case MapNodeType.GYM_LEADER:
@@ -1137,7 +1152,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         this.state.stageLevel = (this.state.currentAct - 1) * 15 + node.floor
         let encounter: SpireEncounter | null = null
         if (node.nodeType === MapNodeType.WILD_BATTLE) {
-          encounter = getWildEncounter(this.state.currentAct, node.floor, node.x + node.floor * 7)
+          encounter = node.region
+            ? getRegionalWildEncounter(this.state.currentAct, node.floor, node.region)
+            : getWildEncounter(this.state.currentAct, node.floor, node.x + node.floor * 7)
         } else if (node.nodeType === MapNodeType.GYM_LEADER) {
           encounter = getGymLeaderEncounter(this.state.currentAct, node.floor)
         } else {
@@ -1285,14 +1302,25 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           player.experienceManager.addExperience(bonusXP)
         }
 
-        // Pokemon pick offers
+        // Pokemon pick offers (1 regional, rest random)
         if (won) {
           const offerCount = getRelicPokemonOfferCount(player.relics)
           const pokemonOffers: Pkm[] = []
-          for (let i = 0; i < offerCount; i++) {
+
+          // First pick: try to get a regional Pokemon
+          if (node.region && node.nodeType === MapNodeType.WILD_BATTLE) {
+            const { getRegionalPokemonForReward } = require("../../models/spire-encounters")
+            const regionalPkm = getRegionalPokemonForReward(node.region, this.state.currentAct)
+            if (regionalPkm) pokemonOffers.push(regionalPkm)
+          }
+
+          // Fill remaining with random picks
+          while (pokemonOffers.length < offerCount) {
             const p = this.state.shop.pickPokemon(player, this.state)
             if (p) pokemonOffers.push(p)
+            else break
           }
+
           if (pokemonOffers.length > 0) {
             player.choices.push(
               new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
