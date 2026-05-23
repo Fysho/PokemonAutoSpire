@@ -1621,59 +1621,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       })
     }
 
-    // Additional pick stages
-    if (AdditionalPicksStages.includes(this.state.stageLevel)) {
-      const pool =
-        this.state.stageLevel === AdditionalPicksStages[0]
-          ? this.room.additionalUncommonPool
-          : this.state.stageLevel === AdditionalPicksStages[1]
-            ? this.room.additionalRarePool
-            : this.room.additionalEpicPool
-      let remainingAddPicks = 8
-      this.state.players.forEach((player: Player) => {
-        if (!player.isBot) {
-          const items = pickNRandomIn(ItemComponentsNoScarf, 3)
-          const pokemons: Pkm[] = []
-          for (let i = 0; i < 3; i++) {
-            const p = pool.pop()
-            if (p) {
-              // If the Pokemon has a regional variant in the player's region, show that instead of the base form.
-              // Base form will still be added to the pool for all players
-              const regionalVariants = (PkmRegionalVariants[p] ?? []).filter(
-                (pkm) =>
-                  new PokemonClasses[pkm](pkm).isInRegion(
-                    player.map === "town" ? DungeonPMDO.AmpPlains : player.map
-                  )
-              )
-              if (regionalVariants.length > 0) {
-                pokemons.push(pickRandomIn(regionalVariants))
-              } else {
-                pokemons.push(p)
-              }
-            }
-          }
-          player.choices.push(
-            new PlayerChoice({
-              type: "addPick",
-              pokemons,
-              items
-            })
-          )
-          remainingAddPicks--
-        }
-      })
-
-      repeat(remainingAddPicks)(() => {
-        const p = pool.pop()
-        if (p) {
-          this.state.shop.addAdditionalPokemon(p, this.state)
-        }
-      })
-
-      // update regional pokemons in case some regional variants of add picks are now available
-      this.state.players.forEach((p) => p.updateRegionalPool(this.state, false))
-    }
-
     const commands = new Array<Command>()
 
     this.state.players.forEach((p) => this.updatePlayerBetweenStages(p))

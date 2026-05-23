@@ -70,7 +70,7 @@ export default function GameChoice() {
 
   let message: string | null = null
   if (choice.type === "addPick") {
-    message = t("player_choices.choose_add_pick")
+    message = "Choose a Pokemon"
   } else if (choice.type === "starter") {
     message =
       specialGameRule === SpecialGameRule.FIRST_PARTNER
