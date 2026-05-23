@@ -598,16 +598,30 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     this.state.players.forEach((player: Player) => {
       if (!player.isBot) {
-        const starterOptions = pickNRandomIn(Starters, 3)
+        const middleStageStarters = [
+          Pkm.IVYSAUR,
+          Pkm.CHARMELEON,
+          Pkm.WARTORTLE,
+          Pkm.PIKACHU,
+          Pkm.BAYLEEF,
+          Pkm.QUILAVA,
+          Pkm.CROCONAW,
+          Pkm.GROVYLE,
+          Pkm.COMBUSKEN,
+          Pkm.MARSHTOMP,
+          Pkm.GROTLE,
+          Pkm.MONFERNO,
+          Pkm.PRINPLUP,
+          Pkm.LUXIO,
+          Pkm.RIOLU
+        ]
+        const starterOptions = pickNRandomIn(middleStageStarters, 3)
         player.choices.push(
           new PlayerChoice({
             type: "starter",
             pokemons: starterOptions
           })
         )
-
-        this.spawnOnBench(player, Pkm.MEWTWO)
-        this.spawnOnBench(player, Pkm.MEWTWO)
       }
     })
   }
