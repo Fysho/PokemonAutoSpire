@@ -24,7 +24,7 @@ function SpireEntry() {
     async function startGame() {
       await authenticateUser()
 
-      const room = await client.joinOrCreate("game", {
+      const room = await client.create("game", {
         odToken: "local-player",
         displayName: "Player",
         users: {
