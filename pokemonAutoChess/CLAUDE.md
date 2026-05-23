@@ -2,9 +2,9 @@
 
 ## What This Project Is
 
-PokemonAutoSpire is a single-player roguelike mod of [Pokemon Auto Chess](https://github.com/keldaanCommunity/pokemonAutoChess). It combines PAC's auto-battler mechanics (synergies, items, abilities, board placement) with Slay the Spire-style roguelike progression (branching map, permadeath, relics, act-based progression).
+PokemonAutoSpire is a single-player roguelike mod of [Pokemon Auto Chess](https://github.com/keldaanCommunity/pokemonAutoChess). It combines PAC's auto-battler mechanics (synergies, items, abilities, board placement) with Slay the Spire-style roguelike progression (branching map, permadeath, act-based progression).
 
-The original PAC codebase is in `pokemonAutoChess/`. All modifications live within that directory. The original multiplayer infrastructure (Colyseus) is kept but runs locally as an embedded server — Firebase auth and MongoDB are stripped.
+The original PAC codebase is in `pokemonAutoChess/`. All modifications live within that directory. Colyseus runs locally as an embedded server — Firebase auth and MongoDB are stripped.
 
 ## How to Run
 
@@ -14,8 +14,6 @@ node esbuild.js          # Build client (outputs to app/public/dist/client/)
 npx ts-node-dev --transpile-only ./app/index.ts   # Start server on port 9000
 # Open http://localhost:9000 in browser
 ```
-
-The client auto-connects to the local Colyseus server, creates a game room, and starts a run.
 
 ## Architecture Overview
 
@@ -28,182 +26,210 @@ CLIENT (Phaser 4 + React + Redux)          SERVER (Node.js + Colyseus)
 └── network.ts handles connection           └── MiniGame handles shop carousel
 ```
 
-### Game Flow (Phase State Machine)
+### Phase State Machine
 
 ```
-MAP → [player clicks node] → PICK → [player clicks Start Fight] → FIGHT → REWARD → MAP
-                              ↑                                              ↑
-                         SHOP (carousel walk-around)                    Pokemon pick + relic choice
-                         REST (heal HP)
+MAP → [player clicks node] → PICK → [Start Fight button] → FIGHT → REWARD → MAP
+                              ↑                                       ↑
+                         SHOP (walk-around carousel, gold pricing)    Auto-transition when
+                         REST (Pokemon Center: heal/ditto/dojo)      all choices picked
                          EVENT (mystery encounter choices)
 ```
 
-Phases are defined in `GamePhaseState` enum (`app/types/enum/Game.ts`):
-- `PICK` (0), `FIGHT` (1), `TOWN` (2 - legacy, unused), `MAP` (3), `SHOP` (4), `REST` (5), `EVENT` (6), `REWARD` (7)
+Phases: `PICK` (0), `FIGHT` (1), `TOWN` (2 - legacy unused), `MAP` (3), `SHOP` (4), `REST` (5), `EVENT` (6), `REWARD` (7)
 
-The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/commands/game-commands.ts` (~line 1070). This is the most critical function in the codebase.
+The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/commands/game-commands.ts`.
 
 ### Key Modification Points
 
 | What you want to change | Where to look |
 |---|---|
 | Phase transitions | `game-commands.ts` → `OnUpdatePhaseCommand.execute()` |
-| Battle encounters | `app/models/spire-encounters.ts` |
-| Map generation | `app/core/map-generator.ts` |
-| Shop types/items | `app/models/spire-shops.ts` |
+| Battle encounters (wild) | `app/models/spire-encounters.ts` → `getRegionalWildEncounter()` |
+| Encounter difficulty scaling | `spire-encounters.ts` → `getDifficultyConfig()` |
+| Elite encounters | `spire-encounters.ts` → `ELITE_ENCOUNTERS` array (18 encounters) |
+| Gym leaders (early/late) | `spire-encounters.ts` → `EARLY_GYM_LEADERS` / `LATE_GYM_LEADERS` |
+| Legendary bosses | `spire-encounters.ts` → `LEGENDARY_BOSSES` |
+| Map generation | `app/core/map-generator.ts` → `generateActMap()`, `assignNodeType()` |
+| Map layout (floors, nodes per floor) | `map-generator.ts` → `FLOORS_PER_ACT`, `MIN/MAX_NODES_PER_FLOOR` |
+| Shop contents/pricing | `app/models/spire-shops.ts` → `generateShopItems()`, `RARITY_BASE_PRICE` |
+| Pokemon sell price | `app/models/shop.ts` → `getSellPrice()` (currently always returns 1) |
 | Mystery events | `app/models/spire-events.ts` |
-| Relic definitions & effects | `app/core/relic-effects.ts` |
-| Gold/HP/damage tuning | `spire-encounters.ts` → `getGoldReward()`, `game-commands.ts` → `stopSpireFightingPhase()` |
+| Passive item effects | `app/core/relic-effects.ts` → `PASSIVE_ITEMS`, helper functions |
+| Gold rewards | `spire-encounters.ts` → `getGoldReward()` |
+| HP damage on loss | `game-commands.ts` → `stopSpireFightingPhase()` |
 | Map UI | `app/public/src/pages/component/game/game-map.tsx` |
+| Opponent synergies | `app/public/src/pages/component/game/game-opponent-synergies.tsx` |
 | Game page layout | `app/public/src/pages/game.tsx` |
+| Start Fight button | `app/public/src/pages/component/game/game-experience.tsx` |
 | Board rendering/modes | `app/public/src/game/components/board-manager.ts` |
 | Phase rendering in Phaser | `app/public/src/game/scenes/game-scene.ts` → `updatePhase()` |
 | Room creation & lifecycle | `app/rooms/game-room.ts` |
 | State schema (synced fields) | `app/rooms/states/game-state.ts` |
 | Player schema | `app/models/colyseus-models/player.ts` |
+| Starter selection | `app/rooms/game-room.ts` → `startGame()` |
+
+## Game Design Summary
+
+### Run Structure
+- **3 acts**, 20 floors each (60 total floors)
+- 3-5 nodes per floor with branching paths (no crossing edges)
+- Each act ends with a Legendary Boss (Mewtwo → Lugia+Ho-Oh → Weather Trio)
+
+### Map Node Types
+- **Wild Battle**: Regional encounters with synergy icons. Enemy Pokemon from region's synergy types. Background tilemap changes to region.
+- **Gym Leader**: Floor 9 = easy (2-3 unevolved), Floor 18 = hard (3-4 evolved). Awards synergy gem + item choice.
+- **Elite**: Floors 8/13/17. Themed encounters (18 total: Eeveelutions, Rotom forms, etc.). Win = special Pokemon, Lose = regular Pokemon.
+- **PokeMart**: Walk-around shop carousel. 6 Pokemon + 6 items. Gold pricing (aggressive scaling).
+- **Pokemon Center**: Floor 10 + Floor 19 guaranteed, ~10% random. Choose: Heal 30 HP | Ditto + item | Dojo ticket.
+- **Mystery Encounter**: Random event with 2-3 choices.
+- **Legendary Boss**: Floor 20 of each act. Awards gold (shiny) items.
+
+### Economy
+- Gold from battles: Wild 4+2*act, Elite 8+4*act, Gym 12+4*act, Boss 24+6*act
+- Pokemon sell for 1 gold (flat)
+- Shop prices: Pokemon scale by rarity (Common 2g → Ultra 24g, +6g/star). Items: components 4g, crafted 10g, tickets 2g, berries 4g.
+- No interest/streak system
+
+### Post-Fight Rewards
+- **Wild wins**: Choose 1 of 3 Pokemon (each paired with random item component) + Ditto option (no item). Picking Ditto = no item bonus.
+- **Wild losses**: Choose 1 of 3 random Pokemon (no items)
+- **Elite wins**: Choose from the encounter's special Pokemon (with items)
+- **Elite losses**: Choose from regular random Pokemon
+- **Gym wins**: Synergy gem (auto-applied to bonusSynergies) + item choice from passive pool
+- **Boss wins**: Gold/shiny item choice (Dynamax Band, Rare Candy, etc.)
+- Auto-transitions to MAP when all choices picked
+
+### Starter Selection
+- Pick 1 of 3 first-stage starters (Bulbasaur, Charmander, etc.), each paired with a random item component
+- Map hidden until starter is picked
 
 ## New Files (Spire-Specific)
 
 ### Server-Side
 | File | Purpose |
 |---|---|
-| `app/core/map-generator.ts` | Generates StS-style branching maps per act (15 floors, 2-4 paths, convergence points, boss at end) |
-| `app/core/relic-effects.ts` | 15 relic definitions using real Item enum values. Helper functions: `getRelicBonusGold()`, `getRelicPostBattleHeal()`, `getRelicDamageReduction()`, etc. |
-| `app/models/colyseus-models/map-node.ts` | `MapNode` and `MapEdge` Colyseus schema classes. `MapNodeType` enum: WILD_BATTLE, GYM_LEADER, POKEMART, POKEMON_CENTER, MYSTERY_ENCOUNTER, LEGENDARY_BOSS |
-| `app/models/spire-encounters.ts` | Wild encounter templates (8 themes with 3 difficulty tiers), gym leader teams (6), legendary bosses (3). `getWildEncounter()`, `getGymLeaderEncounter()`, `getLegendaryBossEncounter()`, `getGoldReward()` |
-| `app/models/spire-events.ts` | 6 mystery encounter templates with choices. `getRandomEvent()`, `getEventItems()` |
-| `app/models/spire-shops.ts` | 5 shop types (Pokemon/Component/Item/RareItem/Mixed). `getShopTypeForAct()`, `generateShopItems()`. Shop type scales with act. |
+| `app/core/map-generator.ts` | StS-style branching maps: 20 floors/act, 3-5 nodes/floor, no-crossing edges, fixed gym/elite/center/boss floors |
+| `app/core/relic-effects.ts` | 15 passive items (PASSIVE_ITEMS list). Helpers: `getRelicBonusGold()`, `getRelicPostBattleHeal()`, `getRelicDamageReduction()`, `getRelicPokemonOfferCount()`, `getRelicBonusXP()`, `getRelicRestHealBonus()`, `getRandomItemChoices()` |
+| `app/models/colyseus-models/map-node.ts` | `MapNode` (id, type, x, y, region, gymLeaderIndex, gymLeaderIsEarly, gymLeaderSynergy, eliteEncounterIndex) and `MapEdge` schemas. `MapNodeType` enum. |
+| `app/models/spire-encounters.ts` | Regional wild encounters via `getRegionalWildEncounter()` with difficulty scaling (`getDifficultyConfig()`). 8 early + 8 late gym leaders. 18 elite encounter templates with 3 tiers. 3 legendary bosses. `getGoldReward()`. |
+| `app/models/spire-events.ts` | Mystery encounter templates with choices. `getRandomEvent()`, `getEventItems()`, `getEventBerries()` |
+| `app/models/spire-shops.ts` | Always 6 Pokemon + 6 items. Ditto weighted 3x. Pricing: `RARITY_BASE_PRICE` + `STAR_BONUS_PRICE`. `generateShopItems(act)` |
 
 ### Client-Side
 | File | Purpose |
 |---|---|
-| `app/public/src/pages/component/game/game-map.tsx` | SVG-based branching map UI. Renders nodes (colored by type), edges, click handlers. |
-| `app/public/src/pages/component/game/game-reward.tsx` | Post-fight reward overlay with HP/gold display and "Continue to Map" button |
-| `app/public/src/pages/component/game/game-rest.tsx` | Pokemon Center healing overlay |
-| `app/public/src/pages/component/game/game-event.tsx` | Mystery encounter UI with choice buttons |
-| `app/public/src/pages/component/game/game-relic-bar.tsx` | Horizontal relic bar at top of screen with item icons and tooltips |
-| `app/public/src/pages/component/game/game-run-end.tsx` | Victory/defeat screen with run stats and "New Run" button |
+| `game-map.tsx` | SVG map with synergy icons (triangle layout for wild), gem icons (gym), pokeball (mart), unown-qm (mystery), chansey (center). Non-crossing edges. |
+| `game-reward.tsx` | Shows "Continue to Map" button only when no choices remain (auto-transition handles most cases) |
+| `game-rest.tsx` | Pokemon Center: 3 choices using event-style UI (heal/ditto+item/dojo ticket). Uses `game-choice.css` styling. |
+| `game-event.tsx` | Mystery encounter choice buttons |
+| `game-relic-bar.tsx` | Shows passive items from `player.items` filtered by `PASSIVE_ITEMS` list. Item icons with tooltips. |
+| `game-run-end.tsx` | Victory/defeat screen with stats and "New Run" button |
+| `game-opponent-synergies.tsx` | Enemy synergies panel during PICK/FIGHT. Computes from `spireEncounterBoard`. Uses `useEffect` on phase/stageLevel. |
+| `game-experience.tsx` | Modified to include "Start Fight" button (red bubbly) next to level-up button during PICK phase |
 
-## Modified Files (Key Changes from Original PAC)
-
-### `app/app.config.ts`
-Stripped from 1126 to ~160 lines. Removed Firebase auth, MongoDB, all REST API routes, lobby/preparation/after-game rooms. Only registers `game` room.
-
-### `app/index.ts`
-Stripped from 107 to 13 lines. Just starts the Colyseus server.
+## Key Modified Files
 
 ### `app/rooms/game-room.ts`
-- `onAuth()`: Returns mock user (no Firebase)
-- `onCreate()`: Creates player with hardcoded defaults (no MongoDB lookup)
-- `startGame()`: Generates Act 1 map, pushes starter Pokemon choice, spawns 2 random commons
-- `onDispose()`: Simplified (no elo/DB saves)
-- Added `SELECT_MAP_NODE` and `SKIP_REWARD` message handlers
-- `pickChoice()`: Modified to route relic items to `player.relics` instead of `player.items`
+- `onAuth()`: Mock user (no Firebase)
+- `onCreate()`: Player with defaults (no MongoDB)
+- `startGame()`: Generates map, pushes starter choice (3 first-stage starters + paired items). Debug Mewtwos commented out.
+- `pickChoice()`: When picking Ditto, skips paired item. Auto-transitions to MAP when REWARD choices exhausted.
+- `SELECT_MAP_NODE`, `SKIP_REWARD`, `REROLL_REWARD` message handlers
+- Event/rest choices handled via `choiceId === "event"` / `choiceId === "rest"`
 
 ### `app/rooms/commands/game-commands.ts`
-- `OnUpdatePhaseCommand.execute()`: Rewritten with new phase state machine (MAP/SHOP/REST/EVENT/REWARD)
-- Added: `initializeMapPhase()`, `onSelectMapNode()`, `initializeShopPhase()`, `initializeRestPhase()`, `initializeEventPhase()`, `initializeRewardPhase()`, `stopSpireFightingPhase()`, `handleEventChoice()`, `syncRunHPToPlayers()`
-- `initializePickingPhase()`: Timer set to infinite (player-controlled via Start Fight button)
-- `initializeFightingPhase()`: Uses spire encounters from map node instead of `PVEStages`
-- `OnUpdateCommand`: MiniGame update runs during SHOP phase too
+- `OnUpdatePhaseCommand.execute()`: Full state machine (MAP/PICK/FIGHT/REWARD/SHOP/REST/EVENT)
+- `onSelectMapNode()`: Sets player.map to region for tilemap, sets spireEncounterBoard, uses early/late gym leader functions
+- `initializeShopPhase()`: Calls `miniGame.initialize(state, room, true)` (skipEncounters=true) then `initializeShopCarousel()`
+- `initializeRestPhase()`: Sets up 3 choices (heal/ditto+item/dojo ticket by act) via spireEvent state fields
+- `initializeRewardPhase()`: Gold + passive item effects (bonus gold, heal, XP). Pokemon picks with paired items. Ditto as 4th option for wild. Elite: special Pokemon on win, regular on loss. Gym: synergy gem + item choice. Boss: gold items + act transition.
+- `stopSpireFightingPhase()`: HP damage with passive item reduction. Cleans up simulations.
+- `initializeMapPhase()`: Clears encounter board, avatars, floating items. Resets player.map to "town".
+- `initializePickingPhase()`: Clears avatars/floatingItems. Infinite timer.
+- `OnUpdateCommand`: MiniGame physics update runs during SHOP phase
+- AdditionalPicksStages logic removed (no more forced add-pick rounds)
 
 ### `app/rooms/states/game-state.ts`
-Added synced fields: `currentAct`, `currentFloor`, `mapNodes`, `mapEdges`, `currentNodeId`, `runHP`, `runComplete`, `runFailed`, `spireEncounterBoard`, `spireEventName`, `spireEventDescription`, `spireEventChoiceLabels`, `spireEventChoiceDescs`. Initial phase changed to `MAP`.
-
-### `app/models/colyseus-models/player.ts`
-Added `@type(["string"]) relics` array for run-wide passive bonuses.
-
-### `app/models/colyseus-models/floating-item.ts`
-Added `@type("uint8") price` and `@type("string") pokemonName` fields for shop carousel items.
+Synced fields: `currentAct`, `currentFloor`, `mapNodes`, `mapEdges`, `currentNodeId`, `runHP`, `runComplete`, `runFailed`, `spireEncounterBoard`, `encounterDifficulty`, `spireEventName`, `spireEventDescription`, `spireEventChoiceLabels`, `spireEventChoiceDescs`
 
 ### `app/core/mini-game.ts`
-- Added `shopMode` flag
-- Added `initializeShopCarousel()`: Spawns shop items as static floating items with prices
-- Modified collision handler: In shop mode, allows multi-buy with gold deduction, removes items after purchase, no avatar movement lock
-- Disabled carousel rotation in shop mode
-- Avatars get 0 retention delay in shop mode
+- `shopMode` flag, `initializeShopCarousel()` with static positioning (radius 200x160)
+- Shop collision: multi-buy with gold deduction, item removed after purchase, no avatar lock
+- `initialize(state, room, skipEncounters)`: skipEncounters=true prevents PAC town encounters bleeding into shops
+- `stop()`: Early return in shop mode (prevents EGG_FOR_SELL triggering giveRandomEgg)
+- No carousel rotation in shop mode, 0 retention delay for avatars
 
-### `app/public/src/game/scenes/game-scene.ts`
-- `uid`: Set to `"local-player"` (no Firebase)
-- `updatePhase()`: Handles MAP, SHOP, REST, EVENT, REWARD phases
-- Movement input and minigame update allowed during SHOP phase (not just TOWN)
+### `app/models/colyseus-models/map-node.ts`
+Fields: `region`, `gymLeaderIndex`, `gymLeaderIsEarly`, `gymLeaderSynergy`, `eliteEncounterIndex`
 
-### `app/public/src/game/components/board-manager.ts`
-- Added `BoardMode.MAP` and `BoardMode.REWARD`
-- Constructor handles new phase states
-- Enemy preview uses `spireEncounterBoard` state field instead of `PVEStages`
+### `app/models/colyseus-models/floating-item.ts`
+Added `price` (uint8) and `pokemonName` (string) for shop carousel
+
+### `app/models/shop.ts`
+`getSellPrice()` always returns 1 (original logic preserved but unreachable)
 
 ### `app/public/src/game/game-container.ts`
-- Added `onAdd`/`onRemove` listeners for `player.items` (fixes items not appearing)
+- `player.items` onAdd/onRemove listeners for item inventory updates
+- `player.listen("map")` for tilemap loading on region change (preloads + setMap)
+
+### `app/public/src/game/scenes/game-scene.ts`
+- Movement input allowed during SHOP phase (not just TOWN)
+- MinigameManager update runs during SHOP phase
+- TOWN phase handler disabled
+
+### `app/public/src/game/components/board-manager.ts`
+- `BoardMode.MAP`, `BoardMode.REWARD` added
+- Enemy preview from `spireEncounterBoard` only (PVEStages fallback removed)
+- SHOP phase uses `minigameMode()`, TOWN removed from constructor
 
 ### `app/public/src/game/components/floating-item-container.ts`
-- Constructor accepts `price` and `pokemonName` params
-- Renders gold price text above items and Pokemon name below
-
-### `app/public/src/pages/game.tsx`
-- `SpireEntry` component in `index.tsx` auto-creates and joins game room
-- Renders `GameMap`, `GameReward`, `GameRest`, `GameEvent`, `GameRunEnd`, `GameRelicBar` based on phase
-- "Start Fight" button during PICK phase (top-right)
-- "Leave Shop" button during SHOP phase
-- State listeners for `runHP`, `currentAct`, `currentFloor`, `runComplete`, `runFailed`, `mapNodes`
-- `mapVersion` counter forces React re-render when Colyseus MapSchema updates
-
-### `app/public/src/network.ts`
-- `authenticateUser()`: Mock user login (no Firebase)
-- Stub exports for all removed multiplayer functions (prevents dead-code import errors)
-
-### `app/public/src/pages/component/game/game-stage-info.tsx`
-- Shows "Act X - Floor Y" + HP instead of "Stage N"
-- Timer bar only during FIGHT phase
-- Removed `StagePath` component
-
-### `app/public/src/pages/component/game/game-money-info.tsx`
-- Simplified to just show gold (removed interest/streak display)
+- Price label (gold text) above items
+- Pokemon portrait for Pokemon shop items (via PkmIndex lookup)
+- Pokemon name text below
 
 ## Reused Systems (Unchanged from PAC)
 
-These work as-is and should not need modification:
-- **Battle simulation**: `app/core/simulation.ts` — server-side auto-battle engine
-- **Pokemon entities**: `app/core/pokemon-entity.ts` — stats, state machine, damage
-- **Abilities**: `app/core/abilities/` — 200+ ability implementations
-- **Effects**: `app/core/effects/` — item effects, passive effects, synergy effects
-- **Synergies**: 32 synergy types with tiered bonuses
+- **Battle simulation**: `app/core/simulation.ts`
+- **Pokemon entities**: `app/core/pokemon-entity.ts`
+- **Abilities**: `app/core/abilities/` (200+)
+- **Effects**: `app/core/effects/` (item, passive, synergy)
+- **Synergies**: 32 types with tiered bonuses
 - **Items**: 333+ items with crafting recipes
-- **Evolution**: `app/core/evolution-rules.ts` — count, item, condition, hatch evolution
-- **Pokemon data**: `app/models/precomputed/` — all Pokemon stats, rarity, types
-- **Board grid**: 8x8 drag-drop placement
+- **Evolution**: `app/core/evolution-rules.ts`
+- **Pokemon data**: `app/models/precomputed/`
+- **Board grid**: 8x8 drag-drop
 - **Pokemon sprites**: All animation and rendering
-- **Level-up system**: Gold → XP → team size
+- **Level-up**: Gold → XP → team size
 
 ## Known Issues / Incomplete Features
 
-1. **Relic effects partially wired**: Battle stat relics (Muscle Band +ATK, Charcoal +AP, etc.) are defined but not applied during battle initialization. Only gold/heal/XP/damage-reduction relics work.
-2. **Mystery events**: Only 6 event templates. Item rewards from events may not always render properly due to phase timing.
-3. **Save/Load**: Not implemented. Runs must be completed in one session. Plan: serialize GameState to localStorage.
-4. **Pokemon shop items**: Use egg icon placeholder instead of actual Pokemon sprites in the carousel.
-5. **Encounter variety**: Only 8 wild encounter templates. Need more for 45 total floors.
-6. **Balance**: Gold rewards, encounter difficulty, relic power, and HP damage values need tuning through playtesting.
-7. **Act transition UI**: No "Act Complete" overlay — map just regenerates silently.
-8. **Meta-progression**: No unlocks between runs. Every run starts the same.
-9. **Difficulty modes**: No ascension system or difficulty selection.
+1. **Save/Load**: Not implemented. Runs must be completed in one session.
+2. **Battle stat passive items**: Muscle Band (+ATK), Charcoal (+AP), etc. are defined but not applied during battle initialization. Only gold/heal/XP/damage-reduction passives work.
+3. **Balance**: Gold, encounter difficulty, HP damage need playtesting.
+4. **Act transition UI**: No "Act Complete" overlay — map regenerates silently.
+5. **Meta-progression**: No unlocks between runs.
+6. **Difficulty modes**: No ascension system.
 
 ## How Colyseus State Sync Works
 
-Server modifies schema objects (GameState, Player, MapNode, etc.) → Colyseus automatically broadcasts field changes to connected clients → Client listeners in `game-container.ts` and `game.tsx` receive changes → Dispatch to Redux store or update Phaser scene.
+Server modifies schema objects → Colyseus broadcasts to clients → Client listeners in `game-container.ts` and `game.tsx` dispatch to Redux or update Phaser.
 
-**Key pattern for adding synced state:**
-1. Add `@type("...")` field to a Schema class (e.g., `game-state.ts`)
+**Adding synced state:**
+1. Add `@type("...")` field to Schema class (e.g., `game-state.ts`)
 2. Add `$state.listen("fieldName", callback)` in `game.tsx`
 3. Add Redux action in `GameStore.ts` if React components need it
-4. Or use directly from `room.state.fieldName` in JSX
 
-**Key pattern for adding new messages:**
+**Adding new messages:**
 1. Add to `Transfer` enum in `app/types/index.ts`
 2. Add `this.onMessage(Transfer.X, handler)` in `game-room.ts` → `onCreate()`
 3. Send from client via `rooms.game?.send(Transfer.X, data)`
 
+**Important Colyseus gotcha:** `MapSchema.onChange` fires when existing elements change, but `onAdd`/`onRemove` are needed for push/pop. React components reading Colyseus state directly won't re-render — use Redux dispatch or React state triggered by Colyseus listeners.
+
 ## Build Notes
 
-- **Client**: esbuild bundles from `app/public/src/index.tsx`. Only imports reachable from entry point are bundled. Dead code (lobby, preparation, after-game pages) exists but isn't bundled.
-- **Server**: `ts-node-dev` with `--transpile-only` (no type checking). TypeScript errors in dead code files don't prevent server startup.
-- **Type checking**: `npx tsc --noEmit` will show errors in dead code files that import removed functions from `network.ts`. These are harmless — the stub exports in `network.ts` satisfy esbuild but not tsc.
+- **Client**: esbuild from `app/public/src/index.tsx`. Dead code exists but isn't bundled.
+- **Server**: `ts-node-dev --transpile-only` (no type checking).
+- **Page title**: Set in `app/views/index.html` ("Pokemon: Auto Spire")
+- **Type checking**: `npx tsc --noEmit` shows errors in dead code files — harmless.

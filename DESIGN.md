@@ -322,33 +322,38 @@ Random events with narrative choices. Examples:
 
 ### Completed
 - [x] Server isolation (Firebase/MongoDB stripped)
-- [x] MAP phase with branching StS-style map
-- [x] Phase state machine (MAP→PICK→FIGHT→REWARD→MAP)
-- [x] 8 wild encounter templates with 3 difficulty tiers
-- [x] 6 gym leader encounters, 3 legendary bosses
-- [x] Starter selection (pick 1 of 3 + 2 random commons)
-- [x] Post-fight Pokemon pick (choose 1 of 3/4)
-- [x] Gold-from-battles economy (no interest/streak)
-- [x] HP system (100 HP, damage on loss, heal at centers)
-- [x] Carousel walk-around shop (5 types, gold pricing, multi-buy)
-- [x] Pokemon Center healing
-- [x] Mystery encounters with choices (6 events)
-- [x] Relic system (15 relics, awarded from gym leaders/bosses)
+- [x] MAP phase with branching StS-style map (20 floors/act, 3-5 nodes, no crossing edges)
+- [x] Phase state machine (MAP→PICK→FIGHT→REWARD→MAP + SHOP/REST/EVENT)
+- [x] Regional wild encounters (Pokemon from region synergies, tilemap backgrounds, difficulty scaling 1-60)
+- [x] 16 gym leaders (8 early/8 late tiers), 18 elite encounters, 3 legendary bosses
+- [x] Starter selection (pick 1 of 3 first-stage starters + paired item component)
+- [x] Post-fight rewards (Pokemon + item pairs, Ditto option for wild encounters)
+- [x] Gold-from-battles economy (doubled prices and rewards for granularity)
+- [x] HP system (100 HP, damage on loss with passive item reduction)
+- [x] Walk-around shop carousel (6 Pokemon + 6 items, gold pricing, multi-buy, Ditto weighted)
+- [x] Pokemon Center choices (Heal 30 HP | Ditto + item | Dojo ticket by act)
+- [x] Mystery encounters with choices (6+ events)
+- [x] Passive items (15 items, merged into player.items, effects for gold/heal/XP/damage)
+- [x] Synergy gems from gym leaders (properly applied to bonusSynergies)
 - [x] Run end screens (victory/defeat with stats)
 - [x] Act transitions (3 acts, map regenerates)
-- [x] "Start Fight" button (no timer during PICK)
-- [x] Enemy preview during PICK phase
-- [x] Clean stage info (Act/Floor/HP display)
-- [x] Original shop UI bar (gold, level, XP, team size)
+- [x] Start Fight button in experience bar (next to level-up)
+- [x] Enemy preview during PICK phase (from spireEncounterBoard)
+- [x] Opponent synergies panel (next to player synergies)
+- [x] Map icons (synergy triangles for wild, gems for gyms, pokeball for mart, unown for mystery, chansey for center)
+- [x] Stage info shows Act/Floor/HP/Difficulty
+- [x] All Pokemon sell for 1 gold
+- [x] Elite rewards: win = special Pokemon, lose = regular
+- [x] No more PAC additional pick rounds
+- [x] Background Pokemon cleanup between phases
 
 ### Not Yet Implemented
 - [ ] Save/Load (serialize run to localStorage)
-- [ ] Battle stat relics (Muscle Band +ATK, etc. — defined but not applied in battle)
-- [ ] More encounter variety (8 templates for 45 floors)
+- [ ] Battle stat passive items (Muscle Band +ATK, Charcoal +AP — defined but not applied in battle)
 - [ ] Act transition overlay ("Act X Complete!")
-- [ ] Pokemon sprites in shop carousel (currently uses egg icon)
 - [ ] Balance tuning (gold, HP damage, encounter difficulty)
 - [ ] Meta-progression (unlocks between runs)
+- [ ] Difficulty modes / ascension system
 - [ ] Difficulty modes / ascension system
 - [ ] Act biome theming
 - [ ] Run seeding for shareable runs
