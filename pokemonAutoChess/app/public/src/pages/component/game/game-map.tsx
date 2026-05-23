@@ -19,7 +19,7 @@ const NODE_COLORS: Record<string, string> = {
 const NODE_ICONS: Record<string, string> = {
   [MapNodeType.POKEMART]: "/assets/ui/pokeball.svg",
   [MapNodeType.MYSTERY_ENCOUNTER]: "/assets/unown/unown-qm.png",
-  [MapNodeType.POKEMON_CENTER]: "/assets/portraits/0113/Happy.png"
+  [MapNodeType.POKEMON_CENTER]: "/assets/ui/chansey-sprite.png"
 }
 
 const NODE_LABELS: Record<string, string> = {
@@ -210,11 +210,12 @@ export default function GameMap({
                 ) : NODE_ICONS[node.nodeType] ? (
                   <image
                     href={NODE_ICONS[node.nodeType]}
-                    x={pos.cx - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 32 : 16)}
-                    y={pos.cy - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 32 : 16)}
-                    width={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 64 : 32}
-                    height={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 64 : 32}
+                    x={pos.cx - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 32 : node.nodeType === MapNodeType.POKEMON_CENTER ? 18 : 16)}
+                    y={pos.cy - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 32 : node.nodeType === MapNodeType.POKEMON_CENTER ? 30 : 16)}
+                    width={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 64 : node.nodeType === MapNodeType.POKEMON_CENTER ? 36 : 32}
+                    height={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 64 : node.nodeType === MapNodeType.POKEMON_CENTER ? 60 : 32}
                     opacity={isVisited ? 0.3 : isAvailable ? 1 : 0.5}
+                    style={node.nodeType === MapNodeType.POKEMON_CENTER ? { imageRendering: "pixelated" as const } : undefined}
                   />
                 ) : (
                   <text

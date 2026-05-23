@@ -624,11 +624,15 @@ export default class GameRoom extends Room<{ state: GameState }> {
           Pkm.RIOLU,
           Pkm.EEVEE
         ]
+        const { pickRandomIn: pickRandom } = require("../utils/random")
+        const { ItemComponentsNoFossilOrScarf } = require("../types/enum/Item")
         const starterOptions = pickNRandomIn(firstStageStarters, 3)
+        const starterItems = starterOptions.map(() => pickRandom(ItemComponentsNoFossilOrScarf))
         player.choices.push(
           new PlayerChoice({
             type: "starter",
-            pokemons: starterOptions
+            pokemons: starterOptions,
+            items: starterItems
           })
         )
 

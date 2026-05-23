@@ -6,6 +6,7 @@ import { DEPTH } from "../depths"
 import GameScene from "../scenes/game-scene"
 import ItemDetail from "./item-detail"
 import MinigameManager from "./minigame-manager"
+import { loadCompressedAtlas } from "./pokemon"
 
 export class FloatingItemContainer extends GameObjects.Container {
   scene: GameScene
