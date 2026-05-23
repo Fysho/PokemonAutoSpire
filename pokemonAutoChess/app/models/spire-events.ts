@@ -1,4 +1,4 @@
-import { Item, ItemComponentsNoFossilOrScarf } from "../types/enum/Item"
+import { Item, ItemComponentsNoFossilOrScarf, NonSpecialBerries } from "../types/enum/Item"
 import { Pkm } from "../types/enum/Pokemon"
 import { pickNRandomIn, pickRandomIn } from "../utils/random"
 
@@ -74,4 +74,8 @@ export function getRandomEvent(): SpireEvent {
 
 export function getEventItems(count: number): Item[] {
   return pickNRandomIn(ItemComponentsNoFossilOrScarf, count)
+}
+
+export function getEventBerries(count: number): Item[] {
+  return pickNRandomIn(NonSpecialBerries, count)
 }

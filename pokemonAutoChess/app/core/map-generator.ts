@@ -133,30 +133,56 @@ export function generateActMap(
       continue
     }
 
-    const connected = new Set<string>()
+    const floorEdges: { from: number; to: number }[] = []
+    const connected = new Set<number>()
 
     for (let i = 0; i < current.length; i++) {
-      const fromId = current[i]
       const targetIdx = Math.min(i, next.length - 1)
-      const toId = next[targetIdx]
-      mapEdges.push(new MapEdge(fromId, toId))
-      connected.add(toId)
+      floorEdges.push({ from: i, to: targetIdx })
+      connected.add(targetIdx)
 
       if (Math.random() < 0.55 && targetIdx + 1 < next.length) {
-        mapEdges.push(new MapEdge(fromId, next[targetIdx + 1]))
-        connected.add(next[targetIdx + 1])
+        floorEdges.push({ from: i, to: targetIdx + 1 })
+        connected.add(targetIdx + 1)
       }
       if (Math.random() < 0.45 && targetIdx - 1 >= 0) {
-        mapEdges.push(new MapEdge(fromId, next[targetIdx - 1]))
-        connected.add(next[targetIdx - 1])
+        floorEdges.push({ from: i, to: targetIdx - 1 })
+        connected.add(targetIdx - 1)
       }
     }
 
-    for (const toId of next) {
-      if (!connected.has(toId)) {
-        const fromId = pickRandomIn(current)
-        mapEdges.push(new MapEdge(fromId, toId))
+    for (let j = 0; j < next.length; j++) {
+      if (!connected.has(j)) {
+        const fromIdx = Math.min(j, current.length - 1)
+        floorEdges.push({ from: fromIdx, to: j })
       }
+    }
+
+    // Remove crossing edges (keep the first one added, remove later ones that cross)
+    const kept: { from: number; to: number }[] = []
+    for (const edge of floorEdges) {
+      const crosses = kept.some(
+        (e) =>
+          (e.from < edge.from && e.to > edge.to) ||
+          (e.from > edge.from && e.to < edge.to)
+      )
+      if (!crosses) {
+        kept.push(edge)
+      }
+    }
+
+    // Ensure all next nodes are still reachable
+    const reachable = new Set(kept.map((e) => e.to))
+    for (let j = 0; j < next.length; j++) {
+      if (!reachable.has(j)) {
+        // Connect to nearest non-crossing source
+        const nearest = Math.min(j, current.length - 1)
+        kept.push({ from: nearest, to: j })
+      }
+    }
+
+    for (const edge of kept) {
+      mapEdges.push(new MapEdge(current[edge.from], next[edge.to]))
     }
   }
 }

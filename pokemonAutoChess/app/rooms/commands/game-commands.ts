@@ -54,7 +54,7 @@ import {
   getWildEncounter,
   SpireEncounter
 } from "../../models/spire-encounters"
-import { getEventItems, getRandomEvent } from "../../models/spire-events"
+import { getEventBerries, getEventItems, getRandomEvent } from "../../models/spire-events"
 import { generateShopItems } from "../../models/spire-shops"
 import {
   getRandomItemChoices,
@@ -1295,8 +1295,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       const items = getEventItems(2)
       items.forEach(item => player.items.push(item))
     } else if (label.includes("berries") || label.includes("pick berries")) {
-      const items = getEventItems(3)
-      items.forEach(item => player.items.push(item))
+      const berries = getEventBerries(3)
+      berries.forEach(item => player.items.push(item))
     } else if (label.includes("trade 10 gold") || label.includes("buy supplies")) {
       const cost = label.includes("10") ? 10 : 8
       if (player.money >= cost) {
