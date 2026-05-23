@@ -134,9 +134,6 @@ export default class BoardManager {
     if (state.phase == GamePhaseState.FIGHT) {
       this.renderBoard(false)
       this.battleMode(false)
-    } else if (state.phase === GamePhaseState.TOWN) {
-      this.renderBoard(false)
-      this.minigameMode()
     } else if (state.phase === GamePhaseState.MAP || state.phase === GamePhaseState.REST || state.phase === GamePhaseState.EVENT) {
       this.mode = BoardMode.MAP
     } else if (state.phase === GamePhaseState.SHOP) {
@@ -274,8 +271,6 @@ export default class BoardManager {
         return [pkm as Pkm, parseInt(x), parseInt(y)] as [Pkm, number, number]
       })
       this.addPvePokemons({ board, name: "spire" as any, avatar: board[0]?.[0] ?? Pkm.MAGIKARP }, !phaseJustChanged)
-    } else if (this.state.stageLevel in PVEStages && this.mode === BoardMode.PICK) {
-      this.addPvePokemons(PVEStages[this.state.stageLevel], !phaseJustChanged)
     }
   }
 

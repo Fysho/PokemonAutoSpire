@@ -951,9 +951,7 @@ export default function Game() {
           {isRewardPhase && (
             <GameReward runHP={runHP} gold={money} />
           )}
-          {(isShopPhase || (!isBoardHidden && !isRewardPhase)) && (
-            spectate ? <GameSpectatePlayerInfo /> : <GameShop />
-          )}
+          {isShopPhase && <GameShop />}
           {isShopPhase && (
             <div style={{
               position: "absolute", bottom: "80px", left: "50%", transform: "translateX(-50%)", zIndex: 50
@@ -971,7 +969,6 @@ export default function Game() {
             </div>
           )}
           {!isBoardHidden && <GameStageInfo />}
-          <GamePlayers click={(id: string) => playerClick(id)} />
           {!isBoardHidden && <GameSynergies />}
           <GameChoice />
           <GameDpsMeter />
