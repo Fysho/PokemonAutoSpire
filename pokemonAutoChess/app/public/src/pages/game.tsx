@@ -965,10 +965,13 @@ export default function Game() {
               </button>
             </div>
           )}
-          {isRestPhase && (
+          {isRestPhase && room?.state && (
             <GameRest
               runHP={runHP}
-              healAmount={Math.floor(runHP * 0.3)}
+              choices={Array.from(room.state.spireEventChoiceLabels ?? []).map((label, i) => ({
+                label,
+                description: room.state.spireEventChoiceDescs?.[i] ?? ""
+              }))}
             />
           )}
           {isEventPhase && room?.state && (

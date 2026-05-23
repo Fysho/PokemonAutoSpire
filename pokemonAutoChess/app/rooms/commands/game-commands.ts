@@ -65,7 +65,6 @@ import {
   getRelicPostBattleHeal,
   getRelicRestHealBonus
 } from "../../core/relic-effects"
-import { getLevelUpCost } from "../../models/colyseus-models/experience-manager"
 import Player from "../../models/colyseus-models/player"
 import { PlayerChoice } from "../../models/colyseus-models/player-choice"
 import { Pokemon, PokemonClasses } from "../../models/colyseus-models/pokemon"
@@ -973,10 +972,14 @@ export class OnLevelUpCommand extends Command<
     const player = this.state.players.get(id)
     if (!player || !player.alive) return
 
-    const cost = getLevelUpCost(this.state.specialGameRule)
-    if (player.money >= cost && player.experienceManager.canLevelUp()) {
-      player.addExperience(4)
-      player.money -= cost
+    if (player.experienceManager.canLevelUp()) {
+      const xpNeeded =
+        player.experienceManager.expNeeded -
+        player.experienceManager.experience
+      if (player.money >= xpNeeded) {
+        player.addExperience(xpNeeded)
+        player.money -= xpNeeded
+      }
     }
   }
 }
@@ -1210,11 +1213,47 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.phase = GamePhaseState.REST
     this.state.time = 999 * 1000
     this.state.roundTime = 999
-    const player = schemaValues(this.state.players).find(p => !p.isBot)
-    const relicBonus = player ? getRelicRestHealBonus(player.items) : 0
-    const healAmount = Math.max(15, Math.floor((100 - this.state.runHP) * 0.4)) + relicBonus
-    this.state.runHP = Math.min(100, this.state.runHP + healAmount)
-    this.syncRunHPToPlayers()
+
+    const dojoTicket = this.state.currentAct === 1
+      ? Item.BRONZE_DOJO_TICKET
+      : this.state.currentAct === 2
+        ? Item.SILVER_DOJO_TICKET
+        : Item.GOLD_DOJO_TICKET
+
+    this.state.spireEventName = "Pokemon Center"
+    this.state.spireEventDescription = "Choose one:"
+    resetArraySchema(this.state.spireEventChoiceLabels, [
+      "Heal 30 HP",
+      "Receive 2 Dittos",
+      `Receive ${dojoTicket.replace(/_/g, " ")}`
+    ])
+    resetArraySchema(this.state.spireEventChoiceDescs, [
+      `Restore 30 HP (current: ${this.state.runHP}/100)`,
+      "Add 2 Dittos to your bench",
+      "A dojo ticket for training"
+    ])
+  }
+
+  handleRestChoice(playerId: string, choiceIndex: number) {
+    const player = this.state.players.get(playerId)
+    if (!player) return
+
+    const relicBonus = getRelicRestHealBonus(player.items)
+
+    if (choiceIndex === 0) {
+      this.state.runHP = Math.min(100, this.state.runHP + 30 + relicBonus)
+      this.syncRunHPToPlayers()
+    } else if (choiceIndex === 1) {
+      this.room.spawnOnBench(player, Pkm.DITTO)
+      this.room.spawnOnBench(player, Pkm.DITTO)
+    } else if (choiceIndex === 2) {
+      const dojoTicket = this.state.currentAct === 1
+        ? Item.BRONZE_DOJO_TICKET
+        : this.state.currentAct === 2
+          ? Item.SILVER_DOJO_TICKET
+          : Item.GOLD_DOJO_TICKET
+      player.items.push(dojoTicket)
+    }
   }
 
   initializeEventPhase() {

@@ -299,6 +299,15 @@ export default class GameRoom extends Room<{ state: GameState }> {
               cmd.state = this.state
               cmd.clock = this.clock
               cmd.handleEventChoice(client.auth.uid, message.choiceIndex)
+            } else if (message.choiceId === "rest") {
+              const cmd = new OnUpdatePhaseCommand()
+              cmd.setPayload({})
+              cmd.room = this
+              cmd.state = this.state
+              cmd.clock = this.clock
+              cmd.handleRestChoice(client.auth.uid, message.choiceIndex)
+              this.state.updatePhaseNeeded = true
+              this.state.time = 0
             } else {
               this.pickChoice(
                 client.auth.uid,

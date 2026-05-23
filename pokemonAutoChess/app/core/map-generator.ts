@@ -22,11 +22,11 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
     return MapNodeType.WILD_BATTLE
   }
 
-  const roll = Math.random()
-
-  if (floor === 7 || floor === 14) {
+  if (floor === totalFloors - 1) {
     return MapNodeType.POKEMON_CENTER
   }
+
+  const roll = Math.random()
 
   if (floor === 5 || floor === 10 || floor === 16) {
     return roll < 0.5 ? MapNodeType.POKEMART : MapNodeType.WILD_BATTLE
@@ -42,8 +42,8 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
 
   if (roll < 0.50) return MapNodeType.WILD_BATTLE
   if (roll < 0.65) return MapNodeType.MYSTERY_ENCOUNTER
-  if (roll < 0.80) return MapNodeType.POKEMART
-  return MapNodeType.POKEMON_CENTER
+  if (roll < 0.85) return MapNodeType.POKEMART
+  return MapNodeType.WILD_BATTLE
 }
 
 export function generateActMap(

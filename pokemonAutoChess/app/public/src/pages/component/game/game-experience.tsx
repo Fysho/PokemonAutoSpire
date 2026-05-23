@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
 import { MAX_LEVEL } from "../../../../../config"
-import { getLevelUpCost } from "../../../../../models/colyseus-models/experience-manager"
 import { selectSpectatedPlayer, useAppSelector } from "../../../hooks"
 import { levelClick } from "../../../network"
 import { addIconsToDescription } from "../../utils/descriptions"
@@ -14,17 +13,12 @@ export default function GameExperience() {
     (state) => state.game.experienceManager
   )
   const isLevelMax = experienceManager.level >= MAX_LEVEL
-  const specialGameRule = useAppSelector((state) => state.game.specialGameRule)
-  const levelUpCost = getLevelUpCost(specialGameRule)
-  const goldToLevelUp = isLevelMax
-    ? null
-    : Math.ceil(
-        (experienceManager.expNeeded - experienceManager.experience) /
-          levelUpCost
-      ) * levelUpCost
+  const xpNeeded = isLevelMax
+    ? 0
+    : experienceManager.expNeeded - experienceManager.experience
   const spectatedPlayer = useAppSelector(selectSpectatedPlayer)
   const canLevelup =
-    !isLevelMax && spectatedPlayer && spectatedPlayer.money >= levelUpCost
+    !isLevelMax && spectatedPlayer && spectatedPlayer.money >= xpNeeded
 
   return (
     <div className="game-experience">
@@ -33,12 +27,12 @@ export default function GameExperience() {
       </span>
       <button
         className="bubbly orange buy-xp-button"
-        title={t("buy_xp_tooltip", { cost: levelUpCost })}
+        title={t("buy_xp_tooltip", { cost: xpNeeded })}
         onClick={() => {
           levelClick()
         }}
       >
-        <Money value={t("buy_xp", { cost: levelUpCost })} />
+        <Money value={t("buy_xp", { cost: xpNeeded })} />
       </button>
       <div className="progress-bar" data-tooltip-id="gold-to-levelup-tooltip">
         <progress
@@ -70,9 +64,8 @@ export default function GameExperience() {
                     : "var(--color-fg-red, red)"
                 }}
               >
-                {addIconsToDescription(`${goldToLevelUp} GOLD`)}
+                {addIconsToDescription(`${xpNeeded} GOLD`)}
               </b>
-              ({t("clicks", { count: goldToLevelUp! / levelUpCost })})
             </>
           )}
         </p>
