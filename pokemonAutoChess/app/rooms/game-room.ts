@@ -322,6 +322,27 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
     )
 
+    this.onMessage(Transfer.REROLL_REWARD, (client) => {
+      if (!this.state.gameFinished && client.auth) {
+        const player = this.state.players.get(client.auth.uid)
+        if (!player || player.money < 1) return
+        const choiceIdx = player.choices.findIndex((c) => c.type === "wildReward")
+        if (choiceIdx < 0) return
+        player.choices.splice(choiceIdx, 1)
+        player.money -= 1
+        const node = this.state.mapNodes.get(this.state.currentNodeId)
+        if (node) {
+          const won = player.history.at(-1)?.result === BattleResult.WIN
+          const cmd = new OnUpdatePhaseCommand()
+          cmd.setPayload({})
+          cmd.room = this
+          cmd.state = this.state
+          cmd.clock = this.clock
+          cmd.generateWildRewardChoice(player, node, won, true)
+        }
+      }
+    })
+
     this.onMessage(Transfer.DRAG_DROP, (client, message: IDragDropMessage) => {
       if (!this.state.gameFinished) {
         try {

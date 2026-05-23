@@ -104,6 +104,7 @@ import GameShop from "./component/game/game-shop"
 import { GameTeamInfo } from "./component/game/game-team-info"
 import GameSpectatePlayerInfo from "./component/game/game-spectate-player-info"
 import GameStageInfo from "./component/game/game-stage-info"
+import GameOpponentSynergies from "./component/game/game-opponent-synergies"
 import GameSynergies from "./component/game/game-synergies"
 import GameToasts from "./component/game/game-toasts"
 import { MainSidebar } from "./component/main-sidebar/main-sidebar"
@@ -1007,6 +1008,7 @@ export default function Game() {
           )}
           {!isBoardHidden && <GameStageInfo />}
           {!isBoardHidden && <GameSynergies />}
+          {!isBoardHidden && <GameOpponentSynergies />}
           {!isBoardHidden && <GameShop />}
           <GameChoice />
           <GameDpsMeter />

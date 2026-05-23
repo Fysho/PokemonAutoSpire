@@ -1108,6 +1108,57 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     }
   }
 
+  generateWildRewardChoice(player: Player, node: any, won: boolean, rerolled = false) {
+    const totalOptions = won ? 4 : 3
+    const minPokemon = won ? 2 : 1
+    const minItems = 1
+    const pokemonSlots = minPokemon + (Math.random() < 0.5 ? 1 : 0)
+    const itemSlots = totalOptions - pokemonSlots
+
+    const pokemons: (Pkm | typeof Pkm.DEFAULT)[] = []
+    const items: Item[] = []
+
+    // Generate Pokemon options
+    const pokemonPool: Pkm[] = []
+    if (node.region) {
+      const { getRegionalPokemonForReward } = require("../../models/spire-encounters")
+      const regionalPkm = getRegionalPokemonForReward(node.region, this.state.currentAct)
+      if (regionalPkm) pokemonPool.push(regionalPkm)
+    }
+    while (pokemonPool.length < pokemonSlots) {
+      const p = this.state.shop.pickPokemon(player, this.state)
+      if (p) pokemonPool.push(p)
+      else break
+    }
+
+    // Generate item options
+    const itemPool: Item[] = pickNRandomIn(ItemComponentsNoFossilOrScarf, itemSlots)
+
+    // Ditto: 33% chance to replace one option on win (never on reroll or loss)
+    if (won && !rerolled && Math.random() < 0.33 && pokemonPool.length > 0) {
+      pokemonPool[pokemonPool.length - 1] = Pkm.DITTO
+    }
+
+    // Build parallel arrays: fill Pokemon slots first, then item slots
+    for (let i = 0; i < totalOptions; i++) {
+      if (i < pokemonPool.length) {
+        pokemons.push(pokemonPool[i])
+        items.push(Pkm.DEFAULT as any)
+      } else {
+        pokemons.push(Pkm.DEFAULT)
+        items.push(itemPool[i - pokemonPool.length] ?? pickRandomIn(ItemComponentsNoFossilOrScarf))
+      }
+    }
+
+    player.choices.push(
+      new PlayerChoice({
+        type: rerolled ? "wildRewardRerolled" : "wildReward",
+        pokemons,
+        items
+      })
+    )
+  }
+
   syncRunHPToPlayers() {
     this.state.players.forEach((player: Player) => {
       if (!player.isBot) {
@@ -1365,61 +1416,48 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           player.experienceManager.addExperience(bonusXP)
         }
 
-        // Pokemon pick offers (1 regional, rest random)
-        {
+        // Reward offers
+        if (node.nodeType === MapNodeType.WILD_BATTLE) {
+          this.generateWildRewardChoice(player, node, won)
+        } else if (node.nodeType === MapNodeType.ELITE && node.eliteEncounterIndex >= 0) {
+          if (won) {
+            const elitePokemon = getEliteEncounterPokemon(node.eliteEncounterIndex)
+            if (elitePokemon.length > 0) {
+              const offers = pickNRandomIn(elitePokemon, Math.min(3, elitePokemon.length))
+              const pairedItems: Item[] = offers.map(() =>
+                pickRandomIn(ItemComponentsNoFossilOrScarf)
+              )
+              player.choices.push(
+                new PlayerChoice({ type: "addPick", pokemons: offers, items: pairedItems })
+              )
+            }
+          } else {
+            const pokemonOffers: Pkm[] = []
+            while (pokemonOffers.length < 3) {
+              const p = this.state.shop.pickPokemon(player, this.state)
+              if (p) pokemonOffers.push(p)
+              else break
+            }
+            if (pokemonOffers.length > 0) {
+              player.choices.push(
+                new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
+              )
+            }
+          }
+        } else {
           const offerCount = getRelicPokemonOfferCount(player.items)
           const pokemonOffers: Pkm[] = []
-
-          // First pick: try to get a regional Pokemon
-          if (node.region && node.nodeType === MapNodeType.WILD_BATTLE) {
-            const { getRegionalPokemonForReward } = require("../../models/spire-encounters")
-            const regionalPkm = getRegionalPokemonForReward(node.region, this.state.currentAct)
-            if (regionalPkm) pokemonOffers.push(regionalPkm)
-          }
-
-          // Fill remaining with random picks
           while (pokemonOffers.length < offerCount) {
             const p = this.state.shop.pickPokemon(player, this.state)
             if (p) pokemonOffers.push(p)
             else break
           }
-
-          // Elite encounters: win = special Pokemon only, lose = regular Pokemon only
-          if (node.nodeType === MapNodeType.ELITE && node.eliteEncounterIndex >= 0) {
-            if (won) {
-              const elitePokemon = getEliteEncounterPokemon(node.eliteEncounterIndex)
-              if (elitePokemon.length > 0) {
-                const offers = pickNRandomIn(elitePokemon, Math.min(3, elitePokemon.length))
-                const pairedItems: Item[] = offers.map(() =>
-                  pickRandomIn(ItemComponentsNoFossilOrScarf)
-                )
-                player.choices.push(
-                  new PlayerChoice({ type: "addPick", pokemons: offers, items: pairedItems })
-                )
-              }
-            } else if (pokemonOffers.length > 0) {
-              player.choices.push(
-                new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
-              )
-            }
-          } else if (won && pokemonOffers.length > 0) {
-            // Non-elite: pair each Pokemon with a random item component
+          if (won && pokemonOffers.length > 0) {
             const pairedItems: Item[] = pokemonOffers.map(() =>
               pickRandomIn(ItemComponentsNoFossilOrScarf)
             )
-
-            // Add Ditto as extra option for wild encounters (no paired item)
-            if (node.nodeType === MapNodeType.WILD_BATTLE) {
-              pokemonOffers.push(Pkm.DITTO)
-              pairedItems.push(Item.FOSSIL_STONE)
-            }
-
             player.choices.push(
-              new PlayerChoice({
-                type: "addPick",
-                pokemons: pokemonOffers,
-                items: pairedItems
-              })
+              new PlayerChoice({ type: "addPick", pokemons: pokemonOffers, items: pairedItems })
             )
           } else if (pokemonOffers.length > 0) {
             player.choices.push(

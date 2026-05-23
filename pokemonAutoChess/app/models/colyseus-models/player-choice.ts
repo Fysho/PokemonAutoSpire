@@ -10,6 +10,8 @@ export type PlayerChoiceType =
   | "legendary"
   | "mission_order"
   | "wand"
+  | "wildReward"
+  | "wildRewardRerolled"
 
 export class PlayerChoice extends Schema {
   @type("string") id: string
