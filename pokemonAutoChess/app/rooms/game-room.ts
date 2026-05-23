@@ -885,15 +885,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     if (choice.items.length > 0) {
       const item = choice.items[choiceIndex]
-      const { isRelic } = require("../core/relic-effects")
-      if (isRelic(item)) {
-        logger.info(`Relic acquired: ${item}, total relics: ${player.relics.length + 1}`)
-        player.relics.push(item)
-      } else {
-        player.items.push(item)
-        if (isIn(Wands, item)) {
-          player.fairyWands.push(item)
-        }
+      player.items.push(item)
+      if (isIn(Wands, item)) {
+        player.fairyWands.push(item)
       }
     }
 

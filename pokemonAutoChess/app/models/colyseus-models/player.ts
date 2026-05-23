@@ -110,7 +110,6 @@ export default class Player extends Schema implements IPlayer {
   @type("string") spectatedPlayerId: string
   @type("uint8") boardSize: number = 0
   @type(["string"]) items = new ArraySchema<Item>()
-  @type(["string"]) relics = new ArraySchema<string>()
   @type(["string"]) scarvesItems = new ArraySchema<Item>()
   @type(["string"]) fairyWands = new ArraySchema<Item>()
   @type("uint8") rank: number

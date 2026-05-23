@@ -910,13 +910,13 @@ export default function Game() {
       {loaded ? (
         <>
           <MainSidebar page="game" leave={leave} leaveLabel={t("leave_game")} />
-          <GameRelicBar relics={Array.from(connectedPlayer?.relics ?? [])} />
+          <GameRelicBar items={Array.from(connectedPlayer?.items ?? [])} />
           {(runComplete || runFailed) && (
             <GameRunEnd
               victory={runComplete}
               currentAct={currentAct}
               currentFloor={currentFloor}
-              relics={Array.from(connectedPlayer?.relics ?? [])}
+              items={Array.from(connectedPlayer?.items ?? [])}
               onNewRun={() => {
                 window.location.href = "/"
               }}

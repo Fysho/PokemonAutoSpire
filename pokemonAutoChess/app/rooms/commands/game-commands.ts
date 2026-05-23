@@ -46,6 +46,7 @@ import { MapNodeType } from "../../models/colyseus-models/map-node"
 import {
   getGoldReward,
   getGymLeaderEncounter,
+  getGymLeaderGem,
   getLegendaryBossEncounter,
   getRegionalWildEncounter,
   getWildEncounter,
@@ -54,14 +55,13 @@ import {
 import { getEventItems, getRandomEvent } from "../../models/spire-events"
 import { generateShopItems, getShopTypeForAct } from "../../models/spire-shops"
 import {
-  getRandomRelicChoices,
+  getRandomItemChoices,
   getRelicBonusGold,
   getRelicBonusXP,
   getRelicDamageReduction,
   getRelicPokemonOfferCount,
   getRelicPostBattleHeal,
-  getRelicRestHealBonus,
-  isRelic
+  getRelicRestHealBonus
 } from "../../core/relic-effects"
 import { getLevelUpCost } from "../../models/colyseus-models/experience-manager"
 import Player from "../../models/colyseus-models/player"
@@ -1156,7 +1156,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             ? getRegionalWildEncounter(this.state.currentAct, node.floor, node.region)
             : getWildEncounter(this.state.currentAct, node.floor, node.x + node.floor * 7)
         } else if (node.nodeType === MapNodeType.GYM_LEADER) {
-          encounter = getGymLeaderEncounter(this.state.currentAct, node.floor)
+          encounter = getGymLeaderEncounter(node.gymLeaderIndex)
         } else {
           encounter = getLegendaryBossEncounter(this.state.currentAct)
         }
@@ -1203,7 +1203,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.time = 999 * 1000
     this.state.roundTime = 999
     const player = schemaValues(this.state.players).find(p => !p.isBot)
-    const relicBonus = player ? getRelicRestHealBonus(player.relics) : 0
+    const relicBonus = player ? getRelicRestHealBonus(player.items) : 0
     const healAmount = Math.max(15, Math.floor((100 - this.state.runHP) * 0.4)) + relicBonus
     this.state.runHP = Math.min(100, this.state.runHP + healAmount)
     this.syncRunHPToPlayers()
@@ -1284,28 +1284,28 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
         // Gold reward with relic bonus
         const baseGold = getGoldReward(node.nodeType, this.state.currentAct)
-        const bonusGold = getRelicBonusGold(player.relics)
+        const bonusGold = getRelicBonusGold(player.items)
         const totalGold = won ? baseGold + bonusGold : Math.floor(baseGold / 3)
         player.addMoney(totalGold, true, null)
         const client = this.room.clients.find((cli) => cli.auth.uid === player.id)
         client?.send(Transfer.PLAYER_INCOME, totalGold)
 
         // Post-battle healing from relics
-        const healAmount = getRelicPostBattleHeal(player.relics, won)
+        const healAmount = getRelicPostBattleHeal(player.items, won)
         if (healAmount > 0) {
           this.state.runHP = Math.min(100, this.state.runHP + healAmount)
           this.syncRunHPToPlayers()
         }
 
         // Bonus XP from relics
-        const bonusXP = getRelicBonusXP(player.relics)
+        const bonusXP = getRelicBonusXP(player.items)
         if (bonusXP > 0) {
           player.experienceManager.addExperience(bonusXP)
         }
 
         // Pokemon pick offers (1 regional, rest random)
         if (won) {
-          const offerCount = getRelicPokemonOfferCount(player.relics)
+          const offerCount = getRelicPokemonOfferCount(player.items)
           const pokemonOffers: Pkm[] = []
 
           // First pick: try to get a regional Pokemon
@@ -1329,9 +1329,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           }
         }
 
+        // Synergy gem reward for gym leaders
+        if (won && node.nodeType === MapNodeType.GYM_LEADER && node.gymLeaderSynergy) {
+          const gem = getGymLeaderGem(node.gymLeaderSynergy as Synergy)
+          player.items.push(gem)
+        }
+
         // Relic reward for gym leaders and bosses
         if (won && (node.nodeType === MapNodeType.GYM_LEADER || node.nodeType === MapNodeType.LEGENDARY_BOSS)) {
-          const relicChoices = getRandomRelicChoices(player.relics, 3)
+          const relicChoices = getRandomItemChoices(player.items, 3)
           logger.info(`Relic choices offered: ${JSON.stringify(relicChoices)}`)
           if (relicChoices.length > 0) {
             player.choices.push(
@@ -1384,7 +1390,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.state.simulations.values().next().value?.redTeam ?? new MapSchema(),
             this.state.stageLevel
           )
-          damage = Math.max(1, damage - getRelicDamageReduction(player.relics))
+          damage = Math.max(1, damage - getRelicDamageReduction(player.items))
           this.state.runHP -= damage
           if (this.state.runHP <= 0) {
             this.state.runHP = 0

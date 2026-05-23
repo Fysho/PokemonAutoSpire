@@ -4,7 +4,7 @@ interface GameRunEndProps {
   victory: boolean
   currentAct: number
   currentFloor: number
-  relics: string[]
+  items: string[]
   onNewRun: () => void
 }
 
@@ -12,7 +12,7 @@ export default function GameRunEnd({
   victory,
   currentAct,
   currentFloor,
-  relics,
+  items,
   onNewRun
 }: GameRunEndProps) {
   return (
@@ -73,7 +73,7 @@ export default function GameRunEnd({
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
             <span>Relics Collected:</span>
-            <span>{relics.length}</span>
+            <span>{items.length}</span>
           </div>
         </div>
 

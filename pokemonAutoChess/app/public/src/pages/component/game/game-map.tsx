@@ -135,7 +135,9 @@ export default function GameMap({
             const isVisited = node.visited
             const synergies = getRegionSynergies(node.region)
             const isWild = node.nodeType === MapNodeType.WILD_BATTLE
-            const nodeRadius = isWild && synergies.length > 0 ? 28 : (isAvailable ? 24 : 20)
+            const isGym = node.nodeType === MapNodeType.GYM_LEADER
+            const hasSynergyIcon = (isWild && synergies.length > 0) || (isGym && node.gymLeaderSynergy)
+            const nodeRadius = hasSynergyIcon ? 28 : (isAvailable ? 24 : 20)
 
             return (
               <g
@@ -143,7 +145,7 @@ export default function GameMap({
                 onClick={() => handleNodeClick(node.id)}
                 style={{ cursor: isAvailable ? "pointer" : "default" }}
               >
-                {!(isWild && synergies.length > 0) && (
+                {!hasSynergyIcon && (
                   <circle
                     cx={pos.cx}
                     cy={pos.cy}
@@ -154,7 +156,27 @@ export default function GameMap({
                     opacity={isVisited ? 0.4 : isAvailable ? 1 : 0.6}
                   />
                 )}
-                {isWild && synergies.length > 0 ? (
+                {isGym && node.gymLeaderSynergy ? (
+                  <>
+                    <circle
+                      cx={pos.cx}
+                      cy={pos.cy}
+                      r={nodeRadius}
+                      fill={isVisited ? "#333" : color}
+                      stroke={isAvailable ? "#fff" : isVisited ? "#555" : color}
+                      strokeWidth={isAvailable ? 3 : 1}
+                      opacity={isVisited ? 0.4 : isAvailable ? 1 : 0.6}
+                    />
+                    <image
+                      href={`/assets/types/${node.gymLeaderSynergy}.svg`}
+                      x={pos.cx - 18}
+                      y={pos.cy - 18}
+                      width={36}
+                      height={36}
+                      opacity={isVisited ? 0.3 : isAvailable ? 1 : 0.6}
+                    />
+                  </>
+                ) : isWild && synergies.length > 0 ? (
                   synergies.map((syn, si) => {
                     const iconSize = 40
                     let ix = pos.cx

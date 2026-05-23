@@ -1,7 +1,8 @@
 import { ArraySchema, MapSchema } from "@colyseus/schema"
 import { MapEdge, MapNode, MapNodeType } from "../models/colyseus-models/map-node"
+import { getGymLeaderCount, getGymLeaderEncounter } from "../models/spire-encounters"
 import { DungeonPMDO } from "../types/enum/Dungeon"
-import { pickRandomIn, randomBetween } from "../utils/random"
+import { pickRandomIn, randomBetween, shuffleArray } from "../utils/random"
 
 const ALL_DUNGEONS = Object.values(DungeonPMDO)
 
@@ -49,6 +50,11 @@ export function generateActMap(
   const totalFloors = FLOORS_PER_ACT
   const floorNodes: string[][] = []
 
+  const gymLeaderTotal = getGymLeaderCount()
+  const gymLeaderIndices = Array.from({ length: gymLeaderTotal }, (_, i) => i)
+  shuffleArray(gymLeaderIndices)
+  let gymLeaderPick = 0
+
   for (let floor = 1; floor <= totalFloors; floor++) {
     let nodeCount: number
     if (floor === totalFloors) {
@@ -75,6 +81,14 @@ export function generateActMap(
         usedRegions.push(region)
       }
       const node = new MapNode(id, nodeType, x, floor, act, floor, `act${act}_floor${floor}_${col}`, region)
+
+      if (nodeType === MapNodeType.GYM_LEADER) {
+        const idx = gymLeaderIndices[gymLeaderPick % gymLeaderIndices.length]
+        gymLeaderPick++
+        node.gymLeaderIndex = idx
+        const encounter = getGymLeaderEncounter(idx)
+        node.gymLeaderSynergy = encounter.synergy ?? ""
+      }
 
       if (floor === 1) {
         node.available = true

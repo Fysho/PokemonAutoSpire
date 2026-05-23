@@ -104,84 +104,100 @@ const GYM_LEADERS: SpireEncounter[] = [
   {
     name: "Brock",
     avatar: Pkm.ONIX,
+    synergy: Synergy.ROCK,
     board: [[Pkm.GEODUDE, 2, 1], [Pkm.GEODUDE, 6, 1], [Pkm.ONIX, 4, 2]]
   },
   {
     name: "Misty",
     avatar: Pkm.STARMIE,
+    synergy: Synergy.WATER,
     board: [[Pkm.STARYU, 2, 1], [Pkm.STARYU, 6, 1], [Pkm.STARMIE, 4, 2]]
   },
   {
     name: "Lt. Surge",
     avatar: Pkm.RAICHU,
+    synergy: Synergy.ELECTRIC,
     board: [[Pkm.PIKACHU, 2, 1], [Pkm.PIKACHU, 6, 1], [Pkm.RAICHU, 4, 2], [Pkm.VOLTORB, 4, 1]]
   },
   {
     name: "Erika",
     avatar: Pkm.VILEPLUME,
+    synergy: Synergy.GRASS,
     board: [[Pkm.ODDISH, 2, 1], [Pkm.BELLSPROUT, 6, 1], [Pkm.VILEPLUME, 4, 2], [Pkm.GLOOM, 3, 1]]
   },
   {
     name: "Sabrina",
     avatar: Pkm.ALAKAZAM,
+    synergy: Synergy.PSYCHIC,
     board: [[Pkm.ABRA, 2, 1], [Pkm.KADABRA, 6, 1], [Pkm.ALAKAZAM, 4, 2], [Pkm.ABRA, 5, 1]]
   },
   {
     name: "Blaine",
     avatar: Pkm.ARCANINE,
+    synergy: Synergy.FIRE,
     board: [[Pkm.GROWLITHE, 2, 1], [Pkm.GROWLITHE, 6, 1], [Pkm.ARCANINE, 4, 2], [Pkm.VULPIX, 4, 1]]
   },
   {
     name: "Koga",
     avatar: Pkm.MUK,
+    synergy: Synergy.POISON,
     board: [[Pkm.KOFFING, 2, 1], [Pkm.GRIMER, 6, 1], [Pkm.MUK, 4, 2], [Pkm.KOFFING, 5, 1]]
   },
   {
     name: "Giovanni",
     avatar: Pkm.NIDOKING,
+    synergy: Synergy.GROUND,
     board: [[Pkm.RHYHORN, 2, 1], [Pkm.NIDORINO, 6, 1], [Pkm.NIDOKING, 4, 2], [Pkm.DUGTRIO, 4, 1]]
   },
   // --- Johto ---
   {
     name: "Morty",
     avatar: Pkm.GENGAR,
+    synergy: Synergy.GHOST,
     board: [[Pkm.GASTLY, 2, 1], [Pkm.HAUNTER, 6, 1], [Pkm.GENGAR, 4, 2], [Pkm.MISDREAVUS, 3, 1]]
   },
   {
     name: "Chuck",
     avatar: Pkm.POLIWRATH,
+    synergy: Synergy.FIGHTING,
     board: [[Pkm.MACHOP, 2, 1], [Pkm.PRIMEAPE, 6, 1], [Pkm.POLIWRATH, 4, 2], [Pkm.MACHOKE, 5, 1]]
   },
   {
     name: "Jasmine",
     avatar: Pkm.STEELIX,
+    synergy: Synergy.STEEL,
     board: [[Pkm.MAGNEMITE, 2, 1], [Pkm.MAGNEMITE, 6, 1], [Pkm.STEELIX, 4, 2], [Pkm.MAGNETON, 4, 1]]
   },
   {
     name: "Clair",
     avatar: Pkm.DRAGONITE,
+    synergy: Synergy.DRAGON,
     board: [[Pkm.DRATINI, 2, 1], [Pkm.DRAGONAIR, 6, 1], [Pkm.DRAGONITE, 4, 2], [Pkm.KINGDRA, 3, 2]]
   },
   // --- Hoenn ---
   {
     name: "Flannery",
     avatar: Pkm.TORKOAL,
+    synergy: Synergy.FIRE,
     board: [[Pkm.SLUGMA, 2, 1], [Pkm.NUMEL, 6, 1], [Pkm.TORKOAL, 4, 2], [Pkm.MAGCARGO, 5, 1]]
   },
   {
     name: "Norman",
     avatar: Pkm.SLAKING,
+    synergy: Synergy.NORMAL,
     board: [[Pkm.SLAKOTH, 2, 1], [Pkm.VIGOROTH, 6, 1], [Pkm.SLAKING, 4, 2]]
   },
   {
     name: "Winona",
     avatar: Pkm.ALTARIA,
+    synergy: Synergy.FLYING,
     board: [[Pkm.SWABLU, 2, 1], [Pkm.TAILLOW, 6, 1], [Pkm.ALTARIA, 4, 2], [Pkm.SKARMORY, 3, 2]]
   },
   // --- Sinnoh ---
   {
     name: "Volkner",
     avatar: Pkm.LUXRAY,
+    synergy: Synergy.ELECTRIC,
     board: [[Pkm.SHINX, 2, 1], [Pkm.LUXIO, 6, 1], [Pkm.LUXRAY, 4, 2], [Pkm.ELECTRODE, 4, 1]]
   }
 ]
@@ -335,9 +351,20 @@ export function getWildEncounter(act: number, floor: number, seed: number): Spir
   }
 }
 
-export function getGymLeaderEncounter(act: number, floor: number): SpireEncounter {
-  const index = ((act - 1) * 2 + Math.floor(floor / 7)) % GYM_LEADERS.length
-  return GYM_LEADERS[index]
+export function getGymLeaderEncounter(index: number): SpireEncounter {
+  return GYM_LEADERS[index % GYM_LEADERS.length]
+}
+
+export function getGymLeaderCount(): number {
+  return GYM_LEADERS.length
+}
+
+export function getGymLeaderGem(synergy: Synergy): Item {
+  const gemName = `${synergy}_GEM`
+  if (gemName in Item) {
+    return Item[gemName as keyof typeof Item]
+  }
+  return Item.NORMAL_GEM
 }
 
 export function getLegendaryBossEncounter(act: number): SpireEncounter {

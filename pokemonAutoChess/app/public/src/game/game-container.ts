@@ -568,22 +568,6 @@ class GameContainer {
       }
     })
 
-    $player.relics.onAdd(() => {
-      if (player.id === this.playerIdSpectated) {
-        store.dispatch(
-          changePlayer({ id: player.id, field: "relics", value: player.relics })
-        )
-      }
-    })
-
-    $player.relics.onRemove(() => {
-      if (player.id === this.playerIdSpectated) {
-        store.dispatch(
-          changePlayer({ id: player.id, field: "relics", value: player.relics })
-        )
-      }
-    })
-
     $player.listen("map", async (value) => {
       if (player.id === this.playerIdSpectated && this.gameScene) {
         if (value && value !== "town") {

@@ -2,7 +2,7 @@ import { ArraySchema } from "@colyseus/schema"
 import { Item } from "../types/enum/Item"
 import { pickNRandomIn } from "../utils/random"
 
-export const RELIC_ITEMS = [
+export const PASSIVE_ITEMS = [
   Item.SHELL_BELL,
   Item.LEFTOVERS,
   Item.SCOPE_LENS,
@@ -20,15 +20,13 @@ export const RELIC_ITEMS = [
   Item.POKERUS_VIAL
 ] as const
 
-export type Relic = (typeof RELIC_ITEMS)[number]
-
-export interface RelicDefinition {
+export interface PassiveItemDefinition {
   id: Item
   name: string
   description: string
 }
 
-export const RELIC_DEFINITIONS: Partial<Record<Item, RelicDefinition>> = {
+export const PASSIVE_ITEM_DEFINITIONS: Partial<Record<Item, PassiveItemDefinition>> = {
   [Item.LUCKY_RIBBON]: {
     id: Item.LUCKY_RIBBON,
     name: "Lucky Ribbon",
@@ -106,46 +104,42 @@ export const RELIC_DEFINITIONS: Partial<Record<Item, RelicDefinition>> = {
   }
 }
 
-export function isRelic(item: string): boolean {
-  return RELIC_ITEMS.includes(item as Item)
+function hasItem(items: ArraySchema<string>, item: Item): boolean {
+  return items.includes(item)
 }
 
-export function hasRelic(relics: ArraySchema<string>, relic: Item): boolean {
-  return relics.includes(relic)
+export function getRelicBonusGold(items: ArraySchema<string>): number {
+  return hasItem(items, Item.LUCKY_RIBBON) ? 3 : 0
 }
 
-export function getRelicBonusGold(relics: ArraySchema<string>): number {
-  return hasRelic(relics, Item.LUCKY_RIBBON) ? 3 : 0
-}
-
-export function getRelicPostBattleHeal(relics: ArraySchema<string>, won: boolean): number {
+export function getRelicPostBattleHeal(items: ArraySchema<string>, won: boolean): number {
   let heal = 0
-  if (hasRelic(relics, Item.SHELL_BELL) && won) heal += 5
-  if (hasRelic(relics, Item.LEFTOVERS)) heal += 3
+  if (hasItem(items, Item.SHELL_BELL) && won) heal += 5
+  if (hasItem(items, Item.LEFTOVERS)) heal += 3
   return heal
 }
 
-export function getRelicDamageReduction(relics: ArraySchema<string>): number {
-  return hasRelic(relics, Item.SMOKE_BALL) ? 3 : 0
+export function getRelicDamageReduction(items: ArraySchema<string>): number {
+  return hasItem(items, Item.SMOKE_BALL) ? 3 : 0
 }
 
-export function getRelicPokemonOfferCount(relics: ArraySchema<string>): number {
-  return hasRelic(relics, Item.WIDE_LENS) ? 4 : 3
+export function getRelicPokemonOfferCount(items: ArraySchema<string>): number {
+  return hasItem(items, Item.WIDE_LENS) ? 4 : 3
 }
 
-export function getRelicBonusXP(relics: ArraySchema<string>): number {
-  return hasRelic(relics, Item.EXP_SHARE) ? 4 : 0
+export function getRelicBonusXP(items: ArraySchema<string>): number {
+  return hasItem(items, Item.EXP_SHARE) ? 4 : 0
 }
 
-export function getRelicRestHealBonus(relics: ArraySchema<string>): number {
-  return hasRelic(relics, Item.MAX_REVIVE) ? 20 : 0
+export function getRelicRestHealBonus(items: ArraySchema<string>): number {
+  return hasItem(items, Item.MAX_REVIVE) ? 20 : 0
 }
 
-export function getRelicFreeReroll(relics: ArraySchema<string>): boolean {
-  return hasRelic(relics, Item.AMULET_COIN)
+export function getRelicFreeReroll(items: ArraySchema<string>): boolean {
+  return hasItem(items, Item.AMULET_COIN)
 }
 
-export function getRandomRelicChoices(existing: ArraySchema<string>, count: number = 3): Item[] {
-  const available = RELIC_ITEMS.filter(r => !existing.includes(r))
-  return pickNRandomIn([...available], Math.min(count, available.length))
+export function getRandomItemChoices(existing: ArraySchema<string>, count: number = 3): Item[] {
+  const available = [...PASSIVE_ITEMS].filter(r => !existing.includes(r))
+  return pickNRandomIn(available, Math.min(count, available.length))
 }
