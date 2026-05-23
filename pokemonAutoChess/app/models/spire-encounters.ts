@@ -303,6 +303,106 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
       2: [[Pkm.SNORLAX, 4, 2], [Pkm.VIGOROTH, 2, 1], [Pkm.DITTO, 6, 1]],
       3: [[Pkm.SNORLAX, 4, 3], [Pkm.SLAKING, 2, 2], [Pkm.DITTO, 6, 1], [Pkm.MUNCHLAX, 4, 1]]
     }
+  },
+  {
+    name: "Poltergeist",
+    avatar: Pkm.ROTOM,
+    pokemon: [Pkm.ROTOM, Pkm.ROTOM_WASH, Pkm.ROTOM_HEAT, Pkm.ROTOM_FROST, Pkm.ROTOM_FAN, Pkm.ROTOM_MOW],
+    tiers: {
+      1: [[Pkm.ROTOM, 3, 1], [Pkm.ROTOM, 5, 1]],
+      2: [[Pkm.ROTOM, 4, 2], [Pkm.ROTOM_WASH, 2, 1], [Pkm.ROTOM_HEAT, 6, 1]],
+      3: [[Pkm.ROTOM, 4, 3], [Pkm.ROTOM_WASH, 2, 2], [Pkm.ROTOM_HEAT, 6, 2], [Pkm.ROTOM_FROST, 3, 1], [Pkm.ROTOM_MOW, 5, 1]]
+    }
+  },
+  {
+    name: "Mother's Fury",
+    avatar: Pkm.KANGASKHAN,
+    pokemon: [Pkm.KANGASKHAN],
+    tiers: {
+      1: [[Pkm.KANGASKHAN, 4, 1]],
+      2: [[Pkm.KANGASKHAN, 4, 2], [Pkm.KANGASKHAN, 2, 1]],
+      3: [[Pkm.KANGASKHAN, 4, 3], [Pkm.KANGASKHAN, 2, 2], [Pkm.KANGASKHAN, 6, 2]]
+    }
+  },
+  {
+    name: "Cheer Squad",
+    avatar: Pkm.PLUSLE,
+    pokemon: [Pkm.PLUSLE, Pkm.MINUN, Pkm.PACHIRISU, Pkm.DEDENNE, Pkm.TOGEDEMARU],
+    tiers: {
+      1: [[Pkm.PLUSLE, 3, 1], [Pkm.MINUN, 5, 1]],
+      2: [[Pkm.PLUSLE, 2, 1], [Pkm.MINUN, 6, 1], [Pkm.PACHIRISU, 4, 2]],
+      3: [[Pkm.PLUSLE, 2, 1], [Pkm.MINUN, 6, 1], [Pkm.PACHIRISU, 4, 2], [Pkm.DEDENNE, 3, 2], [Pkm.TOGEDEMARU, 5, 2]]
+    }
+  },
+  {
+    name: "Bug Rivalry",
+    avatar: Pkm.HERACROSS,
+    pokemon: [Pkm.HERACROSS, Pkm.PINSIR],
+    tiers: {
+      1: [[Pkm.HERACROSS, 3, 1], [Pkm.PINSIR, 5, 1]],
+      2: [[Pkm.HERACROSS, 3, 2], [Pkm.PINSIR, 5, 2]],
+      3: [[Pkm.HERACROSS, 3, 2], [Pkm.PINSIR, 5, 2], [Pkm.HERACROSS, 2, 1], [Pkm.PINSIR, 6, 1]]
+    }
+  },
+  {
+    name: "Grudge Match",
+    avatar: Pkm.ZANGOOSE,
+    pokemon: [Pkm.ZANGOOSE, Pkm.SEVIPER],
+    tiers: {
+      1: [[Pkm.ZANGOOSE, 3, 1], [Pkm.SEVIPER, 5, 1]],
+      2: [[Pkm.ZANGOOSE, 3, 2], [Pkm.SEVIPER, 5, 2]],
+      3: [[Pkm.ZANGOOSE, 2, 2], [Pkm.ZANGOOSE, 4, 1], [Pkm.SEVIPER, 6, 2], [Pkm.SEVIPER, 4, 2]]
+    }
+  },
+  {
+    name: "Weather Report",
+    avatar: Pkm.CASTFORM,
+    pokemon: [Pkm.CASTFORM, Pkm.CASTFORM_SUN, Pkm.CASTFORM_RAIN, Pkm.CASTFORM_HAIL],
+    tiers: {
+      1: [[Pkm.CASTFORM, 3, 1], [Pkm.CASTFORM, 5, 1]],
+      2: [[Pkm.CASTFORM_SUN, 2, 1], [Pkm.CASTFORM_RAIN, 6, 1], [Pkm.CASTFORM, 4, 2]],
+      3: [[Pkm.CASTFORM_SUN, 2, 2], [Pkm.CASTFORM_RAIN, 6, 2], [Pkm.CASTFORM_HAIL, 4, 2], [Pkm.CASTFORM, 3, 1], [Pkm.CASTFORM, 5, 1]]
+    }
+  },
+  {
+    name: "Dark Omen",
+    avatar: Pkm.ABSOL,
+    pokemon: [Pkm.ABSOL, Pkm.SPIRITOMB],
+    tiers: {
+      1: [[Pkm.ABSOL, 4, 1]],
+      2: [[Pkm.ABSOL, 3, 2], [Pkm.SPIRITOMB, 5, 2]],
+      3: [[Pkm.ABSOL, 2, 2], [Pkm.SPIRITOMB, 6, 2], [Pkm.ABSOL, 4, 3]]
+    }
+  },
+  {
+    name: "Masquerade",
+    avatar: Pkm.MIMIKYU,
+    pokemon: [Pkm.MIMIKYU, Pkm.DITTO, Pkm.ZORUA],
+    tiers: {
+      1: [[Pkm.MIMIKYU, 4, 1], [Pkm.DITTO, 3, 1]],
+      2: [[Pkm.MIMIKYU, 4, 2], [Pkm.DITTO, 2, 1], [Pkm.ZORUA, 6, 1]],
+      3: [[Pkm.MIMIKYU, 4, 3], [Pkm.DITTO, 2, 1], [Pkm.DITTO, 6, 1], [Pkm.ZORUA, 3, 2], [Pkm.MIMIKYU, 5, 1]]
+    }
+  },
+  {
+    name: "Luchador Ring",
+    avatar: Pkm.HAWLUCHA,
+    pokemon: [Pkm.HAWLUCHA, Pkm.TAUROS, Pkm.KANGASKHAN],
+    tiers: {
+      1: [[Pkm.HAWLUCHA, 4, 1], [Pkm.TAUROS, 3, 1]],
+      2: [[Pkm.HAWLUCHA, 4, 2], [Pkm.TAUROS, 2, 1], [Pkm.KANGASKHAN, 6, 1]],
+      3: [[Pkm.HAWLUCHA, 4, 3], [Pkm.TAUROS, 2, 2], [Pkm.KANGASKHAN, 6, 2], [Pkm.HAWLUCHA, 3, 1]]
+    }
+  },
+  {
+    name: "Old & Wise",
+    avatar: Pkm.DRAMPA,
+    pokemon: [Pkm.DRAMPA, Pkm.KOMALA, Pkm.MILTANK],
+    tiers: {
+      1: [[Pkm.KOMALA, 3, 1], [Pkm.MILTANK, 5, 1]],
+      2: [[Pkm.DRAMPA, 4, 2], [Pkm.KOMALA, 2, 1], [Pkm.MILTANK, 6, 1]],
+      3: [[Pkm.DRAMPA, 4, 3], [Pkm.KOMALA, 2, 2], [Pkm.MILTANK, 6, 2], [Pkm.DRAMPA, 3, 1]]
+    }
   }
 ]
 
@@ -547,10 +647,10 @@ export function getRegionalPokemonForReward(region: string, act: number): Pkm | 
 
 export function getGoldReward(nodeType: string, act: number): number {
   switch (nodeType) {
-    case "WILD_BATTLE": return 4 + act * 2
-    case "ELITE": return 8 + act * 4
-    case "GYM_LEADER": return 12 + act * 4
-    case "LEGENDARY_BOSS": return 24 + act * 6
+    case "WILD_BATTLE": return 5 + act * 3
+    case "ELITE": return 10 + act * 5
+    case "GYM_LEADER": return 14 + act * 5
+    case "LEGENDARY_BOSS": return 25 + act * 8
     default: return 0
   }
 }
