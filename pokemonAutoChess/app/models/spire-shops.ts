@@ -41,7 +41,7 @@ function getPokemonPrice(pkm: Pkm): number {
 function getItemPrice(item: Item): number {
   if (item === Item.RECYCLE_TICKET || item === Item.EXCHANGE_TICKET) return 2
   if ((NonSpecialBerries as readonly Item[]).includes(item)) return 4
-  if ((ItemComponentsNoFossilOrScarf as readonly Item[]).includes(item)) return 4
+  if ((ItemComponentsNoFossilOrScarf as readonly Item[]).includes(item)) return 6
   if ((CraftableItems as readonly Item[]).includes(item)) return 10
   return 6
 }

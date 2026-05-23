@@ -408,9 +408,10 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
 
 const LEGENDARY_BOSSES: { [act: number]: SpireEncounter } = {
   1: {
-    name: "Mewtwo",
+    name: "Mewtwo & Mew",
     avatar: Pkm.MEWTWO,
-    board: [[Pkm.MEWTWO, 4, 3]]
+    board: [[Pkm.MEWTWO, 4, 3], [Pkm.MEW, 2, 2]],
+    items: [[Item.CHOICE_SPECS], [Item.SHELL_BELL]]
   },
   2: {
     name: "Tower Duo",
@@ -647,10 +648,10 @@ export function getRegionalPokemonForReward(region: string, act: number): Pkm | 
 
 export function getGoldReward(nodeType: string, act: number): number {
   switch (nodeType) {
-    case "WILD_BATTLE": return 5 + act * 3
-    case "ELITE": return 10 + act * 5
-    case "GYM_LEADER": return 14 + act * 5
-    case "LEGENDARY_BOSS": return 25 + act * 8
+    case "WILD_BATTLE": return 2 + act
+    case "ELITE": return 4 + act * 2
+    case "GYM_LEADER": return 6 + act * 3
+    case "LEGENDARY_BOSS": return 12 + act * 4
     default: return 0
   }
 }

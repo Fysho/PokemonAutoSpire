@@ -194,7 +194,8 @@ export function getBuyPrice(
   } else if (Unowns.includes(name)) {
     price = BuyPrices.UNOWN
   } else {
-    price = RarityCost[getPokemonData(name).rarity]
+    const data = getPokemonData(name)
+    price = RarityCost[data.rarity] * data.stars
   }
 
   return price

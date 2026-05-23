@@ -1381,8 +1381,26 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             else break
           }
 
-          if (won && pokemonOffers.length > 0) {
-            // Pair each Pokemon with a random item component
+          // Elite encounters: win = special Pokemon only, lose = regular Pokemon only
+          if (node.nodeType === MapNodeType.ELITE && node.eliteEncounterIndex >= 0) {
+            if (won) {
+              const elitePokemon = getEliteEncounterPokemon(node.eliteEncounterIndex)
+              if (elitePokemon.length > 0) {
+                const offers = pickNRandomIn(elitePokemon, Math.min(3, elitePokemon.length))
+                const pairedItems: Item[] = offers.map(() =>
+                  pickRandomIn(ItemComponentsNoFossilOrScarf)
+                )
+                player.choices.push(
+                  new PlayerChoice({ type: "addPick", pokemons: offers, items: pairedItems })
+                )
+              }
+            } else if (pokemonOffers.length > 0) {
+              player.choices.push(
+                new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
+              )
+            }
+          } else if (won && pokemonOffers.length > 0) {
+            // Non-elite: pair each Pokemon with a random item component
             const pairedItems: Item[] = pokemonOffers.map(() =>
               pickRandomIn(ItemComponentsNoFossilOrScarf)
             )
@@ -1390,7 +1408,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             // Add Ditto as extra option for wild encounters (no paired item)
             if (node.nodeType === MapNodeType.WILD_BATTLE) {
               pokemonOffers.push(Pkm.DITTO)
-              pairedItems.push(Item.FOSSIL_STONE) // placeholder, won't be shown
+              pairedItems.push(Item.FOSSIL_STONE)
             }
 
             player.choices.push(
@@ -1403,17 +1421,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           } else if (pokemonOffers.length > 0) {
             player.choices.push(
               new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
-            )
-          }
-        }
-
-        // Elite encounter: offer one of the defeated special Pokemon
-        if (won && node.nodeType === MapNodeType.ELITE && node.eliteEncounterIndex >= 0) {
-          const elitePokemon = getEliteEncounterPokemon(node.eliteEncounterIndex)
-          if (elitePokemon.length > 0) {
-            const offers = pickNRandomIn(elitePokemon, Math.min(3, elitePokemon.length))
-            player.choices.push(
-              new PlayerChoice({ type: "addPick", pokemons: offers })
             )
           }
         }
