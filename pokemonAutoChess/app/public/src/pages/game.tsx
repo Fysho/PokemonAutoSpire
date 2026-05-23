@@ -1013,8 +1013,9 @@ export default function Game() {
           {phase === GamePhaseState.PICK && (
             <div style={{
               position: "absolute",
-              right: "6vw",
-              top: "8px",
+              right: "1vw",
+              top: "50%",
+              transform: "translateY(-50%)",
               zIndex: 50
             }}>
               <button

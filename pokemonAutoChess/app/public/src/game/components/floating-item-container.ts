@@ -54,6 +54,14 @@ export class FloatingItemContainer extends GameObjects.Container {
         `portrait-${index}`
       )
       this.sprite.setScale(0.5)
+      loadCompressedAtlas(manager.scene, index).then(() => {
+        if (!this.sprite?.scene) return
+        const frameName = `Normal/Idle/Anim/0/0000`
+        if (manager.scene.textures.exists(index)) {
+          this.sprite.setTexture(index, frameName)
+          this.sprite.setScale(1.5)
+        }
+      })
     } else {
       this.sprite = new GameObjects.Image(
         manager.scene,
