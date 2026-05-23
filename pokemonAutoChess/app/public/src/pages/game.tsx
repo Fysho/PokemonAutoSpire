@@ -924,7 +924,7 @@ export default function Game() {
             leave={leave}
             visible={finalRankVisibility === FinalRankVisibility.VISIBLE}
           />
-          {isMapPhase && room?.state && mapVersion > 0 && (
+          {isMapPhase && room?.state && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 0) === 0 && (
             <GameMap
               key={mapVersion}
               mapNodes={room.state.mapNodes as any}
