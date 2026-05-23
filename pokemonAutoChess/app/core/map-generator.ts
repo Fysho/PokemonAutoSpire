@@ -36,7 +36,7 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
     return MapNodeType.GYM_LEADER
   }
 
-  if (floor === 4 || floor === 12 || floor === 15) {
+  if (floor === 8 || floor === 13 || floor === 17) {
     return roll < 0.5 ? MapNodeType.ELITE : MapNodeType.WILD_BATTLE
   }
 
