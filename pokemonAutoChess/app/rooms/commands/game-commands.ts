@@ -55,7 +55,7 @@ import {
   SpireEncounter
 } from "../../models/spire-encounters"
 import { getEventItems, getRandomEvent } from "../../models/spire-events"
-import { generateShopItems, getShopTypeForAct } from "../../models/spire-shops"
+import { generateShopItems } from "../../models/spire-shops"
 import {
   getRandomItemChoices,
   getRelicBonusGold,
@@ -1168,7 +1168,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         }
         resetArraySchema(
           this.state.spireEncounterBoard,
-          encounter.board.map(([pkm, x, y]) => `${pkm},${x},${y}`)
+          encounter.board.map(([pkm, x, y], i) => {
+            const itemStr = encounter.items?.[i]?.length ? `,${encounter.items[i].join(",")}` : ""
+            return `${pkm},${x},${y}${itemStr}`
+          })
         )
         this.initializePickingPhase()
         break
@@ -1190,8 +1193,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.time = 999 * 1000
     this.state.roundTime = 999
 
-    const shopType = getShopTypeForAct(this.state.currentAct)
-    const shopItems = generateShopItems(shopType, this.state.currentAct)
+    const shopItems = generateShopItems(this.state.currentAct)
 
     this.room.miniGame.initialize(this.state, this.room)
     this.room.miniGame.initializeShopCarousel(
@@ -2110,16 +2112,20 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     const node = this.state.mapNodes.get(this.state.currentNodeId)
 
     // Reconstruct encounter from spireEncounterBoard (set during PICK phase)
-    const board: [Pkm, number, number][] = Array.from(this.state.spireEncounterBoard).map((entry: string) => {
-      const [pkm, x, y] = entry.split(",")
-      return [pkm as Pkm, parseInt(x), parseInt(y)]
+    const board: [Pkm, number, number][] = []
+    const encounterItems: Item[][] = []
+    Array.from(this.state.spireEncounterBoard).forEach((entry: string) => {
+      const parts = entry.split(",")
+      board.push([parts[0] as Pkm, parseInt(parts[1]), parseInt(parts[2])])
+      encounterItems.push(parts.slice(3) as Item[])
     })
 
     if (board.length > 0) {
       const encounter: SpireEncounter = {
         name: node?.region || "Wild",
         avatar: board[0][0],
-        board
+        board,
+        items: encounterItems
       }
 
       this.state.players.forEach((player: Player) => {
@@ -2138,6 +2144,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             false,
             null
           )
+          // Apply encounter items to enemy Pokemon
+          if (encounter.items) {
+            const pvePokemons = Array.from(pveBoard.values())
+            encounter.items.forEach((itemList, i) => {
+              if (pvePokemons[i] && itemList.length > 0) {
+                itemList.forEach((item) => pvePokemons[i].items.add(item))
+              }
+            })
+          }
           const weather = getWeather(player, null, pveBoard)
           const simulation = new Simulation(
             crypto.randomUUID(),

@@ -4,7 +4,7 @@ import { getPokemonData } from "./precomputed/precomputed-pokemon-data"
 import { PRECOMPUTED_POKEMONS_PER_TYPE } from "./precomputed/precomputed-types"
 import { DungeonPMDO } from "../types/enum/Dungeon"
 import { Pkm } from "../types/enum/Pokemon"
-import { Item } from "../types/enum/Item"
+import { CraftableItems, Item, ItemComponents } from "../types/enum/Item"
 import { Synergy } from "../types/enum/Synergy"
 import { pickNRandomIn, pickRandomIn, randomBetween } from "../utils/random"
 
@@ -328,31 +328,33 @@ interface DifficultyConfig {
   pokemonCount: number
   maxStars: number
   allowedRarities: string[]
+  itemsPerPokemon: number
+  useCraftedItems: boolean
 }
 
 function getDifficultyConfig(act: number, floor: number): DifficultyConfig {
   const progress = (act - 1) * 15 + floor // 1-45
 
   if (progress <= 2) {
-    return { pokemonCount: 1, maxStars: 1, allowedRarities: ["COMMON"] }
+    return { pokemonCount: 2, maxStars: 1, allowedRarities: ["COMMON"], itemsPerPokemon: 0, useCraftedItems: false }
   } else if (progress <= 5) {
-    return { pokemonCount: randomBetween(1, 2), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"] }
+    return { pokemonCount: randomBetween(2, 3), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 0, useCraftedItems: false }
   } else if (progress <= 8) {
-    return { pokemonCount: randomBetween(2, 3), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"] }
+    return { pokemonCount: randomBetween(3, 4), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 12) {
-    return { pokemonCount: randomBetween(2, 3), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"] }
+    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 16) {
-    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"] }
+    return { pokemonCount: randomBetween(4, 5), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], itemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 22) {
-    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"] }
+    return { pokemonCount: randomBetween(4, 6), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], itemsPerPokemon: 1, useCraftedItems: true }
   } else if (progress <= 28) {
-    return { pokemonCount: randomBetween(3, 5), maxStars: 2, allowedRarities: ["RARE", "EPIC"] }
+    return { pokemonCount: randomBetween(5, 6), maxStars: 2, allowedRarities: ["RARE", "EPIC"], itemsPerPokemon: 2, useCraftedItems: true }
   } else if (progress <= 35) {
-    return { pokemonCount: randomBetween(4, 5), maxStars: 3, allowedRarities: ["RARE", "EPIC"] }
+    return { pokemonCount: randomBetween(5, 7), maxStars: 3, allowedRarities: ["RARE", "EPIC"], itemsPerPokemon: 2, useCraftedItems: true }
   } else if (progress <= 40) {
-    return { pokemonCount: randomBetween(4, 6), maxStars: 3, allowedRarities: ["RARE", "EPIC", "ULTRA"] }
+    return { pokemonCount: randomBetween(6, 8), maxStars: 3, allowedRarities: ["RARE", "EPIC", "ULTRA"], itemsPerPokemon: 3, useCraftedItems: true }
   } else {
-    return { pokemonCount: randomBetween(5, 7), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"] }
+    return { pokemonCount: randomBetween(7, 9), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], itemsPerPokemon: 3, useCraftedItems: true }
   }
 }
 
@@ -421,20 +423,45 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
   }
 
   const positions = [
-    [4, 1], [2, 1], [6, 1], [3, 1], [5, 1], [3, 2], [5, 2]
+    [4, 1], [2, 1], [6, 1], [3, 1], [5, 1], [3, 2], [5, 2], [2, 2], [6, 2]
   ]
   const board: [Pkm, number, number][] = selected.map((pkm, i) => {
     const pos = positions[i % positions.length]
     return [pkm, pos[0], pos[1]]
   })
 
+  const items = generateEncounterItems(selected.length, difficulty.itemsPerPokemon, difficulty.useCraftedItems)
+
   const regionName = (region as string).replace(/([A-Z])/g, " $1").trim()
 
   return {
     name: regionName,
     avatar: selected[0],
-    board
+    board,
+    items
   }
+}
+
+function generateEncounterItems(pokemonCount: number, itemsPerPokemon: number, useCrafted: boolean): Item[][] {
+  if (itemsPerPokemon <= 0) return []
+  const result: Item[][] = []
+  for (let i = 0; i < pokemonCount; i++) {
+    const count = randomBetween(0, itemsPerPokemon)
+    if (count === 0) {
+      result.push([])
+      continue
+    }
+    const pkmItems: Item[] = []
+    for (let j = 0; j < count; j++) {
+      if (useCrafted && Math.random() < 0.3) {
+        pkmItems.push(pickRandomIn(CraftableItems))
+      } else {
+        pkmItems.push(pickRandomIn(ItemComponents))
+      }
+    }
+    result.push(pkmItems)
+  }
+  return result
 }
 
 function getEncounterTier(act: number, floor: number): number {
