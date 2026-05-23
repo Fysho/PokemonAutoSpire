@@ -1220,19 +1220,25 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         ? Item.SILVER_DOJO_TICKET
         : Item.GOLD_DOJO_TICKET
 
+    const randomComponent = pickRandomIn(ItemComponentsNoFossilOrScarf)
+
     this.state.spireEventName = "Pokemon Center"
     this.state.spireEventDescription = "Choose one:"
     resetArraySchema(this.state.spireEventChoiceLabels, [
       "Heal 30 HP",
-      "Receive 2 Dittos",
+      "Receive a Ditto + item component",
       `Receive ${dojoTicket.replace(/_/g, " ")}`
     ])
     resetArraySchema(this.state.spireEventChoiceDescs, [
       `Restore 30 HP (current: ${this.state.runHP}/100)`,
-      "Add 2 Dittos to your bench",
+      "Add a Ditto to your bench and get a random item component",
       "A dojo ticket for training"
     ])
+
+    this.restRandomComponent = randomComponent
   }
+
+  restRandomComponent: Item = Item.FOSSIL_STONE
 
   handleRestChoice(playerId: string, choiceIndex: number) {
     const player = this.state.players.get(playerId)
@@ -1245,7 +1251,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       this.syncRunHPToPlayers()
     } else if (choiceIndex === 1) {
       this.room.spawnOnBench(player, Pkm.DITTO)
-      this.room.spawnOnBench(player, Pkm.DITTO)
+      player.items.push(this.restRandomComponent)
     } else if (choiceIndex === 2) {
       const dojoTicket = this.state.currentAct === 1
         ? Item.BRONZE_DOJO_TICKET

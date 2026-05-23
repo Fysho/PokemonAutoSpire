@@ -175,7 +175,7 @@ export default function GameMap({
                       opacity={isVisited ? 0.4 : isAvailable ? 1 : 0.6}
                     />
                     <image
-                      href={`/assets/types/${node.gymLeaderSynergy}.svg`}
+                      href={`/assets/item/${node.gymLeaderSynergy}_GEM.png`}
                       x={pos.cx - 18}
                       y={pos.cy - 18}
                       width={36}
