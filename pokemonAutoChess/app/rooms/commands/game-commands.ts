@@ -2082,36 +2082,33 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     })
 
     const node = this.state.mapNodes.get(this.state.currentNodeId)
-    let encounter: SpireEncounter | null = null
 
-    if (node) {
-      switch (node.nodeType) {
-        case MapNodeType.WILD_BATTLE:
-          encounter = getWildEncounter(this.state.currentAct, node.floor, node.x + node.floor * 7)
-          break
-        case MapNodeType.GYM_LEADER:
-          encounter = getGymLeaderEncounter(this.state.currentAct, node.floor)
-          break
-        case MapNodeType.LEGENDARY_BOSS:
-          encounter = getLegendaryBossEncounter(this.state.currentAct)
-          break
+    // Reconstruct encounter from spireEncounterBoard (set during PICK phase)
+    const board: [Pkm, number, number][] = Array.from(this.state.spireEncounterBoard).map((entry: string) => {
+      const [pkm, x, y] = entry.split(",")
+      return [pkm as Pkm, parseInt(x), parseInt(y)]
+    })
+
+    if (board.length > 0) {
+      const encounter: SpireEncounter = {
+        name: node?.region || "Wild",
+        avatar: board[0][0],
+        board
       }
-    }
 
-    if (encounter) {
       this.state.players.forEach((player: Player) => {
         if (player.alive) {
           player.opponentId = "pve"
-          player.opponentName = encounter!.name
+          player.opponentName = encounter.name
           player.opponentAvatar = getAvatarString(
-            PkmIndex[encounter!.avatar],
+            PkmIndex[encounter.avatar],
             false
           )
           player.opponentTitle = node?.nodeType === MapNodeType.GYM_LEADER ? "GYM LEADER" : "WILD"
           player.team = Team.BLUE_TEAM
 
           const pveBoard = PokemonFactory.makePveBoard(
-            { board: encounter!.board, name: encounter!.name as any, avatar: encounter!.avatar },
+            { board: encounter.board, name: encounter.name as any, avatar: encounter.avatar },
             false,
             null
           )
