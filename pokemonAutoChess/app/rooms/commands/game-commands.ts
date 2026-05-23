@@ -47,7 +47,8 @@ import {
   getEliteEncounter,
   getEliteEncounterPokemon,
   getGoldReward,
-  getGymLeaderEncounter,
+  getEarlyGymLeaderEncounter,
+  getLateGymLeaderEncounter,
   getGymLeaderGem,
   getLegendaryBossEncounter,
   getRegionalWildEncounter,
@@ -1169,7 +1170,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             ? getRegionalWildEncounter(this.state.currentAct, node.floor, node.region)
             : getWildEncounter(this.state.currentAct, node.floor, node.x + node.floor * 7)
         } else if (node.nodeType === MapNodeType.GYM_LEADER) {
-          encounter = getGymLeaderEncounter(node.gymLeaderIndex)
+          encounter = node.gymLeaderIsEarly
+            ? getEarlyGymLeaderEncounter(node.gymLeaderIndex)
+            : getLateGymLeaderEncounter(node.gymLeaderIndex)
         } else if (node.nodeType === MapNodeType.ELITE) {
           encounter = getEliteEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor)
         } else {
@@ -2149,11 +2152,16 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     })
 
     if (board.length > 0) {
+      const isBoss = node?.nodeType === MapNodeType.LEGENDARY_BOSS
+      const bossEncounter = isBoss ? getLegendaryBossEncounter(this.state.currentAct) : null
       const encounter: SpireEncounter = {
         name: node?.region || "Wild",
         avatar: board[0][0],
         board,
-        items: encounterItems
+        items: encounterItems,
+        bonusHP: bossEncounter?.bonusHP,
+        bonusAtk: bossEncounter?.bonusAtk,
+        bonusAP: bossEncounter?.bonusAP
       }
 
       this.state.players.forEach((player: Player) => {
@@ -2172,13 +2180,20 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             false,
             null
           )
-          // Apply encounter items to enemy Pokemon
+          // Apply encounter items and bonus stats to enemy Pokemon
+          const pvePokemons = Array.from(pveBoard.values())
           if (encounter.items) {
-            const pvePokemons = Array.from(pveBoard.values())
             encounter.items.forEach((itemList, i) => {
               if (pvePokemons[i] && itemList.length > 0) {
                 itemList.forEach((item) => pvePokemons[i].items.add(item))
               }
+            })
+          }
+          if (encounter.bonusHP || encounter.bonusAtk || encounter.bonusAP) {
+            pvePokemons.forEach((pkm) => {
+              if (encounter.bonusHP) pkm.addMaxHP(encounter.bonusHP)
+              if (encounter.bonusAtk) pkm.addAttack(encounter.bonusAtk)
+              if (encounter.bonusAP) pkm.addAbilityPower(encounter.bonusAP)
             })
           }
           const weather = getWeather(player, null, pveBoard)

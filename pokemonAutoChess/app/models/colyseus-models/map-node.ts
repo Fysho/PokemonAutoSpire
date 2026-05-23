@@ -22,6 +22,7 @@ export class MapNode extends Schema {
   @type("string") encounterKey: string = ""
   @type("string") region: string = ""
   @type("int8") gymLeaderIndex: number = -1
+  @type("boolean") gymLeaderIsEarly: boolean = true
   @type("string") gymLeaderSynergy: string = ""
   @type("int8") eliteEncounterIndex: number = -1
 

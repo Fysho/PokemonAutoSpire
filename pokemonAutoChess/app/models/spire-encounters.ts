@@ -14,6 +14,9 @@ export type SpireEncounter = {
   board: [pkm: Pkm, x: number, y: number][]
   items?: Item[][]
   synergy?: Synergy
+  bonusHP?: number
+  bonusAtk?: number
+  bonusAP?: number
 }
 
 export type SpireEncounterTemplate = {
@@ -99,37 +102,65 @@ const WILD_ENCOUNTERS: SpireEncounterTemplate[] = [
   }
 ]
 
-const GYM_LEADERS: SpireEncounter[] = [
-  // --- Kanto ---
+// Early gym leaders (floor 9) - mostly unevolved, 2-3 Pokemon
+const EARLY_GYM_LEADERS: SpireEncounter[] = [
   {
     name: "Brock",
-    avatar: Pkm.ONIX,
+    avatar: Pkm.GEODUDE,
     synergy: Synergy.ROCK,
-    board: [[Pkm.GEODUDE, 2, 1], [Pkm.GEODUDE, 6, 1], [Pkm.ONIX, 4, 2]]
+    board: [[Pkm.GEODUDE, 3, 1], [Pkm.GEODUDE, 5, 1]]
   },
   {
     name: "Misty",
-    avatar: Pkm.STARMIE,
+    avatar: Pkm.STARYU,
     synergy: Synergy.WATER,
-    board: [[Pkm.STARYU, 2, 1], [Pkm.STARYU, 6, 1], [Pkm.STARMIE, 4, 2]]
+    board: [[Pkm.STARYU, 3, 1], [Pkm.STARYU, 5, 1]]
   },
   {
     name: "Lt. Surge",
-    avatar: Pkm.RAICHU,
+    avatar: Pkm.PIKACHU,
     synergy: Synergy.ELECTRIC,
-    board: [[Pkm.PIKACHU, 2, 1], [Pkm.PIKACHU, 6, 1], [Pkm.RAICHU, 4, 2], [Pkm.VOLTORB, 4, 1]]
+    board: [[Pkm.PICHU, 2, 1], [Pkm.PIKACHU, 4, 1], [Pkm.VOLTORB, 6, 1]]
   },
   {
     name: "Erika",
-    avatar: Pkm.VILEPLUME,
+    avatar: Pkm.GLOOM,
     synergy: Synergy.GRASS,
-    board: [[Pkm.ODDISH, 2, 1], [Pkm.BELLSPROUT, 6, 1], [Pkm.VILEPLUME, 4, 2], [Pkm.GLOOM, 3, 1]]
+    board: [[Pkm.ODDISH, 3, 1], [Pkm.BELLSPROUT, 5, 1], [Pkm.GLOOM, 4, 2]]
   },
+  {
+    name: "Koga",
+    avatar: Pkm.KOFFING,
+    synergy: Synergy.POISON,
+    board: [[Pkm.KOFFING, 3, 1], [Pkm.GRIMER, 5, 1]]
+  },
+  {
+    name: "Flannery",
+    avatar: Pkm.SLUGMA,
+    synergy: Synergy.FIRE,
+    board: [[Pkm.SLUGMA, 3, 1], [Pkm.NUMEL, 5, 1], [Pkm.GROWLITHE, 4, 1]]
+  },
+  {
+    name: "Norman",
+    avatar: Pkm.VIGOROTH,
+    synergy: Synergy.NORMAL,
+    board: [[Pkm.SLAKOTH, 3, 1], [Pkm.VIGOROTH, 5, 2]]
+  },
+  {
+    name: "Winona",
+    avatar: Pkm.SWABLU,
+    synergy: Synergy.FLYING,
+    board: [[Pkm.SWABLU, 3, 1], [Pkm.TAILLOW, 5, 1]]
+  }
+]
+
+// Late gym leaders (floor 18) - fully evolved, 3-4 Pokemon
+const LATE_GYM_LEADERS: SpireEncounter[] = [
   {
     name: "Sabrina",
     avatar: Pkm.ALAKAZAM,
     synergy: Synergy.PSYCHIC,
-    board: [[Pkm.ABRA, 2, 1], [Pkm.KADABRA, 6, 1], [Pkm.ALAKAZAM, 4, 2], [Pkm.ABRA, 5, 1]]
+    board: [[Pkm.ABRA, 2, 1], [Pkm.KADABRA, 6, 1], [Pkm.ALAKAZAM, 4, 2]]
   },
   {
     name: "Blaine",
@@ -138,18 +169,11 @@ const GYM_LEADERS: SpireEncounter[] = [
     board: [[Pkm.GROWLITHE, 2, 1], [Pkm.GROWLITHE, 6, 1], [Pkm.ARCANINE, 4, 2], [Pkm.VULPIX, 4, 1]]
   },
   {
-    name: "Koga",
-    avatar: Pkm.MUK,
-    synergy: Synergy.POISON,
-    board: [[Pkm.KOFFING, 2, 1], [Pkm.GRIMER, 6, 1], [Pkm.MUK, 4, 2], [Pkm.KOFFING, 5, 1]]
-  },
-  {
     name: "Giovanni",
     avatar: Pkm.NIDOKING,
     synergy: Synergy.GROUND,
     board: [[Pkm.RHYHORN, 2, 1], [Pkm.NIDORINO, 6, 1], [Pkm.NIDOKING, 4, 2], [Pkm.DUGTRIO, 4, 1]]
   },
-  // --- Johto ---
   {
     name: "Morty",
     avatar: Pkm.GENGAR,
@@ -174,26 +198,6 @@ const GYM_LEADERS: SpireEncounter[] = [
     synergy: Synergy.DRAGON,
     board: [[Pkm.DRATINI, 2, 1], [Pkm.DRAGONAIR, 6, 1], [Pkm.DRAGONITE, 4, 2], [Pkm.KINGDRA, 3, 2]]
   },
-  // --- Hoenn ---
-  {
-    name: "Flannery",
-    avatar: Pkm.TORKOAL,
-    synergy: Synergy.FIRE,
-    board: [[Pkm.SLUGMA, 2, 1], [Pkm.NUMEL, 6, 1], [Pkm.TORKOAL, 4, 2], [Pkm.MAGCARGO, 5, 1]]
-  },
-  {
-    name: "Norman",
-    avatar: Pkm.SLAKING,
-    synergy: Synergy.NORMAL,
-    board: [[Pkm.SLAKOTH, 2, 1], [Pkm.VIGOROTH, 6, 1], [Pkm.SLAKING, 4, 2]]
-  },
-  {
-    name: "Winona",
-    avatar: Pkm.ALTARIA,
-    synergy: Synergy.FLYING,
-    board: [[Pkm.SWABLU, 2, 1], [Pkm.TAILLOW, 6, 1], [Pkm.ALTARIA, 4, 2], [Pkm.SKARMORY, 3, 2]]
-  },
-  // --- Sinnoh ---
   {
     name: "Volkner",
     avatar: Pkm.LUXRAY,
@@ -201,6 +205,8 @@ const GYM_LEADERS: SpireEncounter[] = [
     board: [[Pkm.SHINX, 2, 1], [Pkm.LUXIO, 6, 1], [Pkm.LUXRAY, 4, 2], [Pkm.ELECTRODE, 4, 1]]
   }
 ]
+
+const GYM_LEADERS: SpireEncounter[] = [...EARLY_GYM_LEADERS, ...LATE_GYM_LEADERS]
 
 export type EliteEncounterTemplate = {
   name: string
@@ -411,17 +417,38 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter } = {
     name: "Mewtwo & Mew",
     avatar: Pkm.MEWTWO,
     board: [[Pkm.MEWTWO, 4, 3], [Pkm.MEW, 2, 2]],
-    items: [[Item.CHOICE_SPECS], [Item.SHELL_BELL]]
+    items: [
+      [Item.CHOICE_SPECS, Item.WISE_GLASSES, Item.SOUL_DEW],
+      [Item.SHELL_BELL, Item.LEFTOVERS, Item.AQUA_EGG]
+    ],
+    bonusHP: 100,
+    bonusAtk: 5,
+    bonusAP: 20
   },
   2: {
     name: "Tower Duo",
     avatar: Pkm.LUGIA,
-    board: [[Pkm.LUGIA, 3, 3], [Pkm.HO_OH, 5, 3]]
+    board: [[Pkm.LUGIA, 3, 3], [Pkm.HO_OH, 5, 3]],
+    items: [
+      [Item.LEFTOVERS, Item.ASSAULT_VEST, Item.SOUL_DEW],
+      [Item.SACRED_ASH, Item.FLAME_ORB, Item.WIDE_LENS]
+    ],
+    bonusHP: 200,
+    bonusAtk: 10,
+    bonusAP: 40
   },
   3: {
     name: "Weather Trio",
     avatar: Pkm.RAYQUAZA,
-    board: [[Pkm.GROUDON, 2, 2], [Pkm.KYOGRE, 6, 2], [Pkm.RAYQUAZA, 4, 3]]
+    board: [[Pkm.GROUDON, 2, 2], [Pkm.KYOGRE, 6, 2], [Pkm.RAYQUAZA, 4, 3]],
+    items: [
+      [Item.RED_ORB, Item.ROCKY_HELMET, Item.ASSAULT_VEST],
+      [Item.BLUE_ORB, Item.SHELL_BELL, Item.WISE_GLASSES],
+      [Item.RAZOR_CLAW, Item.SCOPE_LENS, Item.RAZOR_FANG]
+    ],
+    bonusHP: 350,
+    bonusAtk: 15,
+    bonusAP: 60
   }
 }
 
@@ -589,8 +616,24 @@ export function getGymLeaderEncounter(index: number): SpireEncounter {
   return GYM_LEADERS[index % GYM_LEADERS.length]
 }
 
+export function getEarlyGymLeaderEncounter(index: number): SpireEncounter {
+  return EARLY_GYM_LEADERS[index % EARLY_GYM_LEADERS.length]
+}
+
+export function getLateGymLeaderEncounter(index: number): SpireEncounter {
+  return LATE_GYM_LEADERS[index % LATE_GYM_LEADERS.length]
+}
+
 export function getGymLeaderCount(): number {
   return GYM_LEADERS.length
+}
+
+export function getEarlyGymLeaderCount(): number {
+  return EARLY_GYM_LEADERS.length
+}
+
+export function getLateGymLeaderCount(): number {
+  return LATE_GYM_LEADERS.length
 }
 
 export function getGymLeaderGem(synergy: Synergy): Item {

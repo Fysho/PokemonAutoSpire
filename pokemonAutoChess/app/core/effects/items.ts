@@ -339,26 +339,12 @@ export class DojoTicketOnItemDroppedEffect extends OnItemDroppedEffect {
   constructor(ticketLevel: number) {
     super(({ pokemon, player, room, item }) => {
       if (NonPkm.includes(pokemon.name)) return false
-      const substitute = PokemonFactory.createPokemonFromName(
-        Pkm.SUBSTITUTE,
-        player
-      )
-      pokemon.items.forEach((item) => substitute.items.add(item))
-      pokemon.removeItems(schemaValues(pokemon.items), player)
-      const pokemonLeaving =
-        player.getPokemonAt(pokemon.positionX, pokemon.positionY) || pokemon // re-fetch pokemon in case it has been transformed
-      substitute.id = pokemonLeaving.id
-      substitute.evolution = pokemonLeaving.name
-      substitute.evolutionRule = new ConditionBasedEvolutionRule(() => false) // used only to store the original pokemon
-      substitute.positionX = pokemonLeaving.positionX
-      substitute.positionY = pokemonLeaving.positionY
-      player.board.delete(pokemonLeaving.id)
-      player.board.set(substitute.id, substitute)
-      player.pokemonsTrainingInDojo.push({
-        pokemon: pokemonLeaving,
-        ticketLevel,
-        returnStage: room.state.stageLevel + ([3, 4, 5][ticketLevel - 1] ?? 5)
-      })
+      const hpBonus = [50, 100, 150][ticketLevel - 1] ?? 0
+      const atkBonus = [5, 10, 15][ticketLevel - 1] ?? 0
+      const apBonus = [15, 30, 45][ticketLevel - 1] ?? 0
+      pokemon.addMaxHP(hpBonus)
+      pokemon.addAttack(atkBonus)
+      pokemon.addAbilityPower(apBonus)
       removeInArray(player.items, item)
       return false // prevent item from being equipped
     })

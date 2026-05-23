@@ -1,6 +1,6 @@
 import { ArraySchema, MapSchema } from "@colyseus/schema"
 import { MapEdge, MapNode, MapNodeType } from "../models/colyseus-models/map-node"
-import { getEliteEncounterCount, getGymLeaderCount, getGymLeaderEncounter } from "../models/spire-encounters"
+import { getEarlyGymLeaderCount, getEarlyGymLeaderEncounter, getEliteEncounterCount, getLateGymLeaderCount, getLateGymLeaderEncounter } from "../models/spire-encounters"
 import { DungeonPMDO } from "../types/enum/Dungeon"
 import { pickRandomIn, randomBetween, shuffleArray } from "../utils/random"
 
@@ -55,10 +55,12 @@ export function generateActMap(
   const totalFloors = FLOORS_PER_ACT
   const floorNodes: string[][] = []
 
-  const gymLeaderTotal = getGymLeaderCount()
-  const gymLeaderIndices = Array.from({ length: gymLeaderTotal }, (_, i) => i)
-  shuffleArray(gymLeaderIndices)
-  let gymLeaderPick = 0
+  const earlyGymIndices = Array.from({ length: getEarlyGymLeaderCount() }, (_, i) => i)
+  shuffleArray(earlyGymIndices)
+  let earlyGymPick = 0
+  const lateGymIndices = Array.from({ length: getLateGymLeaderCount() }, (_, i) => i)
+  shuffleArray(lateGymIndices)
+  let lateGymPick = 0
 
   const eliteTotal = getEliteEncounterCount()
   const eliteIndices = Array.from({ length: eliteTotal }, (_, i) => i)
@@ -93,11 +95,22 @@ export function generateActMap(
       const node = new MapNode(id, nodeType, x, floor, act, floor, `act${act}_floor${floor}_${col}`, region)
 
       if (nodeType === MapNodeType.GYM_LEADER) {
-        const idx = gymLeaderIndices[gymLeaderPick % gymLeaderIndices.length]
-        gymLeaderPick++
-        node.gymLeaderIndex = idx
-        const encounter = getGymLeaderEncounter(idx)
-        node.gymLeaderSynergy = encounter.synergy ?? ""
+        const isEarlyFloor = floor <= 12
+        if (isEarlyFloor) {
+          const idx = earlyGymIndices[earlyGymPick % earlyGymIndices.length]
+          earlyGymPick++
+          node.gymLeaderIndex = idx
+          node.gymLeaderIsEarly = true
+          const encounter = getEarlyGymLeaderEncounter(idx)
+          node.gymLeaderSynergy = encounter.synergy ?? ""
+        } else {
+          const idx = lateGymIndices[lateGymPick % lateGymIndices.length]
+          lateGymPick++
+          node.gymLeaderIndex = idx
+          node.gymLeaderIsEarly = false
+          const encounter = getLateGymLeaderEncounter(idx)
+          node.gymLeaderSynergy = encounter.synergy ?? ""
+        }
       }
 
       if (nodeType === MapNodeType.ELITE) {
