@@ -18,18 +18,18 @@ export interface ShopItem {
 }
 
 const RARITY_BASE_PRICE: Record<string, number> = {
-  [Rarity.COMMON]: 1,
-  [Rarity.UNCOMMON]: 3,
-  [Rarity.RARE]: 5,
-  [Rarity.EPIC]: 8,
-  [Rarity.ULTRA]: 12,
-  [Rarity.UNIQUE]: 10,
-  [Rarity.LEGENDARY]: 15,
-  [Rarity.HATCH]: 3,
-  [Rarity.SPECIAL]: 5
+  [Rarity.COMMON]: 2,
+  [Rarity.UNCOMMON]: 6,
+  [Rarity.RARE]: 10,
+  [Rarity.EPIC]: 16,
+  [Rarity.ULTRA]: 24,
+  [Rarity.UNIQUE]: 20,
+  [Rarity.LEGENDARY]: 30,
+  [Rarity.HATCH]: 6,
+  [Rarity.SPECIAL]: 10
 }
 
-const STAR_BONUS_PRICE = 3
+const STAR_BONUS_PRICE = 6
 
 function getPokemonPrice(pkm: Pkm): number {
   const data = getPokemonData(pkm)
@@ -39,11 +39,11 @@ function getPokemonPrice(pkm: Pkm): number {
 }
 
 function getItemPrice(item: Item): number {
-  if (item === Item.RECYCLE_TICKET || item === Item.EXCHANGE_TICKET) return 1
-  if ((NonSpecialBerries as readonly Item[]).includes(item)) return 2
-  if ((ItemComponentsNoFossilOrScarf as readonly Item[]).includes(item)) return 2
-  if ((CraftableItems as readonly Item[]).includes(item)) return 5
-  return 3
+  if (item === Item.RECYCLE_TICKET || item === Item.EXCHANGE_TICKET) return 2
+  if ((NonSpecialBerries as readonly Item[]).includes(item)) return 4
+  if ((ItemComponentsNoFossilOrScarf as readonly Item[]).includes(item)) return 4
+  if ((CraftableItems as readonly Item[]).includes(item)) return 10
+  return 6
 }
 
 function pickShopPokemon(act: number): Pkm[] {

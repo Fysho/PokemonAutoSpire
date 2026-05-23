@@ -547,10 +547,10 @@ export function getRegionalPokemonForReward(region: string, act: number): Pkm | 
 
 export function getGoldReward(nodeType: string, act: number): number {
   switch (nodeType) {
-    case "WILD_BATTLE": return 2 + act
-    case "ELITE": return 4 + act * 2
-    case "GYM_LEADER": return 6 + act * 2
-    case "LEGENDARY_BOSS": return 12 + act * 3
+    case "WILD_BATTLE": return 4 + act * 2
+    case "ELITE": return 8 + act * 4
+    case "GYM_LEADER": return 12 + act * 4
+    case "LEGENDARY_BOSS": return 24 + act * 6
     default: return 0
   }
 }
