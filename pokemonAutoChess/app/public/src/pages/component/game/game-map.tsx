@@ -152,15 +152,23 @@ export default function GameMap({
                 />
                 {isWild && synergies.length > 0 ? (
                   synergies.map((syn, si) => {
-                    const iconSize = 14
-                    const totalWidth = synergies.length * (iconSize + 2) - 2
-                    const startX = pos.cx - totalWidth / 2 + si * (iconSize + 2)
+                    const iconSize = 18
+                    let ix = pos.cx
+                    let iy = pos.cy
+                    if (synergies.length === 2) {
+                      ix = pos.cx + (si === 0 ? -6 : 6)
+                    } else if (synergies.length === 3) {
+                      // triangle: top-center, bottom-left, bottom-right
+                      if (si === 0) { ix = pos.cx; iy = pos.cy - 7 }
+                      else if (si === 1) { ix = pos.cx - 8; iy = pos.cy + 5 }
+                      else { ix = pos.cx + 8; iy = pos.cy + 5 }
+                    }
                     return (
                       <image
                         key={`${node.id}-syn-${si}`}
                         href={`/assets/types/${syn}.svg`}
-                        x={startX}
-                        y={pos.cy - iconSize / 2}
+                        x={ix - iconSize / 2}
+                        y={iy - iconSize / 2}
                         width={iconSize}
                         height={iconSize}
                         opacity={isVisited ? 0.3 : isAvailable ? 1 : 0.5}
