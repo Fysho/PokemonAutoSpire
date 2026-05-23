@@ -1432,6 +1432,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         if (won && node.nodeType === MapNodeType.GYM_LEADER && node.gymLeaderSynergy) {
           const gem = getGymLeaderGem(node.gymLeaderSynergy as Synergy)
           player.items.push(gem)
+          const synType = SynergyGivenByGem[gem]
+          if (synType) {
+            player.bonusSynergies.set(synType, (player.bonusSynergies.get(synType) ?? 0) + 1)
+            player.updateSynergies()
+          }
         }
 
         // Item reward for gym leaders and bosses
