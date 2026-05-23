@@ -1,40 +1,60 @@
-# Pokemon Auto Chess - Source Architecture
+# PokemonAutoSpire - Architecture
+
+> This documents the current state after Phases 0-4 of the mod. For the original PAC architecture, see git history.
 
 ## Tech Stack
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | Game Engine | Phaser 4 | Rendering, sprites, input, tilemaps |
-| UI Framework | React + Redux | HUD, shop, menus, overlays |
-| Server | Node.js + Colyseus | Authoritative game state, real-time sync |
-| Database | MongoDB | User profiles, stats, bots, chat |
-| Auth | Firebase | Player authentication |
-| Transport | WebSocket (Colyseus) | Client-server state synchronization |
-| Build | esbuild | Bundling |
+| UI Framework | React + Redux | HUD, map, menus, overlays |
+| Server | Node.js + Colyseus (local) | Authoritative game state, real-time sync |
+| Database | None (stripped) | — |
+| Auth | Mock (stripped Firebase) | — |
+| Transport | WebSocket (localhost) | Client-server state synchronization |
+| Build | esbuild | Client bundling |
 
-## Room Lifecycle (Multiplayer Flow)
-
-```
-CustomLobbyRoom → PreparationRoom → GameRoom → AfterGameRoom
-   (matchmaking)    (8-player lobby)   (main game)   (results/XP)
-```
-
-## Game Phase Cycle (Inside GameRoom)
+## Game Flow
 
 ```
-┌──────────┐     ┌──────────┐     ┌──────────┐
-│   TOWN   │────►│   PICK   │────►│  FIGHT   │──┐
-│ (minigame│     │ (opponent │     │ (battle  │  │
-│  walk    │     │  preview) │     │  sim)    │  │
-│  items)  │     │  ~2 sec   │     │ 30-90s   │  │
-└──────────┘     └──────────┘     └──────────┘  │
-     ▲                                           │
-     └───────────────────────────────────────────┘
+Browser loads → SpireEntry auto-joins GameRoom → Starter selection → Act 1 Map
 ```
 
-- **TOWN**: Players walk around a shared map, collect floating items, interact with portals/NPCs
-- **PICK**: Brief transition showing next opponent, players finalize board placement
-- **FIGHT**: Server runs battle simulation, Pokemon auto-battle on the board
+## Phase State Machine
+
+```
+        ┌──────────┐
+   ┌───►│   MAP    │◄──────────────────────┐
+   │    │ (select  │                       │
+   │    │  node)   │                       │
+   │    └────┬─────┘                       │
+   │         │ click node                  │
+   │    ┌────▼─────┐                  ┌────┴─────┐
+   │    │   PICK   │──Start Fight──►  │  REWARD  │
+   │    │ (arrange │                  │ (pick    │
+   │    │  board)  │    ┌─────────┐   │ pokemon, │
+   │    └────┬─────┘    │  FIGHT  │   │ gold,    │
+   │         └─────────►│ (auto   │──►│ relics)  │
+   │                    │ battle) │   └──────────┘
+   │                    └─────────┘
+   │    ┌──────────┐
+   ├────┤   SHOP   │  (carousel walk-around, buy with gold)
+   │    └──────────┘
+   │    ┌──────────┐
+   ├────┤   REST   │  (Pokemon Center, heal HP)
+   │    └──────────┘
+   │    ┌──────────┐
+   └────┤  EVENT   │  (mystery encounter choices)
+        └──────────┘
+```
+
+- **MAP**: Branching node selection (Slay the Spire style). No timer.
+- **PICK**: Board arrangement + enemy preview. No timer — player clicks "Start Fight".
+- **FIGHT**: Auto-battle with timer and rage mechanic.
+- **REWARD**: Choose Pokemon, receive gold, choose relic (from gym leaders/bosses). No timer.
+- **SHOP**: Walk-around carousel. Buy items/Pokemon by walking into them. Gold deducted.
+- **REST**: Pokemon Center. Heals 40% missing HP. Instant.
+- **EVENT**: Mystery encounter with 2-3 choices. Effects applied on selection.
 
 ## Core Systems
 

@@ -262,25 +262,9 @@ Random events with narrative choices. Examples:
 
 ---
 
-## Server Architecture (TBD)
+## Server Architecture (Decided)
 
-The original game uses Colyseus (WebSocket server) for multiplayer state sync. For single-player, two approaches are being considered:
-
-### Option A: Embedded Local Server
-- Keep Colyseus, run server in-process (localhost)
-- Minimal refactoring of existing game logic
-- Package as Electron app or similar
-- Pro: Battle simulation, shop logic, etc. all stay on server as-is
-- Con: Heavier runtime, unnecessary networking layer
-
-### Option B: Client-Only
-- Move all game logic to the client
-- Remove Colyseus dependency
-- Game state managed entirely in Redux + Phaser
-- Pro: Lighter, deployable as static web app
-- Con: Significant refactoring of server-side game logic
-
-Decision deferred until implementation planning phase.
+**Embedded local Colyseus server.** The server runs on localhost:9000. Firebase auth replaced with mock user. MongoDB stripped entirely. All game logic stays server-side. Client connects via WebSocket on page load.
 
 ---
 
@@ -334,15 +318,37 @@ Decision deferred until implementation planning phase.
 
 ---
 
-## Open Questions
+## Implementation Status
 
-1. **Meta-progression**: What unlocks between runs? (deferred)
-2. **Difficulty modes**: Easy/Normal/Hard? Ascension system like StS?
-3. **Act theming**: Should acts have biome themes affecting encounters? (e.g., Act 1 = Forest, Act 2 = Mountain, Act 3 = Ocean)
-4. **Weather on map**: Should weather persist across fights within an act?
-5. **Synergy bonuses on map**: Any map-level bonuses for team synergies?
-6. **Pokemon Center upgrades**: Just heal, or also remove/transform Pokemon?
-7. **Run seeding**: Seeded runs for competitive/shareable experiences?
-8. **Encounter pool per act**: Which Pokemon appear in which acts?
-9. **Server architecture**: Embedded server vs. client-only (see above)
-10. **Save system**: Save and resume runs, or must complete in one session?
+### Completed
+- [x] Server isolation (Firebase/MongoDB stripped)
+- [x] MAP phase with branching StS-style map
+- [x] Phase state machine (MAP→PICK→FIGHT→REWARD→MAP)
+- [x] 8 wild encounter templates with 3 difficulty tiers
+- [x] 6 gym leader encounters, 3 legendary bosses
+- [x] Starter selection (pick 1 of 3 + 2 random commons)
+- [x] Post-fight Pokemon pick (choose 1 of 3/4)
+- [x] Gold-from-battles economy (no interest/streak)
+- [x] HP system (100 HP, damage on loss, heal at centers)
+- [x] Carousel walk-around shop (5 types, gold pricing, multi-buy)
+- [x] Pokemon Center healing
+- [x] Mystery encounters with choices (6 events)
+- [x] Relic system (15 relics, awarded from gym leaders/bosses)
+- [x] Run end screens (victory/defeat with stats)
+- [x] Act transitions (3 acts, map regenerates)
+- [x] "Start Fight" button (no timer during PICK)
+- [x] Enemy preview during PICK phase
+- [x] Clean stage info (Act/Floor/HP display)
+- [x] Original shop UI bar (gold, level, XP, team size)
+
+### Not Yet Implemented
+- [ ] Save/Load (serialize run to localStorage)
+- [ ] Battle stat relics (Muscle Band +ATK, etc. — defined but not applied in battle)
+- [ ] More encounter variety (8 templates for 45 floors)
+- [ ] Act transition overlay ("Act X Complete!")
+- [ ] Pokemon sprites in shop carousel (currently uses egg icon)
+- [ ] Balance tuning (gold, HP damage, encounter difficulty)
+- [ ] Meta-progression (unlocks between runs)
+- [ ] Difficulty modes / ascension system
+- [ ] Act biome theming
+- [ ] Run seeding for shareable runs
