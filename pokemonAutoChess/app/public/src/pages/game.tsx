@@ -951,15 +951,14 @@ export default function Game() {
           {isRewardPhase && (
             <GameReward runHP={runHP} gold={money} />
           )}
-          {isShopPhase && <GameShop />}
           {isShopPhase && (
             <div style={{
-              position: "absolute", bottom: "80px", left: "50%", transform: "translateX(-50%)", zIndex: 50
+              position: "absolute", bottom: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 50
             }}>
               <button
                 onClick={() => rooms.game?.send(Transfer.SKIP_REWARD)}
                 style={{
-                  padding: "8px 24px", fontSize: "16px", borderRadius: "6px",
+                  padding: "10px 28px", fontSize: "16px", borderRadius: "8px",
                   border: "2px solid #fff", background: "#3498db", color: "white",
                   cursor: "pointer", fontWeight: "bold"
                 }}

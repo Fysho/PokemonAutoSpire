@@ -129,8 +129,12 @@ export default class GameScene extends Scene {
       this.battleGroup = this.add.group()
       this.abilitiesVfxGroup = this.add.group()
       this.animationManager = new AnimationManager(this)
-      // MinigameManager disabled for PokemonAutoSpire (no TOWN phase)
-      this.minigameManager = null
+      this.minigameManager = new MinigameManager(
+        this,
+        this.animationManager,
+        this.uid,
+        this.room.state
+      )
 
       this.itemsContainer = new ItemsContainer(
         this,
@@ -326,7 +330,7 @@ export default class GameScene extends Scene {
         this.board.mode = BoardMode.MAP
       }
     } else if (newPhase === GamePhaseState.SHOP) {
-      this.board?.pickMode(true)
+      this.board?.minigameMode()
     } else if (newPhase === GamePhaseState.REWARD) {
       if (this.board) {
         this.board.mode = BoardMode.REWARD

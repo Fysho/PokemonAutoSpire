@@ -84,6 +84,7 @@ export class MiniGame {
   centerY: number = 235
   timeElapsed: number = 0
   rotationDirection: number = 1
+  shopMode: boolean = false
 
   constructor(room: GameRoom) {
     this.engine = Engine.create({ gravity: { x: 0, y: 0 } })
@@ -172,7 +173,35 @@ export class MiniGame {
           const item = this.items.get(itemBody.label)
           const encounter = room.state.townEncounter
 
-          if (avatar?.itemId === "" && item?.avatarId === "") {
+          if (this.shopMode && item?.avatarId === "") {
+            // Shop mode: multi-buy with gold cost
+            const player = room.state.players.get(avatar!.id)
+            if (!player) return
+            const price = item.price || 0
+            if (player.money < price) return
+
+            player.money -= price
+
+            if (item.pokemonName && item.pokemonName !== "") {
+              // Pokemon shop item
+              room.spawnOnBench(player, item.pokemonName as any)
+            } else {
+              player.items.push(item.name)
+            }
+
+            item.avatarId = avatar!.id
+            itemBody.collisionFilter.mask = 0
+
+            // Remove item from world after short delay (visual feedback)
+            setTimeout(() => {
+              const body = this.bodies.get(item!.id)
+              if (body) {
+                Composite.remove(this.engine.world, body)
+                this.bodies.delete(item!.id)
+              }
+              this.items?.delete(item!.id)
+            }, 300)
+          } else if (!this.shopMode && avatar?.itemId === "" && item?.avatarId === "") {
             if (encounter && encounter in TownEncounterSellPrice) {
               const player = room.state.players.get(avatar.id)
               const client = room.clients.find(
@@ -183,7 +212,6 @@ export class MiniGame {
                   ? 0
                   : TownEncounterSellPrice[encounter]!
               if ((player?.money ?? 0) < price) {
-                // too poor to buy one item from kecleon's shop
                 client?.send(Transfer.NPC_DIALOG, {
                   npc: encounter,
                   dialog: "tell_price" satisfies NpcDialog,
@@ -209,12 +237,11 @@ export class MiniGame {
             avatar.itemId = item.id
             item.avatarId = avatar.id
 
-            itemBody.collisionFilter.mask = 0 // item no longer collide
-            avatarBody.collisionFilter.mask = 0 // player no longer collide after taking an item
+            itemBody.collisionFilter.mask = 0
+            avatarBody.collisionFilter.mask = 0
 
             const player = this.alivePlayers.find((p) => p.id === avatar!.id)
             if (player && player.isBot) {
-              // make bots return to outer circle
               const i = this.alivePlayers.indexOf(player)
               avatar.targetX =
                 this.centerX +
@@ -266,6 +293,7 @@ export class MiniGame {
     const { players, stageLevel } = state
     this.timeElapsed = 0
     this.rotationDirection = 1
+    this.shopMode = false
 
     if (stageLevel in TownEncountersByStage) {
       let encounter = randomWeighted(
@@ -430,6 +458,28 @@ export class MiniGame {
       const y = this.centerY + Math.sin((Math.PI * 2 * j) / items.length) * 90
       const name = items[j]
       const floatingItem = new FloatingItem(name, x, y, j)
+      this.items?.set(floatingItem.id, floatingItem)
+      const body = Bodies.circle(x, y, 20)
+      body.label = floatingItem.id
+      body.isSensor = true
+      this.bodies.set(floatingItem.id, body)
+      Composite.add(this.engine.world, body)
+    }
+  }
+
+  initializeShopCarousel(shopItems: { type: string; item?: string; pokemon?: string; price: number }[]) {
+    this.shopMode = true
+    for (let j = 0; j < shopItems.length; j++) {
+      const angle = (Math.PI * 2 * j) / shopItems.length
+      const x = this.centerX + Math.cos(angle) * 120
+      const y = this.centerY + Math.sin(angle) * 100
+      const shopItem = shopItems[j]
+      const itemName = shopItem.type === "pokemon" ? Item.EGG_FOR_SELL : (shopItem.item as Item || Item.FOSSIL_STONE)
+      const floatingItem = new FloatingItem(
+        itemName, x, y, j,
+        shopItem.price,
+        shopItem.type === "pokemon" ? (shopItem.pokemon || "") : ""
+      )
       this.items?.set(floatingItem.id, floatingItem)
       const body = Bodies.circle(x, y, 20)
       body.label = floatingItem.id

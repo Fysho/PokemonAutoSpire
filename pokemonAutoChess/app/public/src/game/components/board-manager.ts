@@ -137,7 +137,8 @@ export default class BoardManager {
     } else if (state.phase === GamePhaseState.MAP || state.phase === GamePhaseState.REST || state.phase === GamePhaseState.EVENT) {
       this.mode = BoardMode.MAP
     } else if (state.phase === GamePhaseState.SHOP) {
-      this.pickMode(false)
+      this.renderBoard(false)
+      this.minigameMode()
     } else if (state.phase === GamePhaseState.REWARD) {
       this.mode = BoardMode.REWARD
       this.pickMode(false)

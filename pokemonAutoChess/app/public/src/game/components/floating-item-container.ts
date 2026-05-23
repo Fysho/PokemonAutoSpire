@@ -15,13 +15,16 @@ export class FloatingItemContainer extends GameObjects.Container {
   id: string
   detail: ItemDetail | undefined
   mouseoutTimeout: NodeJS.Timeout | null = null
+  priceText: GameObjects.Text | null = null
 
   constructor(
     manager: MinigameManager,
     id: string,
     x: number,
     y: number,
-    item: Item
+    item: Item,
+    price: number = 0,
+    pokemonName: string = ""
   ) {
     super(manager.scene, x, y)
     this.scene = manager.scene
@@ -39,16 +42,65 @@ export class FloatingItemContainer extends GameObjects.Container {
     )
     this.circle.setStrokeStyle(1, 0xffffff, 0.7)
     this.add(this.circle)
-    this.sprite = new GameObjects.Image(
-      manager.scene,
-      0,
-      0,
-      "item",
-      this.name + ".png"
-    )
+
+    if (pokemonName && pokemonName !== "") {
+      this.sprite = new GameObjects.Image(
+        manager.scene,
+        0,
+        0,
+        "item",
+        "EGG_FOR_SELL.png"
+      )
+    } else {
+      this.sprite = new GameObjects.Image(
+        manager.scene,
+        0,
+        0,
+        "item",
+        this.name + ".png"
+      )
+    }
     this.sprite.setScale(0.32)
     this.add(this.sprite)
     this.setDepth(DEPTH.INANIMATE_OBJECTS)
+
+    if (price > 0) {
+      this.priceText = new GameObjects.Text(
+        manager.scene,
+        0,
+        -26,
+        `${price}g`,
+        {
+          fontSize: "12px",
+          fontFamily: "monospace",
+          color: "#ffd700",
+          stroke: "#000000",
+          strokeThickness: 3,
+          align: "center"
+        }
+      )
+      this.priceText.setOrigin(0.5, 0.5)
+      this.add(this.priceText)
+    }
+
+    if (pokemonName && pokemonName !== "") {
+      const nameText = new GameObjects.Text(
+        manager.scene,
+        0,
+        20,
+        pokemonName.replace(/_/g, " "),
+        {
+          fontSize: "8px",
+          fontFamily: "monospace",
+          color: "#ffffff",
+          stroke: "#000000",
+          strokeThickness: 2,
+          align: "center"
+        }
+      )
+      nameText.setOrigin(0.5, 0.5)
+      this.add(nameText)
+    }
 
     this.setSize(40, 40)
     this.setInteractive()

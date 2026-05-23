@@ -51,6 +51,7 @@ import {
   SpireEncounter
 } from "../../models/spire-encounters"
 import { getEventItems, getRandomEvent } from "../../models/spire-events"
+import { generateShopItems, getShopTypeForAct } from "../../models/spire-shops"
 import {
   getRandomRelicChoices,
   getRelicBonusGold,
@@ -1084,6 +1085,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     } else if (this.state.phase === GamePhaseState.REWARD) {
       this.initializeMapPhase()
     } else if (this.state.phase === GamePhaseState.SHOP) {
+      this.room.miniGame.stop(this.state)
       this.initializeMapPhase()
     } else if (this.state.phase === GamePhaseState.REST) {
       this.initializeMapPhase()
@@ -1164,11 +1166,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.phase = GamePhaseState.SHOP
     this.state.time = 999 * 1000
     this.state.roundTime = 999
-    this.state.players.forEach((player: Player) => {
-      if (!player.isBot) {
-        this.state.shop.assignShop(player, false, this.state)
-      }
-    })
+
+    const shopType = getShopTypeForAct(this.state.currentAct)
+    const shopItems = generateShopItems(shopType, this.state.currentAct)
+
+    this.room.miniGame.initialize(this.state, this.room)
+    this.room.miniGame.initializeShopCarousel(
+      shopItems.map((si) => ({
+        type: si.type,
+        item: si.item,
+        pokemon: si.pokemon,
+        price: si.price
+      }))
+    )
   }
 
   initializeRestPhase() {

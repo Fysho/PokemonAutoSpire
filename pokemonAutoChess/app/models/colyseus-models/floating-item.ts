@@ -8,14 +8,18 @@ export class FloatingItem extends Schema implements IFloatingItem {
   @type("number") x: number
   @type("number") y: number
   @type("string") avatarId: string = ""
+  @type("uint8") price: number = 0
+  @type("string") pokemonName: string = ""
   index: number
 
-  constructor(name: Item, x: number, y: number, index: number) {
+  constructor(name: Item, x: number, y: number, index: number, price: number = 0, pokemonName: string = "") {
     super()
     this.id = crypto.randomUUID()
     this.name = name
     this.x = x
     this.y = y
     this.index = index
+    this.price = price
+    this.pokemonName = pokemonName
   }
 }

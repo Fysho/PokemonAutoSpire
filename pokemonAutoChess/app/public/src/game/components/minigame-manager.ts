@@ -168,7 +168,9 @@ export default class MinigameManager {
       item.id,
       transformMiniGameXCoordinate(item.x),
       transformMiniGameYCoordinate(item.y),
-      item.name
+      item.name,
+      (item as any).price ?? 0,
+      (item as any).pokemonName ?? ""
     )
     this.items.set(it.id, it)
   }
