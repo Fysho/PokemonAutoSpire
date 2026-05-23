@@ -1,0 +1,164 @@
+export enum Rarity {
+  COMMON = "COMMON",
+  UNCOMMON = "UNCOMMON",
+  RARE = "RARE",
+  EPIC = "EPIC",
+  ULTRA = "ULTRA",
+  UNIQUE = "UNIQUE",
+  LEGENDARY = "LEGENDARY",
+  HATCH = "HATCH",
+  SPECIAL = "SPECIAL"
+}
+
+export enum GameMode {
+  CUSTOM_LOBBY = "CUSTOM_LOBBY",
+  CLASSIC = "CLASSIC",
+  RANKED = "RANKED",
+  SCRIBBLE = "SCRIBBLE",
+  TOURNAMENT = "TOURNAMENT"
+}
+
+export enum GamePhaseState {
+  PICK,
+  FIGHT,
+  TOWN,
+  MAP,
+  SHOP,
+  REST,
+  EVENT,
+  REWARD
+}
+
+export enum PokemonActionState {
+  IDLE = "Idle",
+  ATTACK = "Attack",
+  ABILITY = "Ability",
+  WALK = "Walk",
+  SLEEP = "Sleep",
+  HOP = "Hop",
+  HURT = "Hurt",
+  EMOTE = "Emote",
+  EAT = "Eat",
+  FISH = "Fish",
+  BLOSSOM = "Blossom",
+  TRAINING = "Training"
+}
+
+export enum Orientation {
+  DOWN = "0",
+  DOWNRIGHT = "1",
+  RIGHT = "2",
+  UPRIGHT = "3",
+  UP = "4",
+  UPLEFT = "5",
+  LEFT = "6",
+  DOWNLEFT = "7"
+}
+
+export const OrientationFlip: { [key in Orientation]: Orientation } = {
+  [Orientation.DOWN]: Orientation.UP,
+  [Orientation.DOWNLEFT]: Orientation.UPLEFT,
+  [Orientation.LEFT]: Orientation.LEFT,
+  [Orientation.UPLEFT]: Orientation.DOWNLEFT,
+  [Orientation.UP]: Orientation.DOWN,
+  [Orientation.UPRIGHT]: Orientation.DOWNRIGHT,
+  [Orientation.RIGHT]: Orientation.RIGHT,
+  [Orientation.DOWNRIGHT]: Orientation.UPRIGHT
+}
+
+export const OrientationKnockback: { [key in Orientation]: Orientation[] } = {
+  [Orientation.DOWN]: [
+    Orientation.DOWN,
+    Orientation.DOWNRIGHT,
+    Orientation.DOWNLEFT
+  ],
+  [Orientation.DOWNLEFT]: [
+    Orientation.DOWNLEFT,
+    Orientation.DOWN,
+    Orientation.LEFT
+  ],
+  [Orientation.LEFT]: [
+    Orientation.LEFT,
+    Orientation.DOWNLEFT,
+    Orientation.UPLEFT
+  ],
+  [Orientation.UPLEFT]: [Orientation.UPLEFT, Orientation.LEFT, Orientation.UP],
+  [Orientation.UP]: [Orientation.UP, Orientation.UPLEFT, Orientation.UPRIGHT],
+  [Orientation.UPRIGHT]: [
+    Orientation.UPRIGHT,
+    Orientation.UP,
+    Orientation.RIGHT
+  ],
+  [Orientation.RIGHT]: [
+    Orientation.RIGHT,
+    Orientation.UPRIGHT,
+    Orientation.DOWNRIGHT
+  ],
+  [Orientation.DOWNRIGHT]: [
+    Orientation.DOWNRIGHT,
+    Orientation.RIGHT,
+    Orientation.DOWN
+  ]
+}
+
+export enum AttackType {
+  PHYSICAL,
+  SPECIAL,
+  TRUE
+}
+
+export enum HealType {
+  SHIELD,
+  HEAL
+}
+
+export enum BattleResult {
+  WIN = "WIN",
+  DEFEAT = "DEFEAT",
+  DRAW = "DRAW"
+}
+
+export enum BotDifficulty {
+  EASY,
+  MEDIUM,
+  HARD,
+  EXTREME,
+  CUSTOM
+}
+
+export enum PokemonTint {
+  NORMAL = "Normal",
+  SHINY = "Shiny"
+}
+
+export enum SpriteType {
+  ANIM = "Anim",
+  SHADOW = "Shadow"
+}
+
+export enum Stat {
+  ATK = "ATK",
+  SPEED = "SPEED",
+  DEF = "DEF",
+  SPE_DEF = "SPE_DEF",
+  HP = "HP",
+  RANGE = "RANGE",
+  PP = "PP",
+  MAX_PP = "MAX_PP",
+  CRIT_CHANCE = "CRIT_CHANCE",
+  CRIT_POWER = "CRIT_POWER",
+  AP = "AP",
+  SHIELD = "SHIELD",
+  LUCK = "LUCK"
+}
+
+export enum Damage {
+  PHYSICAL = "PHYSICAL",
+  SPECIAL = "SPECIAL",
+  TRUE = "TRUE"
+}
+
+export enum Team {
+  BLUE_TEAM = 0,
+  RED_TEAM = 1
+}

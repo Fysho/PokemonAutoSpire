@@ -1,0 +1,58 @@
+import { useTranslation } from "react-i18next"
+import { IGameUser } from "../../../../../models/colyseus-models/game-user"
+import { Role } from "../../../../../types"
+import { useAppSelector } from "../../../hooks"
+import { kick, removeBot } from "../../../network"
+import { RemoveButton } from "../buttons/remove-button"
+import { EloBadge } from "../profile/elo-badge"
+import { InlineAvatar } from "../profile/inline-avatar"
+import "./preparation-menu-user.css"
+import { preference } from "../../../preferences"
+
+export default function PreparationMenuUser(props: {
+  key: string
+  user: IGameUser
+  isOwner: boolean
+  ownerId: string
+}) {
+  const { t } = useTranslation()
+  const user = useAppSelector((state) => state.preparation.user)
+  const canKick =
+    props.isOwner || (user && [Role.MODERATOR, Role.ADMIN].includes(user.role))
+
+  const removeButton = props.user.isBot ? (
+    <RemoveButton
+      onClick={() => removeBot(props.user.uid)}
+      title={t("remove_bot")}
+    />
+  ) : canKick && props.user.uid !== user?.uid ? (
+    <RemoveButton
+      onClick={() => {
+        if (confirm(`Kick ${props.user.name} ?`)) {
+          kick(props.user.uid)
+        }
+      }}
+      title={t("kick_user")}
+    />
+  ) : null
+
+  return (
+    <div
+      className={`my-container player my-box preparation-menu-user ${
+        props.user.ready ? "ready" : "not-ready"
+      }`}
+    >
+      <EloBadge elo={props.user?.elo} />
+      <InlineAvatar
+        avatar={props.user?.avatar}
+        name={props.user?.name}
+        title={props.user?.title}
+        role={props.user?.role}
+        twitchLogin={props.user?.twitchLogin || undefined}
+        twitchDisplayName={props.user?.twitchDisplayName || undefined}
+      />
+      {preference("colorblindMode") && props.user.ready && t("ready")}
+      {removeButton}
+    </div>
+  )
+}

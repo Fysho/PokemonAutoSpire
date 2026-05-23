@@ -1,0 +1,427 @@
+import type Phaser from "phaser"
+import PokemonSprite from "../public/src/game/components/pokemon"
+import { DebugScene } from "../public/src/game/scenes/debug-scene"
+import GameScene from "../public/src/game/scenes/game-scene"
+import { Ability } from "./enum/Ability"
+import { Orientation } from "./enum/Game"
+
+export enum AnimationType {
+  Idle = "Idle",
+  Walk = "Walk",
+  Sleep = "Sleep",
+  Hurt = "Hurt",
+  Attack = "Attack",
+  Charge = "Charge",
+  Shoot = "Shoot",
+  Strike = "Strike",
+  Chop = "Chop",
+  Scratch = "Scratch",
+  Punch = "Punch",
+  Slap = "Slap",
+  Slice = "Slice",
+  MultiScratch = "MultiScratch",
+  MultiStrike = "MultiStrike",
+  Uppercut = "Uppercut",
+  Ricochet = "Ricochet",
+  Bite = "Bite",
+  Shake = "Shake",
+  Jab = "Jab",
+  Kick = "Kick",
+  Lick = "Lick",
+  Slam = "Slam",
+  Stomp = "Stomp",
+  Appeal = "Appeal",
+  Dance = "Dance",
+  Twirl = "Twirl",
+  TailWhip = "TailWhip",
+  Sing = "Sing",
+  Sound = "Sound",
+  Rumble = "Rumble",
+  FlapAround = "FlapAround",
+  Gas = "Gas",
+  Shock = "Shock",
+  Emit = "Emit",
+  SpAttack = "SpAttack",
+  Withdraw = "Withdraw",
+  RearUp = "RearUp",
+  Swell = "Swell",
+  Swing = "Swing",
+  Double = "Double",
+  Rotate = "Rotate",
+  Hop = "Hop",
+  Hover = "Hover",
+  QuickStrike = "QuickStrike",
+  EventSleep = "EventSleep",
+  Wake = "Wake",
+  Eat = "Eat",
+  Tumble = "Tumble",
+  Pose = "Pose",
+  Pull = "Pull",
+  Pain = "Pain",
+  Float = "Float",
+  DeepBreath = "DeepBreath",
+  Nod = "Nod",
+  Sit = "Sit",
+  LookUp = "LookUp",
+  Sink = "Sink",
+  Trip = "Trip",
+  Laying = "Laying",
+  LeapForth = "LeapForth",
+  Head = "Head",
+  Cringe = "Cringe",
+  LostBalance = "LostBalance",
+  TumbleBack = "TumbleBack",
+  HitGround = "HitGround",
+  Faint = "Faint",
+  Fainted = "Fainted",
+  StandingUp = "StandingUp",
+  DigIn = "DigIn",
+  DigOut = "DigOut",
+  Wiggle = "Wiggle",
+  Yawn = "Yawn",
+  RaiseArms = "RaiseArms",
+  CarefulWalk = "CarefulWalk",
+  Injured = "Injured",
+  Jump = "Jump",
+  Roar = "Roar",
+  Wave = "Wave",
+  Cry = "Cry",
+  Bow = "Bow",
+  Special0 = "Special0",
+  Special1 = "Special1",
+  Special2 = "Special2",
+  Special3 = "Special3",
+  Special4 = "Special4",
+  Special5 = "Special5",
+  Special6 = "Special6",
+  Special7 = "Special7",
+  Special8 = "Special8",
+  Special9 = "Special9",
+  Special10 = "Special10",
+  Special11 = "Special11",
+  Special12 = "Special12",
+  Special13 = "Special13",
+  Special14 = "Special14",
+  Special15 = "Special15",
+  Special16 = "Special16",
+  Special17 = "Special17",
+  Special18 = "Special18",
+  Special19 = "Special19",
+  Special20 = "Special20",
+  Special21 = "Special21",
+  Special22 = "Special22",
+  Special23 = "Special23",
+  Special24 = "Special24",
+  Special25 = "Special25",
+  Special26 = "Special26",
+  Special27 = "Special27",
+  Special28 = "Special28",
+  Special29 = "Special29",
+  Special30 = "Special30",
+  Special31 = "Special31"
+}
+
+export const AnimationOriented: { [key in AnimationType]: boolean } = {
+  [AnimationType.Idle]: true,
+  [AnimationType.Walk]: true,
+  [AnimationType.Sleep]: false,
+  [AnimationType.Hurt]: true,
+  [AnimationType.Attack]: true,
+  [AnimationType.Charge]: true,
+  [AnimationType.Shoot]: true,
+  [AnimationType.Strike]: true,
+  [AnimationType.Chop]: true,
+  [AnimationType.Scratch]: true,
+  [AnimationType.Punch]: true,
+  [AnimationType.Slap]: true,
+  [AnimationType.Slice]: true,
+  [AnimationType.MultiScratch]: true,
+  [AnimationType.MultiStrike]: true,
+  [AnimationType.Uppercut]: true,
+  [AnimationType.Ricochet]: true,
+  [AnimationType.Bite]: true,
+  [AnimationType.Shake]: true,
+  [AnimationType.Jab]: true,
+  [AnimationType.Kick]: true,
+  [AnimationType.Lick]: true,
+  [AnimationType.Slam]: true,
+  [AnimationType.Stomp]: true,
+  [AnimationType.Appeal]: true,
+  [AnimationType.Dance]: true,
+  [AnimationType.Twirl]: true,
+  [AnimationType.TailWhip]: false,
+  [AnimationType.Sing]: false,
+  [AnimationType.Sound]: false,
+  [AnimationType.Rumble]: true,
+  [AnimationType.FlapAround]: true,
+  [AnimationType.Gas]: true,
+  [AnimationType.Shock]: true,
+  [AnimationType.Emit]: true,
+  [AnimationType.SpAttack]: true,
+  [AnimationType.Withdraw]: true,
+  [AnimationType.RearUp]: true,
+  [AnimationType.Swell]: true,
+  [AnimationType.Swing]: true,
+  [AnimationType.Double]: true,
+  [AnimationType.Rotate]: true,
+  [AnimationType.Hop]: true,
+  [AnimationType.Hover]: true,
+  [AnimationType.QuickStrike]: true,
+  [AnimationType.EventSleep]: false,
+  [AnimationType.Wake]: false,
+  [AnimationType.Eat]: false,
+  [AnimationType.Tumble]: false,
+  [AnimationType.Pose]: false,
+  [AnimationType.Pull]: false,
+  [AnimationType.Pain]: false,
+  [AnimationType.Float]: false,
+  [AnimationType.DeepBreath]: false,
+  [AnimationType.Nod]: true,
+  [AnimationType.Sit]: false,
+  [AnimationType.LookUp]: false,
+  [AnimationType.Sink]: false,
+  [AnimationType.Trip]: false,
+  [AnimationType.Laying]: false,
+  [AnimationType.LeapForth]: false,
+  [AnimationType.Head]: false,
+  [AnimationType.Cringe]: false,
+  [AnimationType.LostBalance]: false,
+  [AnimationType.TumbleBack]: false,
+  [AnimationType.HitGround]: false,
+  [AnimationType.Faint]: false,
+  [AnimationType.Fainted]: false,
+  [AnimationType.StandingUp]: false,
+  [AnimationType.DigIn]: false,
+  [AnimationType.DigOut]: false,
+  [AnimationType.Wiggle]: false,
+  [AnimationType.Yawn]: false,
+  [AnimationType.RaiseArms]: false,
+  [AnimationType.CarefulWalk]: false,
+  [AnimationType.Injured]: false,
+  [AnimationType.Jump]: false,
+  [AnimationType.Roar]: false,
+  [AnimationType.Wave]: false,
+  [AnimationType.Cry]: false,
+  [AnimationType.Bow]: false,
+  [AnimationType.Special0]: false,
+  [AnimationType.Special1]: false,
+  [AnimationType.Special2]: false,
+  [AnimationType.Special3]: false,
+  [AnimationType.Special4]: false,
+  [AnimationType.Special5]: false,
+  [AnimationType.Special6]: false,
+  [AnimationType.Special7]: false,
+  [AnimationType.Special8]: false,
+  [AnimationType.Special9]: false,
+  [AnimationType.Special10]: false,
+  [AnimationType.Special11]: false,
+  [AnimationType.Special12]: false,
+  [AnimationType.Special13]: false,
+  [AnimationType.Special14]: false,
+  [AnimationType.Special15]: false,
+  [AnimationType.Special16]: false,
+  [AnimationType.Special17]: false,
+  [AnimationType.Special18]: false,
+  [AnimationType.Special19]: false,
+  [AnimationType.Special20]: false,
+  [AnimationType.Special21]: false,
+  [AnimationType.Special22]: false,
+  [AnimationType.Special23]: false,
+  [AnimationType.Special24]: false,
+  [AnimationType.Special25]: false,
+  [AnimationType.Special26]: false,
+  [AnimationType.Special27]: false,
+  [AnimationType.Special28]: false,
+  [AnimationType.Special29]: false,
+  [AnimationType.Special30]: false,
+  [AnimationType.Special31]: false
+}
+
+export type PokemonAnimationConfig = {
+  idle?: AnimationType
+  walk?: AnimationType
+  attack?: AnimationType
+  ability?: AnimationType
+  emote?: AnimationType
+  hop?: AnimationType
+  hurt?: AnimationType
+  sleep?: AnimationType
+  eat?: AnimationType
+  shinyUnavailable?: boolean
+  noShadow?: boolean
+  attackSprite?: AttackSprite
+  hitSprite?: HitSprite | HitSprite[]
+  animationsOriented?: { [anim in AnimationType]?: boolean }
+}
+
+export enum AttackSprite {
+  BUG_MELEE = "BUG/melee",
+  BUG_RANGE = "BUG/range",
+  DARK_MELEE = "DARK/melee",
+  DARK_RANGE = "DARK/range",
+  DRAGON_MELEE = "DRAGON/melee",
+  DRAGON_RANGE = "DRAGON/range",
+  DRAGON_GREEN_RANGE = "DRAGON_GREEN/range",
+  ELECTRIC_MELEE = "ELECTRIC/melee",
+  ELECTRIC_RANGE = "ELECTRIC/range",
+  FAIRY_MELEE = "FAIRY/melee",
+  FAIRY_RANGE = "FAIRY/range",
+  FIGHTING_MELEE = "FIGHTING/melee",
+  FIGHTING_RANGE = "FIGHTING/range",
+  FIRE_MELEE = "FIRE/melee",
+  FIRE_RANGE = "FIRE/range",
+  FLORA_RANGE = "FLORA/range",
+  FLYING_MELEE = "FLYING/melee",
+  FLYING_RANGE = "FLYING/range",
+  GHOST_MELEE = "GHOST/melee",
+  GHOST_RANGE = "GHOST/range",
+  GRASS_MELEE = "GRASS/melee",
+  GRASS_RANGE = "GRASS/range",
+  GROUND_MELEE = "GROUND/melee",
+  ICE_MELEE = "ICE/melee",
+  ICE_RANGE = "ICE/range",
+  NORMAL_MELEE = "NORMAL/melee",
+  POISON_MELEE = "POISON/melee",
+  POISON_RANGE = "POISON/range",
+  PSYCHIC_MELEE = "PSYCHIC/melee",
+  PSYCHIC_RANGE = "PSYCHIC/range",
+  WATER_MELEE = "WATER/melee",
+  WATER_RANGE = "WATER/range",
+  ROCK_MELEE = "ROCK/melee",
+  ROCK_RANGE = "ROCK/range",
+  SOUND_RANGE = "SOUND/range",
+  STEEL_MELEE = "STEEL/melee",
+  STEEL_RANGE = "STEEL/range",
+  WILD_MELEE = "WILD/melee"
+}
+
+export enum HitSprite {
+  NORMAL_HIT = "NORMAL/hit",
+  NORMAL_HIT2 = "NORMAL/hit2",
+  NORMAL_HIT3 = "NORMAL/hit3",
+  NORMAL_HIT4 = "NORMAL/hit4",
+  ICE_HIT = "ICE/hit",
+  GRASS_HIT = "GRASS/hit",
+  DARK_HIT = "DARK/hit",
+  FAIRY_HIT = "FAIRY/hit",
+  WATER_HIT = "WATER/hit",
+  FIRE_HIT = "FIRE/hit",
+  GROUND_HIT = "GROUND/hit",
+  ROCK_HIT = "ROCK/hit",
+  SOUND_HIT = "SOUND/hit",
+  ELECTRIC_HIT = "ELECTRIC/hit",
+  STEEL_HIT = "STEEL/hit",
+  FIGHTING_HIT = "FIGHTING/hit",
+  FLYING_HIT = "FLYING/hit",
+  BUG_HIT = "BUG/hit",
+  POISON_HIT = "POISON/hit",
+  WILD_HIT = "WILD/hit",
+  GHOST_HIT = "GHOST/hit",
+  PSYCHIC_HIT = "PSYCHIC/hit"
+}
+
+export const AttackSpriteScale: {
+  [sprite in AttackSprite | HitSprite]: [number, number]
+} = {
+  "BUG/melee": [1.5, 1.5],
+  "BUG/range": [2, 2],
+  "BUG/hit": [2, 2],
+  "DARK/melee": [1.5, 1.5],
+  "DARK/range": [1.5, 1.5],
+  "DARK/hit": [2, 2],
+  "DRAGON/melee": [1, 1],
+  "DRAGON/range": [2, 2],
+  "DRAGON_GREEN/range": [2, 2],
+  "ELECTRIC/melee": [1, 1],
+  "ELECTRIC/range": [2, 2],
+  "ELECTRIC/hit": [2, 2],
+  "FAIRY/melee": [2, 2],
+  "FAIRY/range": [2, 2],
+  "FAIRY/hit": [2, 2],
+  "FIGHTING/melee": [2, 2],
+  "FIGHTING/range": [2, 2],
+  "FIGHTING/hit": [1, 1],
+  "FIRE/melee": [1.5, 1.5],
+  "FIRE/range": [2, 2],
+  "FIRE/hit": [1.5, 1.5],
+  "FLORA/range": [1.5, 1.5],
+  "FLYING/melee": [1, 1],
+  "FLYING/range": [1.5, 1.5],
+  "FLYING/hit": [1, 1],
+  "GHOST/melee": [1, 1],
+  "GHOST/range": [1.5, 1.5],
+  "GHOST/hit": [1, 1],
+  "GRASS/melee": [1, 1],
+  "GRASS/range": [3, 3],
+  "GRASS/hit": [1, 1],
+  "GROUND/melee": [1, 1],
+  "GROUND/hit": [1, 1],
+  "ICE/melee": [1, 1],
+  "ICE/range": [1.5, 1.5],
+  "ICE/hit": [2, 2],
+  "NORMAL/melee": [1, 1],
+  "NORMAL/hit": [2, 2],
+  "NORMAL/hit2": [2, 2],
+  "NORMAL/hit3": [2, 2],
+  "NORMAL/hit4": [2, 2],
+  "POISON/melee": [2, 2],
+  "POISON/range": [1.5, 1.5],
+  "POISON/hit": [1.5, 1.5],
+  "PSYCHIC/melee": [1.5, 1.5],
+  "PSYCHIC/range": [2, 2],
+  "PSYCHIC/hit": [1.5, 1.5],
+  "ROCK/melee": [1.5, 1.5],
+  "ROCK/range": [2, 2],
+  "ROCK/hit": [1, 1],
+  "STEEL/melee": [1.5, 1.5],
+  "STEEL/range": [2, 2],
+  "STEEL/hit": [1, 1],
+  "SOUND/range": [2, 2],
+  "SOUND/hit": [1, 1],
+  "WATER/melee": [1.5, 1.5],
+  "WATER/range": [3, 3],
+  "WATER/hit": [3, 3],
+  "WILD/melee": [2, 2],
+  "WILD/hit": [1, 1]
+}
+
+export interface AbilityAnimationOptions {
+  textureKey?: string
+  frame?: string
+  ability?: Ability | string
+  position?: number[]
+  positionOffset?: [number, number]
+  scale?: number | [number, number]
+  oriented?: boolean /* apply the angle between position and target as base rotation */
+  rotation?: number
+  angle?: number
+  origin?: [number, number]
+  depth?: number
+  tint?: number
+  tintFill?: number
+  alpha?: number
+  destroyOnComplete?: boolean
+  animOptions?: Omit<Phaser.Types.Animations.PlayAnimationConfig, "key">
+  delay?: number
+  flipX?: boolean
+  flipY?: boolean
+}
+
+export type AbilityAnimationArgs = {
+  scene: GameScene | DebugScene
+  pokemonsOnBoard: PokemonSprite[]
+  ability: Ability | string
+  orientation: Orientation
+  positionX: number
+  positionY: number
+  targetX: number
+  targetY: number
+  flip: boolean
+  delay?: number
+  ap: number
+}
+
+export type AbilityAnimation = (args: AbilityAnimationArgs) => any
+export type AbilityAnimationMaker<O = AbilityAnimationOptions> = (
+  options: Readonly<AbilityAnimationOptions & O>
+) => AbilityAnimation

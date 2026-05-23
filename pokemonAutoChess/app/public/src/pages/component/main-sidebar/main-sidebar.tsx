@@ -1,0 +1,607 @@
+import { createSelector } from "@reduxjs/toolkit"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { Menu, MenuItem, MenuItemProps, Sidebar } from "react-pro-sidebar"
+import { useNavigate } from "react-router"
+import pkg from "../../../../../../package.json"
+import { GADGETS } from "../../../../../config/game/gadgets"
+import { Role } from "../../../../../types"
+import {
+  selectConnectedPlayer,
+  useAppDispatch,
+  useAppSelector
+} from "../../../hooks"
+import { usePreferences } from "../../../preferences"
+import { setSearchedUser } from "../../../stores/LobbyStore"
+import { toggleFullScreen } from "../../utils/fullscreen"
+import { cc } from "../../utils/jsx"
+import Booster from "../booster/booster"
+import TeamBuilderModal from "../bot-builder/team-builder-modal"
+import PokemonCollection from "../collection/pokemon-collection"
+import Jukebox from "../jukebox/jukebox"
+import MetaReport from "../meta-report/meta-report"
+import { Modal } from "../modal/modal"
+import ModerationPanel from "../moderation/moderation-panel"
+import GameOptionsModal from "../options/game-options-modal"
+import Patchnotes from "../patchnotes/patchnotes"
+import { usePatchVersion } from "../patchnotes/usePatchVersion"
+import PokeGuesser from "../pokeguesser/pokeguesser"
+import Profile from "../profile/profile"
+import ServersList from "../servers/servers-list"
+import SpriteTrackerModal from "../sprite-tracker/sprite-tracker-modal"
+import SynergyWheelModal from "../synergy-wheel/synergy-wheel"
+import TierListMakerModal from "../tier-list/tier-list-maker-modal"
+import { TournamentsAdmin } from "../tournaments-admin/tournaments-admin"
+import Wiki from "../wiki/wiki"
+
+import "./main-sidebar.css"
+
+export type Page = "main_lobby" | "preparation" | "game"
+
+interface MainSidebarProps {
+  page: Page
+  leave: () => void
+  leaveLabel: string
+}
+
+export function MainSidebar(props: MainSidebarProps) {
+  const { page, leave, leaveLabel } = props
+  const [collapsed, setCollapsed] = useState(true)
+  const navigate = useNavigate()
+  const [modal, setModal] = useState<Modals>()
+  const [showSurrenderConfirm, setShowSurrenderConfirm] = useState(false)
+  const changeModal = useCallback(
+    (nextModal: Modals) => setModal(nextModal),
+    []
+  )
+  const sidebarRef = useRef<HTMLHtmlElement>(null)
+
+  const { t } = useTranslation()
+  const profile = useAppSelector((state) => state.network.profile)
+  const profileLevel = profile?.level ?? 0
+  const [preferences] = usePreferences()
+
+  const { isNewPatch, updateVersionChecked } = usePatchVersion()
+
+  const version = pkg.version
+
+  const numberOfBooster = profile?.booster ?? 0
+
+  useEffect(() => {
+    if (!sidebarRef.current) {
+      return
+    }
+
+    const ref = sidebarRef.current
+
+    const extendSidebar = () => setCollapsed(false)
+    const collapseSidebar = () => setCollapsed(true)
+
+    ref.addEventListener("mouseenter", extendSidebar)
+    ref.addEventListener("mouseleave", collapseSidebar)
+
+    return () => {
+      if (ref) {
+        ref.removeEventListener("mouseenter", extendSidebar)
+        ref.removeEventListener("mouseleave", collapseSidebar)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleKeydown = (e: KeyboardEvent) => {
+      //if event occurs in an input, textarea or select, ignore it
+      if (
+        ["INPUT", "TEXTAREA", "SELECT", "OPTION"].includes(
+          (e.target as HTMLElement).tagName
+        )
+      ) {
+        return
+      }
+      const key = e.key.toUpperCase()
+      const keybindings = preferences.keybindings
+
+      if (key === keybindings.wiki) {
+        e.preventDefault()
+        setModal((current) => (current === "wiki" ? undefined : "wiki"))
+      } else if (key === keybindings.meta_report) {
+        e.preventDefault()
+        setModal((current) => (current === "meta" ? undefined : "meta"))
+      } else if (
+        key === keybindings.team_planner &&
+        profileLevel >= GADGETS.team_planner.levelRequired
+      ) {
+        e.preventDefault()
+        setModal((current) =>
+          current === "team-builder" ? undefined : "team-builder"
+        )
+      }
+    }
+
+    window.addEventListener("keydown", handleKeydown)
+    return () => {
+      window.removeEventListener("keydown", handleKeydown)
+    }
+  }, [preferences.keybindings, profileLevel])
+
+  const player = useAppSelector(selectConnectedPlayer)
+  const playersAlive = useAppSelector(
+    createSelector([(state) => state.game.players], (players) =>
+      players.filter((p) => p.life > 0)
+    )
+  )
+  function onClickLeave() {
+    if (player && player.life > 0 && playersAlive.length > 1) {
+      setShowSurrenderConfirm(true)
+    } else {
+      leave()
+    }
+  }
+
+  return (
+    <Sidebar
+      collapsed={collapsed}
+      className="sidebar"
+      ref={sidebarRef}
+      backgroundColor="transparent"
+    >
+      <Menu>
+        <div className="sidebar-logo" onClick={() => setCollapsed(!collapsed)}>
+          <img src={`assets/ui/colyseus-icon.png`} />
+          <div>
+            <h1>Pokemon Auto Chess</h1>
+            <small>v{version}</small>
+          </div>
+        </div>
+
+        <NavLink
+          svg="meta"
+          onClick={() => window.open("/privacy-policy", "_blank")}
+        >
+          {t("policy")}
+        </NavLink>
+
+        <NavLink
+          svg="meta"
+          onClick={() => window.open("/terms-of-service", "_blank")}
+        >
+          {t("terms_of_service")}
+        </NavLink>
+
+        <NavLink
+          location="news"
+          svg="newspaper"
+          handleClick={(newModal) => {
+            changeModal(newModal)
+            if (isNewPatch) {
+              updateVersionChecked()
+            }
+          }}
+          shimmer={isNewPatch}
+        >
+          {t("patch_notes")}
+        </NavLink>
+
+        {page === "main_lobby" && (
+          <NavLink location="profile" svg="profile" handleClick={changeModal}>
+            {t("profile.title")}
+          </NavLink>
+        )}
+
+        {page === "main_lobby" && profileLevel >= GADGETS.bag.levelRequired && (
+          <NavLink
+            location="collection"
+            svg="collection"
+            className="blue"
+            handleClick={changeModal}
+          >
+            {t("collection.title")}
+          </NavLink>
+        )}
+        {(page === "main_lobby" || page === "preparation") &&
+          profileLevel >= GADGETS.bag.levelRequired && (
+            <NavLink
+              location="booster"
+              svg="booster"
+              className="blue"
+              handleClick={changeModal}
+              shimmer={numberOfBooster > 0}
+            >
+              {t("boosters")}
+            </NavLink>
+          )}
+        <NavLink
+          location="wiki"
+          svg="wiki"
+          className="green"
+          handleClick={changeModal}
+        >
+          {t("wiki.title")}
+        </NavLink>
+        <NavLink
+          svg="meta"
+          className="green"
+          location="meta"
+          handleClick={changeModal}
+        >
+          {t("meta")}
+        </NavLink>
+
+        {profileLevel >= GADGETS.team_planner.levelRequired && (
+          <NavLink
+            svg="team-builder"
+            location="team-builder"
+            handleClick={changeModal}
+          >
+            {t("team_builder")}
+          </NavLink>
+        )}
+
+        {page !== "game" &&
+          ((!GADGETS.pokeguesser.disabled &&
+            profileLevel >= GADGETS.pokeguesser.levelRequired) ||
+            profile?.role === Role.ADMIN) && (
+            <NavLink
+              svg="pokeguesser"
+              location="pokeguesser"
+              handleClick={changeModal}
+            >
+              {t("gadget.pokeguesser")}
+            </NavLink>
+          )}
+
+        {((!GADGETS.synergy_wheel.disabled &&
+          profileLevel >= GADGETS.synergy_wheel.levelRequired) ||
+          profile?.role === Role.ADMIN) && (
+          <NavLink
+            svg="synergy-wheel"
+            location="synergy-wheel"
+            handleClick={changeModal}
+          >
+            {t("gadget.synergy_wheel")}
+          </NavLink>
+        )}
+
+        {page !== "game" &&
+          ((!GADGETS.bot_builder.disabled &&
+            profileLevel >= GADGETS.bot_builder.levelRequired) ||
+            profile?.role === Role.ADMIN) && (
+            <NavLink svg="bot" onClick={() => navigate("/bot-builder")}>
+              {t("bot_builder")}
+            </NavLink>
+          )}
+
+        {page !== "game" &&
+          ((!GADGETS.gameboy.disabled &&
+            profileLevel >= GADGETS.gameboy.levelRequired) ||
+            profile?.role === Role.ADMIN) && (
+            <NavLink svg="gameboy" onClick={() => navigate("/gameboy")}>
+              {t("gadget.gameboy")}
+            </NavLink>
+          )}
+
+        {((!GADGETS.tier_list_maker.disabled &&
+          profileLevel >= GADGETS.tier_list_maker.levelRequired) ||
+          profile?.role === Role.ADMIN) && (
+          <NavLink
+            svg="tier-list"
+            location="tier-list"
+            handleClick={changeModal}
+          >
+            {t("gadget.tier_list_maker")}
+          </NavLink>
+        )}
+
+        {((!GADGETS.sprite_tracker.disabled &&
+          profileLevel >= GADGETS.sprite_tracker.levelRequired) ||
+          profile?.role === Role.ADMIN) && (
+          <NavLink
+            svg="pokemon-sprite"
+            location="sprite-tracker"
+            handleClick={changeModal}
+          >
+            {t("gadget.sprite_tracker")}
+          </NavLink>
+        )}
+
+        {page !== "game" &&
+          (profile?.role === Role.MODERATOR ||
+            profile?.role === Role.ADMIN) && (
+            <NavLink
+              svg="hammer"
+              location="moderation"
+              handleClick={changeModal}
+            >
+              Moderation
+            </NavLink>
+          )}
+
+        {page !== "game" && profile?.role === Role.ADMIN && (
+          <>
+            <NavLink
+              svg="pokemon-sprite"
+              onClick={() => navigate("/sprite-viewer")}
+            >
+              Sprite Viewer
+            </NavLink>
+            <NavLink svg="map" onClick={() => navigate("/map-viewer")}>
+              Map Viewer
+            </NavLink>
+            <NavLink
+              svg="tournament"
+              location="tournaments"
+              handleClick={changeModal}
+            >
+              Tournaments
+            </NavLink>
+          </>
+        )}
+
+        {page === "game" && profileLevel >= GADGETS.jukebox.levelRequired && (
+          <NavLink
+            svg="compact-disc"
+            location="jukebox"
+            handleClick={changeModal}
+          >
+            Jukebox
+          </NavLink>
+        )}
+
+        <NavLink svg="options" location="options" handleClick={changeModal}>
+          {t("options.title")}
+        </NavLink>
+
+        {page === "game" && document.fullscreenEnabled && (
+          <NavLink svg="fullscreen" onClick={toggleFullScreen}>
+            {t("toggle_fullscreen")}
+          </NavLink>
+        )}
+
+        <div className="spacer"></div>
+
+        {page !== "game" && (
+          <NavLink
+            svg="players"
+            className="community-servers"
+            location="servers"
+            handleClick={changeModal}
+          >
+            {t("servers_list.title")}
+          </NavLink>
+        )}
+
+        {page !== "game" && (
+          <NavLink
+            svg="discord"
+            className="discord"
+            onClick={() => window.open(process.env.DISCORD_SERVER, "_blank")}
+          >
+            Discord
+          </NavLink>
+        )}
+
+        <NavLink svg="exit-door" className="red logout" onClick={onClickLeave}>
+          {leaveLabel}
+        </NavLink>
+      </Menu>
+
+      <Modals modal={modal} setModal={setModal} page={page} />
+      <Modal
+        show={showSurrenderConfirm}
+        header={t("game-surrender-modal-title")}
+        body={t("game-surrender-modal-body")}
+        onClose={() => setShowSurrenderConfirm(false)}
+        footer={
+          <>
+            <button className="bubbly green" onClick={leave}>
+              {t("yes")}
+            </button>
+            <button
+              className="bubbly red"
+              onClick={() => {
+                setShowSurrenderConfirm(false)
+              }}
+            >
+              {t("no")}
+            </button>
+          </>
+        }
+      ></Modal>
+    </Sidebar>
+  )
+}
+
+type NavLinkProps = MenuItemProps &
+  NavPageLink & {
+    svg?: string
+    png?: string
+    shimmer?: boolean
+    className?: string
+  }
+
+type NavPageLink = {
+  location?: Modals
+  handleClick?: (update: Modals) => void
+}
+
+function NavLink(props: NavLinkProps) {
+  const {
+    children,
+    location,
+    handleClick,
+    shimmer = false,
+    svg,
+    png,
+    icon,
+    className = "default",
+    onClick
+  } = props
+
+  return (
+    <MenuItem
+      className={cc("menu-item", className, shimmer ? "shimmer" : "")}
+      onClick={(e) => {
+        onClick?.(e)
+        if (location) {
+          handleClick?.(location)
+        }
+      }}
+      icon={
+        <div className="icon">
+          {shimmer && (
+            <span className="notification">
+              <img width={10} height={10} src="assets/ui/pokeball.svg" />
+            </span>
+          )}
+          {svg ? (
+            <img width={32} height={32} src={`assets/ui/${svg}.svg`} />
+          ) : png ? (
+            <img height={32} src={`assets/ui/${png}.png`} />
+          ) : (
+            icon
+          )}
+        </div>
+      }
+    >
+      {children}
+    </MenuItem>
+  )
+}
+
+export type Modals =
+  | "announcement"
+  | "booster"
+  | "moderation"
+  | "collection"
+  | "jukebox"
+  | "keybinds"
+  | "meta"
+  | "news"
+  | "options"
+  | "pokeguesser"
+  | "profile"
+  | "servers"
+  | "sprite-tracker"
+  | "synergy-wheel"
+  | "team-builder"
+  | "tier-list"
+  | "tournaments"
+  | "wiki"
+
+function Modals({
+  modal,
+  setModal,
+  page
+}: {
+  modal?: Modals
+  setModal: (nextModal?: Modals) => void
+  page: Page
+}) {
+  const { t } = useTranslation()
+  const searchedUser = useAppSelector((state) => state.lobby.searchedUser)
+
+  const dispatch = useAppDispatch()
+
+  const closeModal = useCallback(() => setModal(undefined), [setModal])
+
+  useEffect(() => {
+    if (searchedUser && modal !== "profile") {
+      setModal("profile")
+    }
+  }, [modal, searchedUser, setModal])
+
+  return (
+    <>
+      <Modal
+        onClose={closeModal}
+        show={modal === "news"}
+        header={t("patch_notes")}
+        className="patchnotes"
+      >
+        <Patchnotes />
+      </Modal>
+      <Modal
+        onClose={() => {
+          closeModal()
+          console.log("Resetting searched user on close modal profile")
+          dispatch(setSearchedUser(undefined))
+        }}
+        show={modal === "profile"}
+        header={t("profile.title")}
+      >
+        <Profile />
+      </Modal>
+      <Modal
+        onClose={closeModal}
+        show={modal === "collection"}
+        header={t("collection.title")}
+        className="anchor-top"
+      >
+        <PokemonCollection />
+      </Modal>
+      <Modal
+        onClose={closeModal}
+        show={modal === "booster"}
+        className="custom-bg"
+      >
+        <Booster />
+      </Modal>
+      <Modal
+        onClose={closeModal}
+        show={modal === "wiki"}
+        className="wiki-modal"
+        header={t("wiki.title")}
+      >
+        <Wiki inGame={page === "game"} />
+      </Modal>
+      <Modal show={modal === "meta"} header={t("meta")} onClose={closeModal}>
+        <MetaReport />
+      </Modal>
+      <Modal
+        onClose={closeModal}
+        show={modal === "servers"}
+        className="servers-modal"
+        header={t("servers_list.title")}
+      >
+        <ServersList />
+      </Modal>
+      <TeamBuilderModal
+        show={modal === "team-builder"}
+        handleClose={closeModal}
+      />
+      <TierListMakerModal
+        show={modal === "tier-list"}
+        handleClose={closeModal}
+      />
+      <SpriteTrackerModal
+        show={modal === "sprite-tracker"}
+        handleClose={closeModal}
+      />
+      <GameOptionsModal
+        show={modal === "options"}
+        page={page}
+        hideModal={closeModal}
+      />
+      <Modal
+        onClose={closeModal}
+        show={modal === "tournaments"}
+        header="Tournaments"
+      >
+        <TournamentsAdmin />
+      </Modal>
+      <Modal
+        onClose={closeModal}
+        show={modal === "moderation"}
+        header="Moderation"
+      >
+        <ModerationPanel />
+      </Modal>
+      <Jukebox show={modal === "jukebox"} handleClose={closeModal} />
+      <PokeGuesser show={modal === "pokeguesser"} handleClose={closeModal} />
+      <SynergyWheelModal
+        show={modal === "synergy-wheel"}
+        handleClose={closeModal}
+      />
+    </>
+  )
+}

@@ -1,0 +1,368 @@
+import { createSlice, PayloadAction, Slice } from "@reduxjs/toolkit"
+import { StageDuration } from "../../../config"
+import Simulation from "../../../core/simulation"
+import ExperienceManager from "../../../models/colyseus-models/experience-manager"
+import Synergies from "../../../models/colyseus-models/synergies"
+import {
+  Emotion,
+  IDps,
+  IExperienceManager,
+  IPlayer,
+  ISimulation
+} from "../../../types"
+import { GameMode, GamePhaseState, Team } from "../../../types/enum/Game"
+import { Item } from "../../../types/enum/Item"
+import { Pkm, PkmProposition } from "../../../types/enum/Pokemon"
+import { SpecialGameRule } from "../../../types/enum/SpecialGameRule"
+import { Synergy } from "../../../types/enum/Synergy"
+import { Weather } from "../../../types/enum/Weather"
+import { ILeaderboardInfo } from "../../../types/interfaces/LeaderboardInfo"
+import { schemaEntries } from "../../../utils/schemas"
+import { getGameScene } from "../pages/game"
+
+export interface GameStateStore {
+  afterGameId: string
+  gameMode: GameMode
+  phaseDuration: number
+  roundTime: number
+  phase: GamePhaseState
+  players: IPlayer[]
+  simulations: ISimulation[]
+  stageLevel: number
+  noElo: boolean
+  specialGameRule: SpecialGameRule | null
+  playerIdSpectated: string
+  simulationIdSpectated: string
+  teamSpectated: Team
+  synergiesSpectated: [string, number][]
+  money: number
+  interest: number
+  maxInterest: number
+  streak: number
+  shopFreeRolls: number
+  shopLocked: boolean
+  experienceManager: IExperienceManager
+  shop: Pkm[]
+  itemsProposition: Item[]
+  pokemonsProposition: PkmProposition[]
+  weather: Weather
+  blueDpsMeter: IDps[]
+  redDpsMeter: IDps[]
+  emotesUnlocked: Emotion[]
+  additionalPokemons: Pkm[]
+  podium: ILeaderboardInfo[]
+  runHP: number
+  currentAct: number
+  currentFloor: number
+}
+
+const initialState: GameStateStore = {
+  afterGameId: "",
+  gameMode: GameMode.CUSTOM_LOBBY,
+  phaseDuration: StageDuration[1],
+  roundTime: StageDuration[1],
+  phase: GamePhaseState.PICK,
+  players: new Array<IPlayer>(),
+  simulations: new Array<ISimulation>(),
+  stageLevel: 0,
+  weather: Weather.NEUTRAL,
+  noElo: false,
+  playerIdSpectated: "",
+  simulationIdSpectated: "",
+  teamSpectated: Team.BLUE_TEAM,
+  synergiesSpectated: new Array<[Synergy, number]>(),
+  money: 5,
+  interest: 0,
+  maxInterest: 5,
+  streak: 0,
+  shopFreeRolls: 0,
+  shopLocked: false,
+  experienceManager: new ExperienceManager(),
+  shop: new Array<Pkm>(),
+  itemsProposition: new Array<Item>(),
+  pokemonsProposition: new Array<Pkm>(),
+  blueDpsMeter: new Array<IDps>(),
+  redDpsMeter: new Array<IDps>(),
+  emotesUnlocked: [],
+  additionalPokemons: new Array<Pkm>(),
+  specialGameRule: null,
+  podium: new Array<ILeaderboardInfo>(),
+  runHP: 100,
+  currentAct: 1,
+  currentFloor: 0
+}
+
+export const gameSlice: Slice<GameStateStore> = createSlice({
+  name: "game",
+  initialState: initialState,
+  reducers: {
+    setRoundTime: (state, action: PayloadAction<number>) => {
+      if (action.payload > state.roundTime) state.phaseDuration = action.payload
+      state.roundTime = action.payload
+    },
+    setAfterGameId: (state, action: PayloadAction<string>) => {
+      state.afterGameId = action.payload
+    },
+    setPhase: (state, action: PayloadAction<GamePhaseState>) => {
+      state.phase = action.payload
+    },
+    setStageLevel: (state, action: PayloadAction<number>) => {
+      state.stageLevel = action.payload
+    },
+    setRunHP: (state, action: PayloadAction<number>) => {
+      state.runHP = action.payload
+    },
+    setCurrentAct: (state, action: PayloadAction<number>) => {
+      state.currentAct = action.payload
+    },
+    setCurrentFloor: (state, action: PayloadAction<number>) => {
+      state.currentFloor = action.payload
+    },
+    setNoELO: (state, action: PayloadAction<boolean>) => {
+      state.noElo = action.payload
+    },
+    setSpecialGameRule: (
+      state,
+      action: PayloadAction<SpecialGameRule | null>
+    ) => {
+      state.specialGameRule = action.payload
+    },
+    addPlayer: (state, action: PayloadAction<IPlayer>) => {
+      state.players.push(JSON.parse(JSON.stringify(action.payload)))
+    },
+    removePlayer: (state, action: PayloadAction<IPlayer>) => {
+      state.players = state.players.filter((p) => p.id !== action.payload.id)
+    },
+    setMoney: (state, action: PayloadAction<number>) => {
+      state.money = action.payload
+    },
+    setInterest: (state, action: PayloadAction<number>) => {
+      state.interest = action.payload
+    },
+    setMaxInterest: (state, action: PayloadAction<number>) => {
+      state.maxInterest = action.payload
+    },
+    setStreak: (state, action: PayloadAction<number>) => {
+      state.streak = action.payload
+    },
+    setShopLocked: (state, action: PayloadAction<boolean>) => {
+      state.shopLocked = action.payload
+    },
+    setShopFreeRolls: (state, action: PayloadAction<number>) => {
+      state.shopFreeRolls = action.payload
+    },
+    updateExperienceManager: (
+      state,
+      action: PayloadAction<IExperienceManager>
+    ) => {
+      state.experienceManager = {
+        ...state.experienceManager,
+        experience: action.payload.experience,
+        expNeeded: action.payload.expNeeded,
+        level: action.payload.level
+      }
+    },
+    changePlayer: (
+      state,
+      action: PayloadAction<{ id: string; field: string; value: any }>
+    ) => {
+      const index = state.players.findIndex((e) => action.payload.id == e.id)
+      if (index >= 0) {
+        state.players[index][action.payload.field] = action.payload.value
+      } else {
+        console.error(
+          `changePlayer: Player not found ${action.payload.id} in ${state.players.map((p) => p.id)}`
+        )
+      }
+    },
+    changeShop: (
+      state,
+      action: PayloadAction<{ index: number; value: Pkm }>
+    ) => {
+      state.shop[action.payload.index] = action.payload.value
+    },
+    refreshShopUI: (state) => {
+      state.shop = state.shop.slice()
+    },
+    setItemsProposition: (state, action: PayloadAction<Item[]>) => {
+      state.itemsProposition = action.payload
+    },
+    setPokemonProposition: (state, action: PayloadAction<PkmProposition[]>) => {
+      state.pokemonsProposition = action.payload
+    },
+    setAdditionalPokemons: (state, action: PayloadAction<Pkm[]>) => {
+      state.additionalPokemons = action.payload
+    },
+    setSynergies: (
+      state,
+      action: PayloadAction<{ value: Synergies; id: string }>
+    ) => {
+      if (state.playerIdSpectated === action.payload.id) {
+        state.synergiesSpectated = Array.from(action.payload.value)
+      }
+
+      const playerToUpdate = state.players.findIndex(
+        (player) => player.id === action.payload.id
+      )
+
+      if (playerToUpdate !== -1) {
+        state.players.at(playerToUpdate)!.synergies = new Synergies(
+          new Map(schemaEntries(action.payload.value))
+        )
+      }
+    },
+    setLife: (state, action: PayloadAction<{ value: number; id: string }>) => {
+      getGameScene()?.board?.updateAvatarLife(
+        action.payload.id,
+        action.payload.value
+      )
+    },
+    setLoadingProgress: (
+      state,
+      action: PayloadAction<{ value: number; id: string }>
+    ) => {
+      const player = state.players.find((p) => p.id === action.payload.id)
+      if (player) {
+        player.loadingProgress = action.payload.value
+      }
+    },
+    setGameMode: (state, action: PayloadAction<GameMode>) => {
+      state.gameMode = action.payload
+    },
+    setWeather: (
+      state,
+      action: PayloadAction<{ value: Weather; id: string }>
+    ) => {
+      if (state.simulationIdSpectated === action.payload.id) {
+        state.weather = action.payload.value
+      }
+    },
+    setSimulation: (state, action: PayloadAction<Simulation>) => {
+      if (
+        state.playerIdSpectated === action.payload.bluePlayerId ||
+        state.playerIdSpectated === action.payload.redPlayerId
+      ) {
+        state.simulationIdSpectated = action.payload.id
+        state.teamSpectated =
+          state.playerIdSpectated === action.payload.bluePlayerId
+            ? Team.BLUE_TEAM
+            : Team.RED_TEAM
+        state.weather = action.payload.weather
+        state.blueDpsMeter = new Array<IDps>()
+        state.redDpsMeter = new Array<IDps>()
+        action.payload.blueDpsMeter.forEach((dps) => {
+          state.blueDpsMeter.push(structuredClone(dps))
+        })
+        action.payload.redDpsMeter.forEach((dps) => {
+          state.redDpsMeter.push(structuredClone(dps))
+        })
+      }
+    },
+    setPlayer: (state, action: PayloadAction<IPlayer>) => {
+      state.playerIdSpectated = action.payload.id
+      state.simulationIdSpectated = action.payload.simulationId
+      state.teamSpectated = action.payload.team
+      state.synergiesSpectated = Array.from(action.payload.synergies)
+    },
+    addDpsMeter: (
+      state,
+      action: PayloadAction<{ value: IDps; team: Team; id: string }>
+    ) => {
+      const { value, team, id } = action.payload
+      const dpsMeter =
+        team === Team.BLUE_TEAM ? state.blueDpsMeter : state.redDpsMeter
+      if (
+        state.simulationIdSpectated === id &&
+        dpsMeter.find((d) => d.id == value.id) === undefined
+      ) {
+        dpsMeter.push(structuredClone(value))
+      }
+    },
+
+    changeDpsMeter: (
+      state,
+      action: PayloadAction<{
+        id: string
+        team: Team
+        field: string
+        value: string | number
+        simulationId: string
+      }>
+    ) => {
+      const { value, field, team, id, simulationId } = action.payload
+      const dpsMeter =
+        team === Team.BLUE_TEAM ? state.blueDpsMeter : state.redDpsMeter
+      if (state.simulationIdSpectated === simulationId) {
+        const index = dpsMeter.findIndex((e) => id == e.id)
+        if (index >= 0) {
+          dpsMeter[index][field] = value
+        }
+      }
+    },
+
+    removeDpsMeter: (
+      state,
+      action: PayloadAction<{ id: string; team: Team; simulationId: string }>
+    ) => {
+      const { id, team, simulationId } = action.payload
+      if (state.simulationIdSpectated === simulationId) {
+        if (team === Team.BLUE_TEAM)
+          state.blueDpsMeter = state.blueDpsMeter.filter((dps) => dps.id !== id)
+        if (team === Team.RED_TEAM)
+          state.redDpsMeter = state.redDpsMeter.filter((dps) => dps.id !== id)
+      }
+    },
+
+    setEmotesUnlocked: (state, action: PayloadAction<string>) => {
+      state.emotesUnlocked = action.payload.split(",") as Emotion[]
+    },
+
+    setPodium(state, action: PayloadAction<ILeaderboardInfo[]>) {
+      state.podium = action.payload
+    },
+
+    leaveGame: () => initialState
+  }
+})
+
+export const {
+  setSimulation,
+  setAdditionalPokemons,
+  setPokemonProposition,
+  setEmotesUnlocked,
+  leaveGame,
+  removeDpsMeter,
+  changeDpsMeter,
+  addDpsMeter,
+  setLoadingProgress,
+  setPlayer,
+  setLife,
+  setSynergies,
+  setGameMode,
+  setRoundTime,
+  setAfterGameId,
+  setPhase,
+  setStageLevel,
+  setRunHP,
+  setCurrentAct,
+  setCurrentFloor,
+  setWeather,
+  setNoELO,
+  setSpecialGameRule,
+  addPlayer,
+  removePlayer,
+  updateExperienceManager,
+  setStreak,
+  setInterest,
+  setMaxInterest,
+  setMoney,
+  setShopFreeRolls,
+  setShopLocked,
+  changePlayer,
+  changeShop,
+  refreshShopUI,
+  setItemsProposition,
+  setPodium
+} = gameSlice.actions
+
+export default gameSlice.reducer

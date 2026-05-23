@@ -1,0 +1,7 @@
+.synergy-icon {
+  height: 40px;
+  width: auto;
+  aspect-ratio: 1 / 1;
+  filter: drop-shadow(2px 2px 0px #505261);
+  vertical-align: bottom;
+}

@@ -1,0 +1,173 @@
+import React from "react"
+import { MapEdge, MapNode, MapNodeType } from "../../../../../models/colyseus-models/map-node"
+import { Transfer } from "../../../../../types"
+import { rooms } from "../../../network"
+
+const NODE_COLORS: Record<string, string> = {
+  [MapNodeType.WILD_BATTLE]: "#e74c3c",
+  [MapNodeType.GYM_LEADER]: "#f39c12",
+  [MapNodeType.POKEMART]: "#3498db",
+  [MapNodeType.POKEMON_CENTER]: "#2ecc71",
+  [MapNodeType.MYSTERY_ENCOUNTER]: "#9b59b6",
+  [MapNodeType.LEGENDARY_BOSS]: "#e67e22"
+}
+
+const NODE_LABELS: Record<string, string> = {
+  [MapNodeType.WILD_BATTLE]: "⚔️",
+  [MapNodeType.GYM_LEADER]: "🏅",
+  [MapNodeType.POKEMART]: "🛒",
+  [MapNodeType.POKEMON_CENTER]: "❤️",
+  [MapNodeType.MYSTERY_ENCOUNTER]: "❓",
+  [MapNodeType.LEGENDARY_BOSS]: "👑"
+}
+
+const NODE_NAMES: Record<string, string> = {
+  [MapNodeType.WILD_BATTLE]: "Wild Battle",
+  [MapNodeType.GYM_LEADER]: "Gym Leader",
+  [MapNodeType.POKEMART]: "PokeMart",
+  [MapNodeType.POKEMON_CENTER]: "Pokemon Center",
+  [MapNodeType.MYSTERY_ENCOUNTER]: "Mystery",
+  [MapNodeType.LEGENDARY_BOSS]: "BOSS"
+}
+
+interface GameMapProps {
+  mapNodes: Map<string, MapNode>
+  mapEdges: MapEdge[]
+  currentAct: number
+  currentFloor: number
+  runHP: number
+}
+
+export default function GameMap({
+  mapNodes,
+  mapEdges,
+  currentAct,
+  currentFloor,
+  runHP
+}: GameMapProps) {
+  const handleNodeClick = (nodeId: string) => {
+    const node = mapNodes.get(nodeId)
+    if (node && node.available) {
+      rooms.game?.send(Transfer.SELECT_MAP_NODE, nodeId)
+    }
+  }
+
+  const nodes = Array.from(mapNodes.values())
+  const maxFloor = Math.max(...nodes.map((n) => n.floor), 1)
+  const svgWidth = 400
+  const svgHeight = maxFloor * 55 + 60
+  const colWidth = svgWidth / 5
+  const floorHeight = 50
+
+  const getNodePos = (node: MapNode) => ({
+    cx: node.x * colWidth + colWidth / 2,
+    cy: svgHeight - (node.floor * floorHeight + 30)
+  })
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.85)",
+        zIndex: 100,
+        color: "white"
+      }}
+    >
+      <h2 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>
+        Act {currentAct} - Floor {currentFloor}
+      </h2>
+      <div style={{ display: "flex", gap: "20px", marginBottom: "12px", fontSize: "16px" }}>
+        <span>HP: {runHP}/100</span>
+      </div>
+
+      <div
+        style={{
+          overflow: "auto",
+          maxHeight: "70vh",
+          border: "2px solid #444",
+          borderRadius: "8px",
+          background: "#1a1a2e",
+          padding: "10px"
+        }}
+      >
+        <svg width={svgWidth} height={svgHeight}>
+          {mapEdges.map((edge, i) => {
+            const fromNode = mapNodes.get(edge.from)
+            const toNode = mapNodes.get(edge.to)
+            if (!fromNode || !toNode) return null
+            const from = getNodePos(fromNode)
+            const to = getNodePos(toNode)
+            return (
+              <line
+                key={`edge-${i}`}
+                x1={from.cx}
+                y1={from.cy}
+                x2={to.cx}
+                y2={to.cy}
+                stroke={fromNode.visited && toNode.visited ? "#666" : "#333"}
+                strokeWidth={2}
+              />
+            )
+          })}
+
+          {nodes.map((node) => {
+            const pos = getNodePos(node)
+            const color = NODE_COLORS[node.nodeType] || "#888"
+            const isAvailable = node.available
+            const isVisited = node.visited
+
+            return (
+              <g
+                key={node.id}
+                onClick={() => handleNodeClick(node.id)}
+                style={{ cursor: isAvailable ? "pointer" : "default" }}
+              >
+                <circle
+                  cx={pos.cx}
+                  cy={pos.cy}
+                  r={isAvailable ? 18 : 14}
+                  fill={isVisited ? "#333" : color}
+                  stroke={isAvailable ? "#fff" : isVisited ? "#555" : color}
+                  strokeWidth={isAvailable ? 3 : 1}
+                  opacity={isVisited ? 0.4 : isAvailable ? 1 : 0.6}
+                />
+                <text
+                  x={pos.cx}
+                  y={pos.cy + 5}
+                  textAnchor="middle"
+                  fontSize="14"
+                  fill="white"
+                >
+                  {NODE_LABELS[node.nodeType]}
+                </text>
+                {isAvailable && (
+                  <text
+                    x={pos.cx}
+                    y={pos.cy + 32}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fill="#ccc"
+                  >
+                    {NODE_NAMES[node.nodeType]}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+
+      <div style={{ marginTop: "12px", fontSize: "12px", color: "#888" }}>
+        Click an available node to proceed
+      </div>
+    </div>
+  )
+}

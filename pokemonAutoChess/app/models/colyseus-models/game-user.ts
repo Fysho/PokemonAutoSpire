@@ -1,0 +1,60 @@
+import { Schema, type } from "@colyseus/schema"
+import { Role, Title } from "../../types"
+
+export interface IGameUser {
+  uid: string
+  name: string
+  avatar: string
+  ready: boolean
+  isBot: boolean
+  elo: number
+  games: number
+  title: Title | ""
+  role: Role
+  anonymous: boolean
+  twitchLogin: string
+  twitchDisplayName: string
+}
+export class GameUser extends Schema implements IGameUser {
+  @type("string") uid: string
+  @type("string") name: string
+  @type("string") avatar: string
+  @type("boolean") ready: boolean
+  @type("boolean") isBot: boolean
+  @type("uint16") elo: number
+  @type("uint16") games: number
+  @type("string") title: Title | ""
+  @type("string") role: Role
+  @type("boolean") anonymous: boolean
+  @type("string") twitchLogin: string
+  @type("string") twitchDisplayName: string
+
+  constructor(
+    uid: string,
+    name: string,
+    elo: number,
+    games: number,
+    avatar: string,
+    isBot: boolean,
+    ready: boolean,
+    title: Title | "",
+    role: Role,
+    anonymous: boolean,
+    twitchLogin = "",
+    twitchDisplayName = ""
+  ) {
+    super()
+    this.uid = uid
+    this.name = name
+    this.avatar = avatar
+    this.ready = ready
+    this.isBot = isBot
+    this.elo = elo
+    this.games = games
+    this.title = title
+    this.role = role
+    this.anonymous = anonymous
+    this.twitchLogin = twitchLogin
+    this.twitchDisplayName = twitchDisplayName
+  }
+}

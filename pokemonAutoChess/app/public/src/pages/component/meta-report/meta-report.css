@@ -1,0 +1,75 @@
+@import "./player-report.css";
+@import "./activity-report.css";
+
+#meta-report {
+  height: calc(95vh - 6rem);
+  color: var(--color-fg-primary);
+  width: 90vw;
+}
+
+#meta-report h2 {
+  margin: 0;
+}
+
+#meta-report .react-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#meta-report .react-tabs__tab-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#meta-report header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.25em;
+}
+
+#meta-report .rank {
+  min-width: 2ch;
+  text-align: center;
+  font-size: 150%;
+}
+
+#meta-report label {
+  color: var(--color-fg-secondary);
+  margin: 0;
+}
+
+#meta-report .team-comp {
+  margin-bottom: 0.5em;
+  color: var(--color-fg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding: 0.5em;
+  overflow-x: auto;
+}
+
+#meta-report .item-stat {
+  margin-bottom: 0.5em;
+  color: var(--color-fg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.5em;
+  overflow-x: auto;
+}
+
+.item-stat-main {
+  display: grid;
+  gap: 1em;
+  align-items: center;
+  grid-template-columns: auto 48px 16ch 10ch 10ch 1fr;
+}
+
+.item-stat-metric {
+  display: flex;
+  flex-direction: column;
+}

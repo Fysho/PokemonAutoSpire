@@ -1,0 +1,89 @@
+.damage-physical {
+  color: var(--color-physical);
+}
+
+.damage-special {
+  color: var(--color-special);
+}
+
+.damage-true {
+  color: var(--color-true);
+}
+
+.description-icon {
+  white-space: nowrap;
+}
+
+.description-icon > img,
+img.description-icon {
+  display: inline-block;
+  width: 1.5em;
+  height: 1.5em;
+  margin-right: 3px;
+  vertical-align: bottom;
+}
+
+h2 .description-icon > img {
+  vertical-align: -0.15em;
+  width: 1em;
+  height: 1em;
+}
+
+.description-icon.icon-star {
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -0.25em;
+}
+
+.technical-term {
+  cursor: help;
+}
+
+.ability-description {
+  white-space: pre-line;
+}
+
+.ability-value {
+  color: var(--color-fg-secondary);
+  font-weight: 500;
+}
+
+.ability-value .active {
+  color: var(--color-fg-primary);
+}
+
+.scales-ap .ability-value {
+  color: #440093;
+}
+
+.scales-ap .ability-value .active {
+  color: #d172ff;
+}
+
+.scales-luck .ability-value {
+  color: #07c552;
+}
+
+.scales-luck .ability-value .active {
+  color: #2aed72;
+}
+
+.stat-label {
+  color: var(--color-fg-secondary);
+  white-space: normal;
+  font-weight: 500;
+}
+
+.status-label {
+  color: var(--color-fg-negative);
+  font-weight: 500;
+}
+
+.status-label.positive {
+  color: var(--color-fg-positive);
+}
+
+.item-label {
+  color: var(--color-fg-secondary);
+  font-weight: 500;
+}
