@@ -1,6 +1,9 @@
-import React from "react"
+import React, { useState } from "react"
 import { Transfer } from "../../../../../types"
+import { DEPTH } from "../../../game/depths"
 import { rooms } from "../../../network"
+import { playSound, SOUNDS } from "../../utils/audio"
+import "./game-choice.css"
 
 interface RestChoice {
   label: string
@@ -13,66 +16,47 @@ interface GameRestProps {
 }
 
 export default function GameRest({ runHP, choices }: GameRestProps) {
+  const [visible, setVisible] = useState(true)
+
   const handleChoice = (index: number) => {
+    playSound(SOUNDS.BUTTON_CLICK)
     rooms.game?.send(Transfer.CHOICE, { choiceId: "rest", choiceIndex: index })
   }
 
+  if (choices.length === 0) return null
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.85)",
-        zIndex: 100,
-        color: "white"
-      }}
-    >
-      <div style={{
-        background: "#1a1a2e",
-        border: "2px solid #2ecc71",
-        borderRadius: "12px",
-        padding: "30px 40px",
-        textAlign: "center",
-        maxWidth: "500px"
-      }}>
-        <div style={{ fontSize: "48px", marginBottom: "10px" }}>+</div>
-        <h2 style={{ margin: "0 0 10px", color: "#2ecc71" }}>Pokemon Center</h2>
-        <p style={{ fontSize: "16px", color: "#aaa", margin: "0 0 8px" }}>
-          HP: {runHP}/100
-        </p>
-        <p style={{ fontSize: "14px", color: "#888", margin: "0 0 20px" }}>
-          Choose one:
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+    <div className="game-choice" style={{ zIndex: DEPTH.MODAL }}>
+      <div
+        className="my-container"
+        style={{ visibility: visible ? "visible" : "hidden" }}
+      >
+        <h2>Pokemon Center (HP: {runHP}/100)</h2>
+
+        <div className="game-choice-items-list">
           {choices.map((choice, i) => (
-            <button
+            <div
               key={i}
-              onClick={() => handleChoice(i)}
-              style={{
-                padding: "12px 20px",
-                fontSize: "14px",
-                borderRadius: "6px",
-                border: "1px solid #2ecc71",
-                background: "#1a3a2e",
-                color: "white",
-                cursor: "pointer",
-                textAlign: "left"
+              className="my-box active clickable"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleChoice(i)
               }}
             >
-              <strong>{choice.label}</strong>
-              <div style={{ fontSize: "12px", color: "#aaa", marginTop: "4px" }}>
-                {choice.description}
-              </div>
-            </button>
+              <h3 style={{ margin: "0.25em 0" }}>{choice.label}</h3>
+              <p style={{ marginBottom: "0.5em" }}>{choice.description}</p>
+            </div>
           ))}
         </div>
+      </div>
+
+      <div className="show-hide-action">
+        <button
+          className="bubbly orange active"
+          onClick={() => setVisible(!visible)}
+        >
+          {visible ? "Hide" : "Show"}
+        </button>
       </div>
     </div>
   )

@@ -1121,6 +1121,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.roundTime = 999
     this.syncRunHPToPlayers()
     resetArraySchema(this.state.spireEncounterBoard, [])
+
+    // Clean up any lingering minigame state
+    this.state.avatars.forEach((a, key) => this.state.avatars.delete(key))
+    this.state.floatingItems.forEach((i, key) => this.state.floatingItems.delete(key))
+    this.state.portals.forEach((p, key) => this.state.portals.delete(key))
+    this.state.symbols.forEach((s, key) => this.state.symbols.delete(key))
     this.state.players.forEach((player: Player) => {
       if (!player.isBot) {
         player.map = "town"
@@ -1609,6 +1615,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.phase = GamePhaseState.PICK
     this.state.time = 999 * 1000
     this.state.roundTime = 999
+
+    // Clean up minigame avatars from previous phases
+    this.state.avatars.forEach((a, key) => this.state.avatars.delete(key))
+    this.state.floatingItems.forEach((i, key) => this.state.floatingItems.delete(key))
 
     if (
       [2, 4].includes(this.state.stageLevel) &&
