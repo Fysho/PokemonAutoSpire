@@ -1311,7 +1311,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           player.experienceManager.addExperience(bonusXP)
         }
 
-        // Pokemon pick offers (1 regional, rest random)
+        // Pokemon pick offers (1 regional, rest random) + component item
         if (won) {
           const offerCount = getRelicPokemonOfferCount(player.items)
           const pokemonOffers: Pkm[] = []
@@ -1335,6 +1335,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
             )
           }
+
+          // Component item pick
+          const componentChoices = pickNRandomIn(ItemComponents, 3)
+          player.choices.push(
+            new PlayerChoice({ type: "item", items: componentChoices as any[] })
+          )
         }
 
         // Elite encounter: offer one of the defeated special Pokemon

@@ -890,6 +890,19 @@ export class MiniGame {
   }
 
   stop(state: GameState) {
+    if (this.shopMode) {
+      // Shop mode: items already given on collision, just clean up
+      this.bodies.forEach((body, key) => {
+        Composite.remove(this.engine.world, body)
+        this.bodies.delete(key)
+      })
+      this.avatars?.forEach((a) => this.avatars!.delete(a.id))
+      this.items?.forEach((i) => this.items!.delete(i.id))
+      this.portals?.forEach((p) => this.portals!.delete(p.id))
+      this.symbols?.forEach((s) => this.symbols!.delete(s.id))
+      this.shopMode = false
+      return
+    }
     const players: MapSchema<Player> = state.players
     const encounter = state.townEncounter
     this.bodies.forEach((body, key) => {

@@ -335,8 +335,8 @@ interface DifficultyConfig {
 function getDifficultyConfig(act: number, floor: number): DifficultyConfig {
   const progress = (act - 1) * 15 + floor // 1-45
 
-  if (progress <= 2) {
-    return { pokemonCount: 2, maxStars: 1, allowedRarities: ["COMMON"], itemsPerPokemon: 0, useCraftedItems: false }
+  if (progress <= 1) {
+    return { pokemonCount: 1, maxStars: 1, allowedRarities: ["COMMON"], itemsPerPokemon: 0, useCraftedItems: false }
   } else if (progress <= 5) {
     return { pokemonCount: randomBetween(2, 3), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 0, useCraftedItems: false }
   } else if (progress <= 8) {
