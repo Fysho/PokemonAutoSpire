@@ -16,12 +16,15 @@ const NODE_COLORS: Record<string, string> = {
   [MapNodeType.LEGENDARY_BOSS]: "#e67e22"
 }
 
+const NODE_ICONS: Record<string, string> = {
+  [MapNodeType.POKEMART]: "/assets/ui/pokeball.svg",
+  [MapNodeType.MYSTERY_ENCOUNTER]: "/assets/unown/unown-qm.png",
+  [MapNodeType.POKEMON_CENTER]: "/assets/ui/cross.svg"
+}
+
 const NODE_LABELS: Record<string, string> = {
   [MapNodeType.GYM_LEADER]: "🏅",
   [MapNodeType.ELITE]: "⚔️",
-  [MapNodeType.POKEMART]: "🛒",
-  [MapNodeType.POKEMON_CENTER]: "❤️",
-  [MapNodeType.MYSTERY_ENCOUNTER]: "❓",
   [MapNodeType.LEGENDARY_BOSS]: "👑"
 }
 
@@ -204,6 +207,15 @@ export default function GameMap({
                       />
                     )
                   })
+                ) : NODE_ICONS[node.nodeType] ? (
+                  <image
+                    href={NODE_ICONS[node.nodeType]}
+                    x={pos.cx - 16}
+                    y={pos.cy - 16}
+                    width={32}
+                    height={32}
+                    opacity={isVisited ? 0.3 : isAvailable ? 1 : 0.5}
+                  />
                 ) : (
                   <text
                     x={pos.cx}
