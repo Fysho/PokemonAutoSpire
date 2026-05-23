@@ -456,35 +456,45 @@ interface DifficultyConfig {
   pokemonCount: number
   maxStars: number
   allowedRarities: string[]
-  itemsPerPokemon: number
+  minItemsPerPokemon: number
+  maxItemsPerPokemon: number
   useCraftedItems: boolean
 }
 
 function getDifficultyConfig(act: number, floor: number): DifficultyConfig {
   const progress = (act - 1) * 20 + floor // 1-60
 
+  // --- Act 1 ---
   if (progress <= 1) {
-    return { pokemonCount: 1, maxStars: 1, allowedRarities: ["COMMON"], itemsPerPokemon: 0, useCraftedItems: false }
+    return { pokemonCount: 1, maxStars: 1, allowedRarities: ["COMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
   } else if (progress <= 3) {
-    return { pokemonCount: 2, maxStars: 1, allowedRarities: ["COMMON"], itemsPerPokemon: 0, useCraftedItems: false }
-  } else if (progress <= 7) {
-    return { pokemonCount: randomBetween(2, 3), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 0, useCraftedItems: false }
+    return { pokemonCount: 2, maxStars: 1, allowedRarities: ["COMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
+  } else if (progress <= 5) {
+    return { pokemonCount: randomBetween(2, 3), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
+  } else if (progress <= 8) {
+    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 12) {
-    return { pokemonCount: randomBetween(3, 4), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 1, useCraftedItems: false }
-  } else if (progress <= 18) {
-    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"], itemsPerPokemon: 1, useCraftedItems: false }
-  } else if (progress <= 24) {
-    return { pokemonCount: randomBetween(4, 5), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], itemsPerPokemon: 1, useCraftedItems: false }
-  } else if (progress <= 32) {
-    return { pokemonCount: randomBetween(4, 6), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], itemsPerPokemon: 1, useCraftedItems: true }
+    return { pokemonCount: randomBetween(4, 5), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
+  } else if (progress <= 16) {
+    return { pokemonCount: randomBetween(4, 6), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: true }
+  } else if (progress <= 20) {
+    return { pokemonCount: randomBetween(5, 6), maxStars: 2, allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
+  // --- Act 2 ---
+  } else if (progress <= 25) {
+    return { pokemonCount: randomBetween(5, 7), maxStars: 3, allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
+  } else if (progress <= 30) {
+    return { pokemonCount: randomBetween(6, 7), maxStars: 3, allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
+  } else if (progress <= 35) {
+    return { pokemonCount: randomBetween(6, 8), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 1, maxItemsPerPokemon: 3, useCraftedItems: true }
   } else if (progress <= 40) {
-    return { pokemonCount: randomBetween(5, 6), maxStars: 2, allowedRarities: ["RARE", "EPIC"], itemsPerPokemon: 2, useCraftedItems: true }
-  } else if (progress <= 48) {
-    return { pokemonCount: randomBetween(5, 7), maxStars: 3, allowedRarities: ["RARE", "EPIC"], itemsPerPokemon: 2, useCraftedItems: true }
-  } else if (progress <= 55) {
-    return { pokemonCount: randomBetween(6, 8), maxStars: 3, allowedRarities: ["RARE", "EPIC", "ULTRA"], itemsPerPokemon: 3, useCraftedItems: true }
+    return { pokemonCount: randomBetween(7, 8), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
+  // --- Act 3 ---
+  } else if (progress <= 45) {
+    return { pokemonCount: randomBetween(7, 8), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
+  } else if (progress <= 50) {
+    return { pokemonCount: randomBetween(7, 9), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
   } else {
-    return { pokemonCount: randomBetween(7, 9), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], itemsPerPokemon: 3, useCraftedItems: true }
+    return { pokemonCount: randomBetween(8, 9), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 3, maxItemsPerPokemon: 3, useCraftedItems: true }
   }
 }
 
@@ -560,7 +570,7 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
     return [pkm, pos[0], pos[1]]
   })
 
-  const items = generateEncounterItems(selected.length, difficulty.itemsPerPokemon, difficulty.useCraftedItems)
+  const items = generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
 
   const regionName = (region as string).replace(/([A-Z])/g, " $1").trim()
 
@@ -572,11 +582,11 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
   }
 }
 
-function generateEncounterItems(pokemonCount: number, itemsPerPokemon: number, useCrafted: boolean): Item[][] {
-  if (itemsPerPokemon <= 0) return []
+function generateEncounterItems(pokemonCount: number, minItems: number, maxItems: number, useCrafted: boolean): Item[][] {
+  if (maxItems <= 0) return []
   const result: Item[][] = []
   for (let i = 0; i < pokemonCount; i++) {
-    const count = randomBetween(0, itemsPerPokemon)
+    const count = randomBetween(minItems, maxItems)
     if (count === 0) {
       result.push([])
       continue
@@ -596,8 +606,8 @@ function generateEncounterItems(pokemonCount: number, itemsPerPokemon: number, u
 
 function getEncounterTier(act: number, floor: number): number {
   const progress = (act - 1) * 15 + floor
-  if (progress <= 5) return 1
-  if (progress <= 15) return 2
+  if (progress <= 3) return 1
+  if (progress <= 8) return 2
   return 3
 }
 
