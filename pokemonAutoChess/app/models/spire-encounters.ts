@@ -13,6 +13,7 @@ export type SpireEncounter = {
   avatar: Pkm
   board: [pkm: Pkm, x: number, y: number][]
   items?: Item[][]
+  synergy?: Synergy
 }
 
 export type SpireEncounterTemplate = {
