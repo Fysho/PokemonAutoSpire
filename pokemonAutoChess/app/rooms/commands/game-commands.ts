@@ -1232,13 +1232,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.spireEventDescription = "Choose one:"
     resetArraySchema(this.state.spireEventChoiceLabels, [
       "Heal 30 HP",
-      "Receive a Ditto + item component",
-      `Receive ${dojoTicket.replace(/_/g, " ")}`
+      "Ditto + Item Component",
+      dojoTicket.replace(/_/g, " ")
     ])
     resetArraySchema(this.state.spireEventChoiceDescs, [
       `Restore 30 HP (current: ${this.state.runHP}/100)`,
-      "Add a Ditto to your bench and get a random item component",
-      "A dojo ticket for training"
+      randomComponent,
+      dojoTicket
     ])
 
     this.restRandomComponent = randomComponent

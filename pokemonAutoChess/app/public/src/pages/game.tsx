@@ -1013,7 +1013,7 @@ export default function Game() {
           {phase === GamePhaseState.PICK && (
             <div style={{
               position: "absolute",
-              right: "1vw",
+              right: "5vw",
               top: "50%",
               transform: "translateY(-50%)",
               zIndex: 50
