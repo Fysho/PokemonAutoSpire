@@ -21,6 +21,7 @@ export default function GameStageInfo() {
   const currentAct = useAppSelector((state) => state.game.currentAct)
   const currentFloor = useAppSelector((state) => state.game.currentFloor)
   const runHP = useAppSelector((state) => state.game.runHP)
+  const encounterDifficulty = useAppSelector((state) => state.game.encounterDifficulty)
 
   if (!spectatedPlayer) return null
 
@@ -40,6 +41,9 @@ export default function GameStageInfo() {
         <div className="stage-information">
           <p>Act {currentAct} - Floor {currentFloor}</p>
           <p style={{ fontSize: "0.7em", opacity: 0.7 }}>HP: {runHP}/100</p>
+          {encounterDifficulty > 0 && (phase === GamePhaseState.PICK || phase === GamePhaseState.FIGHT) && (
+            <p style={{ fontSize: "0.7em", color: "#f39c12" }}>Difficulty: {encounterDifficulty}</p>
+          )}
         </div>
 
         <div

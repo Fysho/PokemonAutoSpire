@@ -71,6 +71,7 @@ import {
   setRunHP,
   setCurrentAct,
   setCurrentFloor,
+  setEncounterDifficulty,
   setRoundTime,
   setShopFreeRolls,
   setShopLocked,
@@ -578,6 +579,10 @@ export default function Game() {
 
       $state.listen("currentFloor", (value) => {
         dispatch(setCurrentFloor(value))
+      })
+
+      $state.listen("encounterDifficulty", (value) => {
+        dispatch(setEncounterDifficulty(value))
       })
 
       $state.listen("runComplete", (value) => {

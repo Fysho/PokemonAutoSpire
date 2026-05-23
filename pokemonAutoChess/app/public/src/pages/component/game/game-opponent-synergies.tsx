@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { SynergyTriggers } from "../../../../../config"
 import { getPokemonData } from "../../../../../models/precomputed/precomputed-pokemon-data"
 import { GamePhaseState } from "../../../../../types/enum/Game"
 import { Pkm } from "../../../../../types/enum/Pokemon"
@@ -27,10 +26,6 @@ function computeOpponentSynergies(): [string, number][] {
   })
 
   return Array.from(counts.entries())
-    .filter(([syn, count]) => {
-      const triggers = SynergyTriggers[syn as Synergy]
-      return triggers && count >= (triggers[0] ?? 1)
-    })
     .sort((a, b) => b[1] - a[1])
 }
 

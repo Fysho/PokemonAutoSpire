@@ -54,6 +54,7 @@ export interface GameStateStore {
   runHP: number
   currentAct: number
   currentFloor: number
+  encounterDifficulty: number
 }
 
 const initialState: GameStateStore = {
@@ -89,7 +90,8 @@ const initialState: GameStateStore = {
   podium: new Array<ILeaderboardInfo>(),
   runHP: 100,
   currentAct: 1,
-  currentFloor: 0
+  currentFloor: 0,
+  encounterDifficulty: 0
 }
 
 export const gameSlice: Slice<GameStateStore> = createSlice({
@@ -117,6 +119,9 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
     },
     setCurrentFloor: (state, action: PayloadAction<number>) => {
       state.currentFloor = action.payload
+    },
+    setEncounterDifficulty: (state, action: PayloadAction<number>) => {
+      state.encounterDifficulty = action.payload
     },
     setNoELO: (state, action: PayloadAction<boolean>) => {
       state.noElo = action.payload
@@ -346,6 +351,7 @@ export const {
   setRunHP,
   setCurrentAct,
   setCurrentFloor,
+  setEncounterDifficulty,
   setWeather,
   setNoELO,
   setSpecialGameRule,
