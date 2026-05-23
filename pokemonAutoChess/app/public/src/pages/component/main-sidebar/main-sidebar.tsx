@@ -337,7 +337,7 @@ export function MainSidebar(props: MainSidebarProps) {
           </>
         )}
 
-        {page === "game" && profileLevel >= GADGETS.jukebox.levelRequired && (
+        {page === "game" && (
           <NavLink
             svg="compact-disc"
             location="jukebox"

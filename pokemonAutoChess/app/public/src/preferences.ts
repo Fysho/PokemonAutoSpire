@@ -48,8 +48,8 @@ export interface IPreferencesState {
 export type PreferenceKey = keyof IPreferencesState
 
 const defaultPreferences: IPreferencesState = {
-  musicVolume: 30,
-  sfxVolume: 30,
+  musicVolume: 0,
+  sfxVolume: 0,
   playInBackground: false,
   showDpsMeter: false,
   dpsMeterPosition: { x: 0, y: 0 },

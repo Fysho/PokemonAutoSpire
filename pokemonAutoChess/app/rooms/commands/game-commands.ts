@@ -1465,8 +1465,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             )
           } else if (won && template.name === "Psychic Circle") {
             const offers = pickNRandomIn(template.rewards, 3)
+            const pairedItems: Item[] = offers.map(() => pickRandomIn(ItemComponentsNoFossilOrScarf))
             player.choices.push(
-              new PlayerChoice({ type: "addPick", pokemons: offers })
+              new PlayerChoice({ type: "addPick", pokemons: offers, items: pairedItems })
             )
           } else if (won && template.name === "Rival Flames") {
             const synergyItem = pickRandomIn([Item.ELECTIRIZER, Item.MAGMARIZER])

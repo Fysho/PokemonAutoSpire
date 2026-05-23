@@ -110,9 +110,6 @@ export default function GameRest({ runHP, choices }: GameRestProps) {
               src={"assets/item/" + dojoTicket + ".png"}
             />
             <h3 style={{ margin: "0.25em 0" }}>{t(`item.${dojoTicket}`)}</h3>
-            <p style={{ marginBottom: "0.5em", fontSize: "80%" }}>
-              {addIconsToDescription(t(`item_description.${dojoTicket}`))}
-            </p>
           </div>
         </div>
       </div>
