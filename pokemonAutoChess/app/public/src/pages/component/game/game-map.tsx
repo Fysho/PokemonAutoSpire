@@ -69,11 +69,12 @@ export default function GameMap({
   const maxFloor = Math.max(...nodes.map((n) => n.floor), 1)
   const svgWidth = 1000
   const svgHeight = maxFloor * 80 + 80
-  const colWidth = svgWidth / 6
   const floorHeight = 75
+  const nodeSpread = svgWidth * 0.8
+  const nodeOffset = svgWidth * 0.1
 
   const getNodePos = (node: MapNode) => ({
-    cx: node.x * colWidth + colWidth / 2,
+    cx: nodeOffset + (node.x / 4) * nodeSpread,
     cy: svgHeight - (node.floor * floorHeight + 40)
   })
 
