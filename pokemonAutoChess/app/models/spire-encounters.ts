@@ -202,6 +202,110 @@ const GYM_LEADERS: SpireEncounter[] = [
   }
 ]
 
+export type EliteEncounterTemplate = {
+  name: string
+  avatar: Pkm
+  pokemon: Pkm[]
+  tiers: {
+    1: [pkm: Pkm, x: number, y: number][]
+    2: [pkm: Pkm, x: number, y: number][]
+    3: [pkm: Pkm, x: number, y: number][]
+  }
+}
+
+const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
+  {
+    name: "Eeveelution Squad",
+    avatar: Pkm.EEVEE,
+    pokemon: [Pkm.VAPOREON, Pkm.JOLTEON, Pkm.FLAREON, Pkm.ESPEON, Pkm.UMBREON, Pkm.LEAFEON, Pkm.GLACEON, Pkm.SYLVEON],
+    tiers: {
+      1: [[Pkm.VAPOREON, 2, 1], [Pkm.JOLTEON, 6, 1], [Pkm.FLAREON, 4, 2]],
+      2: [[Pkm.VAPOREON, 2, 1], [Pkm.JOLTEON, 6, 1], [Pkm.FLAREON, 4, 2], [Pkm.ESPEON, 3, 1]],
+      3: [[Pkm.VAPOREON, 2, 1], [Pkm.JOLTEON, 6, 1], [Pkm.FLAREON, 4, 2], [Pkm.ESPEON, 3, 2], [Pkm.UMBREON, 5, 2]]
+    }
+  },
+  {
+    name: "Lake Guardians",
+    avatar: Pkm.GYARADOS,
+    pokemon: [Pkm.GYARADOS, Pkm.MILOTIC, Pkm.LAPRAS],
+    tiers: {
+      1: [[Pkm.GYARADOS, 3, 2], [Pkm.MILOTIC, 5, 2]],
+      2: [[Pkm.GYARADOS, 3, 2], [Pkm.MILOTIC, 5, 2], [Pkm.LAPRAS, 4, 1]],
+      3: [[Pkm.GYARADOS, 2, 2], [Pkm.MILOTIC, 6, 2], [Pkm.LAPRAS, 4, 3]]
+    }
+  },
+  {
+    name: "Dragon's Den",
+    avatar: Pkm.SALAMENCE,
+    pokemon: [Pkm.SALAMENCE, Pkm.GARCHOMP, Pkm.DRAGONITE],
+    tiers: {
+      1: [[Pkm.DRAGONAIR, 3, 1], [Pkm.SHELGON, 5, 1], [Pkm.SALAMENCE, 4, 2]],
+      2: [[Pkm.SALAMENCE, 3, 2], [Pkm.GARCHOMP, 5, 2], [Pkm.DRAGONAIR, 4, 1]],
+      3: [[Pkm.SALAMENCE, 2, 2], [Pkm.GARCHOMP, 6, 2], [Pkm.DRAGONITE, 4, 3]]
+    }
+  },
+  {
+    name: "Iron Defense",
+    avatar: Pkm.METAGROSS,
+    pokemon: [Pkm.METAGROSS, Pkm.LUCARIO, Pkm.SCIZOR],
+    tiers: {
+      1: [[Pkm.LUCARIO, 3, 1], [Pkm.SCIZOR, 5, 1], [Pkm.METAGROSS, 4, 2]],
+      2: [[Pkm.METAGROSS, 4, 2], [Pkm.LUCARIO, 2, 1], [Pkm.SCIZOR, 6, 1], [Pkm.MAGNETON, 4, 1]],
+      3: [[Pkm.METAGROSS, 4, 3], [Pkm.LUCARIO, 2, 2], [Pkm.SCIZOR, 6, 2], [Pkm.MAGNETON, 4, 1]]
+    }
+  },
+  {
+    name: "Tyrant's Court",
+    avatar: Pkm.TYRANITAR,
+    pokemon: [Pkm.TYRANITAR, Pkm.AERODACTYL, Pkm.HERACROSS],
+    tiers: {
+      1: [[Pkm.HERACROSS, 3, 1], [Pkm.AERODACTYL, 5, 2], [Pkm.PUPITAR, 4, 1]],
+      2: [[Pkm.TYRANITAR, 4, 2], [Pkm.HERACROSS, 2, 1], [Pkm.AERODACTYL, 6, 2]],
+      3: [[Pkm.TYRANITAR, 4, 3], [Pkm.HERACROSS, 2, 1], [Pkm.AERODACTYL, 6, 2], [Pkm.PUPITAR, 3, 1]]
+    }
+  },
+  {
+    name: "Psychic Conclave",
+    avatar: Pkm.GARDEVOIR,
+    pokemon: [Pkm.GARDEVOIR, Pkm.GALLADE, Pkm.ALAKAZAM],
+    tiers: {
+      1: [[Pkm.GARDEVOIR, 3, 2], [Pkm.GALLADE, 5, 1], [Pkm.KADABRA, 4, 1]],
+      2: [[Pkm.GARDEVOIR, 3, 2], [Pkm.GALLADE, 5, 2], [Pkm.ALAKAZAM, 4, 1]],
+      3: [[Pkm.GARDEVOIR, 2, 2], [Pkm.GALLADE, 6, 2], [Pkm.ALAKAZAM, 4, 3]]
+    }
+  },
+  {
+    name: "Celestial Duo",
+    avatar: Pkm.TOGEKISS,
+    pokemon: [Pkm.TOGEKISS, Pkm.MILOTIC, Pkm.GARDEVOIR],
+    tiers: {
+      1: [[Pkm.TOGEKISS, 4, 2], [Pkm.TOGETIC, 3, 1], [Pkm.FEEBAS, 5, 1]],
+      2: [[Pkm.TOGEKISS, 4, 2], [Pkm.MILOTIC, 2, 1], [Pkm.GARDEVOIR, 6, 2]],
+      3: [[Pkm.TOGEKISS, 4, 3], [Pkm.MILOTIC, 2, 2], [Pkm.GARDEVOIR, 6, 2]]
+    }
+  },
+  {
+    name: "Power Plant",
+    avatar: Pkm.ELECTIVIRE,
+    pokemon: [Pkm.ELECTIVIRE, Pkm.MAGMORTAR, Pkm.PORYGON_Z],
+    tiers: {
+      1: [[Pkm.ELECTIVIRE, 3, 1], [Pkm.MAGMORTAR, 5, 1], [Pkm.PORYGON_2, 4, 2]],
+      2: [[Pkm.ELECTIVIRE, 3, 2], [Pkm.MAGMORTAR, 5, 2], [Pkm.PORYGON_Z, 4, 1]],
+      3: [[Pkm.ELECTIVIRE, 2, 2], [Pkm.MAGMORTAR, 6, 2], [Pkm.PORYGON_Z, 4, 3]]
+    }
+  },
+  {
+    name: "Sleeping Giant",
+    avatar: Pkm.SNORLAX,
+    pokemon: [Pkm.SNORLAX, Pkm.SLAKING, Pkm.DITTO],
+    tiers: {
+      1: [[Pkm.SNORLAX, 4, 2], [Pkm.MUNCHLAX, 3, 1], [Pkm.DITTO, 5, 1]],
+      2: [[Pkm.SNORLAX, 4, 2], [Pkm.SLAKING, 2, 1], [Pkm.DITTO, 6, 1]],
+      3: [[Pkm.SNORLAX, 4, 3], [Pkm.SLAKING, 2, 2], [Pkm.DITTO, 6, 1], [Pkm.MUNCHLAX, 4, 1]]
+    }
+  }
+]
+
 const LEGENDARY_BOSSES: { [act: number]: SpireEncounter } = {
   1: {
     name: "Mewtwo",
@@ -367,6 +471,26 @@ export function getGymLeaderGem(synergy: Synergy): Item {
   return Item.NORMAL_GEM
 }
 
+export function getEliteEncounter(index: number, act: number, floor: number): SpireEncounter {
+  const template = ELITE_ENCOUNTERS[index % ELITE_ENCOUNTERS.length]
+  const tier = getEncounterTier(act, floor)
+  const board = template.tiers[tier] || template.tiers[1]
+  return {
+    name: template.name,
+    avatar: template.avatar,
+    board: [...board]
+  }
+}
+
+export function getEliteEncounterCount(): number {
+  return ELITE_ENCOUNTERS.length
+}
+
+export function getEliteEncounterPokemon(index: number): Pkm[] {
+  const template = ELITE_ENCOUNTERS[index % ELITE_ENCOUNTERS.length]
+  return template.pokemon
+}
+
 export function getLegendaryBossEncounter(act: number): SpireEncounter {
   return LEGENDARY_BOSSES[act] || LEGENDARY_BOSSES[1]
 }
@@ -395,6 +519,7 @@ export function getRegionalPokemonForReward(region: string, act: number): Pkm | 
 export function getGoldReward(nodeType: string, act: number): number {
   switch (nodeType) {
     case "WILD_BATTLE": return 2 + act
+    case "ELITE": return 4 + act * 2
     case "GYM_LEADER": return 6 + act * 2
     case "LEGENDARY_BOSS": return 12 + act * 3
     default: return 0

@@ -44,6 +44,8 @@ import { canSell, PokemonEntity } from "../../core/pokemon-entity"
 import Simulation from "../../core/simulation"
 import { MapNodeType } from "../../models/colyseus-models/map-node"
 import {
+  getEliteEncounter,
+  getEliteEncounterPokemon,
   getGoldReward,
   getGymLeaderEncounter,
   getGymLeaderGem,
@@ -112,6 +114,7 @@ import {
   SynergyGems,
   SynergyGivenByGem,
   SynergyGivenByItem,
+  ShinyItems,
   SynergyStones,
   Tools,
   UnholdableItems
@@ -1148,6 +1151,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     switch (node.nodeType) {
       case MapNodeType.WILD_BATTLE:
       case MapNodeType.GYM_LEADER:
+      case MapNodeType.ELITE:
       case MapNodeType.LEGENDARY_BOSS: {
         this.state.stageLevel = (this.state.currentAct - 1) * 15 + node.floor
         let encounter: SpireEncounter | null = null
@@ -1157,6 +1161,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             : getWildEncounter(this.state.currentAct, node.floor, node.x + node.floor * 7)
         } else if (node.nodeType === MapNodeType.GYM_LEADER) {
           encounter = getGymLeaderEncounter(node.gymLeaderIndex)
+        } else if (node.nodeType === MapNodeType.ELITE) {
+          encounter = getEliteEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor)
         } else {
           encounter = getLegendaryBossEncounter(this.state.currentAct)
         }
@@ -1329,24 +1335,37 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           }
         }
 
+        // Elite encounter: offer one of the defeated special Pokemon
+        if (won && node.nodeType === MapNodeType.ELITE && node.eliteEncounterIndex >= 0) {
+          const elitePokemon = getEliteEncounterPokemon(node.eliteEncounterIndex)
+          if (elitePokemon.length > 0) {
+            const offers = pickNRandomIn(elitePokemon, Math.min(3, elitePokemon.length))
+            player.choices.push(
+              new PlayerChoice({ type: "addPick", pokemons: offers })
+            )
+          }
+        }
+
         // Synergy gem reward for gym leaders
         if (won && node.nodeType === MapNodeType.GYM_LEADER && node.gymLeaderSynergy) {
           const gem = getGymLeaderGem(node.gymLeaderSynergy as Synergy)
           player.items.push(gem)
         }
 
-        // Relic reward for gym leaders and bosses
-        if (won && (node.nodeType === MapNodeType.GYM_LEADER || node.nodeType === MapNodeType.LEGENDARY_BOSS)) {
-          const relicChoices = getRandomItemChoices(player.items, 3)
-          logger.info(`Relic choices offered: ${JSON.stringify(relicChoices)}`)
-          if (relicChoices.length > 0) {
+        // Item reward for gym leaders and bosses
+        if (won && node.nodeType === MapNodeType.GYM_LEADER) {
+          const itemChoices = getRandomItemChoices(player.items, 3)
+          if (itemChoices.length > 0) {
             player.choices.push(
-              new PlayerChoice({
-                type: "item",
-                items: relicChoices as any[]
-              })
+              new PlayerChoice({ type: "item", items: itemChoices as any[] })
             )
           }
+        }
+        if (won && node.nodeType === MapNodeType.LEGENDARY_BOSS) {
+          const goldItemChoices = pickNRandomIn([...ShinyItems], 3)
+          player.choices.push(
+            new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
+          )
         }
       }
     })
@@ -2111,7 +2130,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             PkmIndex[encounter.avatar],
             false
           )
-          player.opponentTitle = node?.nodeType === MapNodeType.GYM_LEADER ? "GYM LEADER" : "WILD"
+          player.opponentTitle = node?.nodeType === MapNodeType.GYM_LEADER ? "GYM LEADER" : node?.nodeType === MapNodeType.ELITE ? "ELITE" : "WILD"
           player.team = Team.BLUE_TEAM
 
           const pveBoard = PokemonFactory.makePveBoard(

@@ -1,6 +1,6 @@
 import { ArraySchema, MapSchema } from "@colyseus/schema"
 import { MapEdge, MapNode, MapNodeType } from "../models/colyseus-models/map-node"
-import { getGymLeaderCount, getGymLeaderEncounter } from "../models/spire-encounters"
+import { getEliteEncounterCount, getGymLeaderCount, getGymLeaderEncounter } from "../models/spire-encounters"
 import { DungeonPMDO } from "../types/enum/Dungeon"
 import { pickRandomIn, randomBetween, shuffleArray } from "../utils/random"
 
@@ -36,6 +36,10 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
     return MapNodeType.GYM_LEADER
   }
 
+  if (floor === 3 || floor === 9 || floor === 11) {
+    return roll < 0.5 ? MapNodeType.ELITE : MapNodeType.WILD_BATTLE
+  }
+
   if (roll < 0.55) return MapNodeType.WILD_BATTLE
   if (roll < 0.70) return MapNodeType.MYSTERY_ENCOUNTER
   if (roll < 0.85) return MapNodeType.POKEMART
@@ -54,6 +58,11 @@ export function generateActMap(
   const gymLeaderIndices = Array.from({ length: gymLeaderTotal }, (_, i) => i)
   shuffleArray(gymLeaderIndices)
   let gymLeaderPick = 0
+
+  const eliteTotal = getEliteEncounterCount()
+  const eliteIndices = Array.from({ length: eliteTotal }, (_, i) => i)
+  shuffleArray(eliteIndices)
+  let elitePick = 0
 
   for (let floor = 1; floor <= totalFloors; floor++) {
     let nodeCount: number
@@ -88,6 +97,11 @@ export function generateActMap(
         node.gymLeaderIndex = idx
         const encounter = getGymLeaderEncounter(idx)
         node.gymLeaderSynergy = encounter.synergy ?? ""
+      }
+
+      if (nodeType === MapNodeType.ELITE) {
+        node.eliteEncounterIndex = eliteIndices[elitePick % eliteIndices.length]
+        elitePick++
       }
 
       if (floor === 1) {

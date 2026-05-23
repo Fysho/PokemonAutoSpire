@@ -3,6 +3,7 @@ import { Schema, type } from "@colyseus/schema"
 export enum MapNodeType {
   WILD_BATTLE = "WILD_BATTLE",
   GYM_LEADER = "GYM_LEADER",
+  ELITE = "ELITE",
   POKEMART = "POKEMART",
   POKEMON_CENTER = "POKEMON_CENTER",
   MYSTERY_ENCOUNTER = "MYSTERY_ENCOUNTER",
@@ -22,6 +23,7 @@ export class MapNode extends Schema {
   @type("string") region: string = ""
   @type("int8") gymLeaderIndex: number = -1
   @type("string") gymLeaderSynergy: string = ""
+  @type("int8") eliteEncounterIndex: number = -1
 
   constructor(
     id: string,

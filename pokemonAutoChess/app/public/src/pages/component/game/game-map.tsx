@@ -9,6 +9,7 @@ import { rooms } from "../../../network"
 const NODE_COLORS: Record<string, string> = {
   [MapNodeType.WILD_BATTLE]: "#e74c3c",
   [MapNodeType.GYM_LEADER]: "#f39c12",
+  [MapNodeType.ELITE]: "#c0392b",
   [MapNodeType.POKEMART]: "#3498db",
   [MapNodeType.POKEMON_CENTER]: "#2ecc71",
   [MapNodeType.MYSTERY_ENCOUNTER]: "#9b59b6",
@@ -17,6 +18,7 @@ const NODE_COLORS: Record<string, string> = {
 
 const NODE_LABELS: Record<string, string> = {
   [MapNodeType.GYM_LEADER]: "🏅",
+  [MapNodeType.ELITE]: "⚔️",
   [MapNodeType.POKEMART]: "🛒",
   [MapNodeType.POKEMON_CENTER]: "❤️",
   [MapNodeType.MYSTERY_ENCOUNTER]: "❓",
@@ -26,6 +28,7 @@ const NODE_LABELS: Record<string, string> = {
 const NODE_NAMES: Record<string, string> = {
   [MapNodeType.WILD_BATTLE]: "Wild Battle",
   [MapNodeType.GYM_LEADER]: "Gym Leader",
+  [MapNodeType.ELITE]: "Elite",
   [MapNodeType.POKEMART]: "PokeMart",
   [MapNodeType.POKEMON_CENTER]: "Pokemon Center",
   [MapNodeType.MYSTERY_ENCOUNTER]: "Mystery",
