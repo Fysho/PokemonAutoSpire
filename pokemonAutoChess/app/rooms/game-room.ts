@@ -31,7 +31,7 @@ import {
   Transfer
 } from "../types"
 import { EloRank } from "../types/enum/EloRank"
-import { GameMode, GamePhaseState, PokemonActionState, Rarity } from "../types/enum/Game"
+import { BattleResult, GameMode, GamePhaseState, PokemonActionState, Rarity } from "../types/enum/Game"
 import { Item, Wands } from "../types/enum/Item"
 import { Passive } from "../types/enum/Passive"
 import {
@@ -830,6 +830,21 @@ export default class GameRoom extends Room<{ state: GameState }> {
       choiceIndex >= (choice.pokemons?.length || choice.items?.length)
     )
       return
+
+    if (choice.type === "wildReward" || choice.type === "wildRewardRerolled") {
+      const pkm = choice.pokemons[choiceIndex]
+      if (pkm && pkm !== Pkm.DEFAULT) {
+        const freeSpace = getFreeSpaceOnBench(player.board)
+        if (freeSpace < 1 && !bypassLackOfSpace) return false
+        this.spawnOnBench(player, pkm as Pkm)
+      } else {
+        const item = choice.items[choiceIndex]
+        if (item) player.items.push(item)
+      }
+      const idx = player.choices.indexOf(choice)
+      if (idx >= 0) player.choices.splice(idx, 1)
+      return
+    }
 
     if (choice.pokemons.length > 0) {
       const pkm = choice.pokemons[choiceIndex]

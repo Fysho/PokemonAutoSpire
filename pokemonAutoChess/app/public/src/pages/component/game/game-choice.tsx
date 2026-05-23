@@ -9,11 +9,12 @@ import {
   PkmFamily
 } from "../../../../../types/enum/Pokemon"
 import { SpecialGameRule } from "../../../../../types/enum/SpecialGameRule"
+import { Transfer } from "../../../../../types"
 import { isIn } from "../../../../../utils/array"
 import { DEPTH } from "../../../game/depths"
 import { selectConnectedPlayer, useAppSelector } from "../../../hooks"
 import { IDetailledPokemon } from "../../../models/bot-v2"
-import { pickChoice } from "../../../network"
+import { pickChoice, rooms } from "../../../network"
 import { getGameScene } from "../../game"
 import { playSound, SOUNDS } from "../../utils/audio"
 import { addIconsToDescription } from "../../utils/descriptions"
@@ -66,10 +67,14 @@ export default function GameChoice() {
     return null
   }
 
-  const choice = choices[0] // only display one choice at a time, the others will be displayed after the first one is picked
+  const choice = choices[0]
+  const isWildReward = choice.type === "wildReward" || choice.type === "wildRewardRerolled"
+  const canReroll = choice.type === "wildReward"
 
   let message: string | null = null
-  if (choice.type === "addPick") {
+  if (isWildReward) {
+    message = "Choose a reward"
+  } else if (choice.type === "addPick") {
     message = "Choose a Pokemon"
   } else if (choice.type === "starter") {
     message =
@@ -96,7 +101,57 @@ export default function GameChoice() {
       >
         {message && <h2>{message}</h2>}
 
-        {choice.pokemons.length > 0 ? (
+        {isWildReward ? (
+          <div className="game-choice-pokemons-list">
+            {choice.pokemons.map((proposition, index) => {
+              const isPokemonSlot = proposition !== Pkm.DEFAULT
+              const item = choice.items[index]
+
+              if (isPokemonSlot) {
+                return (
+                  <div
+                    key={`${choice.id}-${index}`}
+                    className="my-box active clickable"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      playSound(SOUNDS.BUTTON_CLICK)
+                      pickChoice(choice.id, index)
+                    }}
+                  >
+                    <GamePokemonPortrait
+                      origin="proposition"
+                      index={index}
+                      pokemon={proposition as Pkm}
+                      inPlanner={false}
+                    />
+                  </div>
+                )
+              } else {
+                return (
+                  <div
+                    key={`${choice.id}-${index}`}
+                    className="my-box active clickable"
+                    style={{ display: "flex", flexFlow: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      playSound(SOUNDS.BUTTON_CLICK)
+                      pickChoice(choice.id, index)
+                    }}
+                  >
+                    <img
+                      style={{ width: "4rem", height: "4rem" }}
+                      src={"assets/item/" + item + ".png"}
+                    />
+                    <h3 style={{ margin: "0.25em 0" }}>{t(`item.${item}`)}</h3>
+                    <p style={{ marginBottom: "0.5em", fontSize: "80%" }}>
+                      {addIconsToDescription(t(`item_description.${item}`))}
+                    </p>
+                  </div>
+                )
+              }
+            })}
+          </div>
+        ) : choice.pokemons.length > 0 ? (
           <div className="game-choice-pokemons-list">
             {choice.pokemons.map((proposition, index) => {
               const item = choice.items[index]
@@ -208,6 +263,19 @@ export default function GameChoice() {
         >
           {visible ? t("hide") : t("show")}
         </button>
+        {isWildReward && (
+          <button
+            className={`bubbly blue active`}
+            style={{ marginLeft: "0.5em", opacity: canReroll ? 1 : 0.4, pointerEvents: canReroll ? "auto" : "none" }}
+            onClick={() => {
+              if (!canReroll) return
+              playSound(SOUNDS.BUTTON_CLICK)
+              rooms.game?.send(Transfer.REROLL_REWARD)
+            }}
+          >
+            Reroll (1g)
+          </button>
+        )}
       </div>
     </div>
   )
