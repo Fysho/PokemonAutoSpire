@@ -623,8 +623,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
           })
         )
 
-        this.spawnOnBench(player, Pkm.MEWTWO)
-        this.spawnOnBench(player, Pkm.MEWTWO)
+        // DEBUG: uncomment to start with Mewtwos
+        // this.spawnOnBench(player, Pkm.MEWTWO)
+        // this.spawnOnBench(player, Pkm.MEWTWO)
       }
     })
   }

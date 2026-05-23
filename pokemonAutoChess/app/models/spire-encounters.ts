@@ -219,8 +219,8 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.EEVEE,
     pokemon: [Pkm.VAPOREON, Pkm.JOLTEON, Pkm.FLAREON, Pkm.ESPEON, Pkm.UMBREON, Pkm.LEAFEON, Pkm.GLACEON, Pkm.SYLVEON],
     tiers: {
-      1: [[Pkm.VAPOREON, 2, 1], [Pkm.JOLTEON, 6, 1], [Pkm.FLAREON, 4, 2]],
-      2: [[Pkm.VAPOREON, 2, 1], [Pkm.JOLTEON, 6, 1], [Pkm.FLAREON, 4, 2], [Pkm.ESPEON, 3, 1]],
+      1: [[Pkm.EEVEE, 2, 1], [Pkm.EEVEE, 6, 1], [Pkm.EEVEE, 4, 1]],
+      2: [[Pkm.VAPOREON, 2, 1], [Pkm.JOLTEON, 6, 1], [Pkm.FLAREON, 4, 2]],
       3: [[Pkm.VAPOREON, 2, 1], [Pkm.JOLTEON, 6, 1], [Pkm.FLAREON, 4, 2], [Pkm.ESPEON, 3, 2], [Pkm.UMBREON, 5, 2]]
     }
   },
@@ -229,8 +229,8 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.GYARADOS,
     pokemon: [Pkm.GYARADOS, Pkm.MILOTIC, Pkm.LAPRAS],
     tiers: {
-      1: [[Pkm.GYARADOS, 3, 2], [Pkm.MILOTIC, 5, 2]],
-      2: [[Pkm.GYARADOS, 3, 2], [Pkm.MILOTIC, 5, 2], [Pkm.LAPRAS, 4, 1]],
+      1: [[Pkm.MAGIKARP, 3, 1], [Pkm.FEEBAS, 5, 1], [Pkm.MAGIKARP, 4, 1]],
+      2: [[Pkm.GYARADOS, 4, 2], [Pkm.FEEBAS, 2, 1], [Pkm.MAGIKARP, 6, 1]],
       3: [[Pkm.GYARADOS, 2, 2], [Pkm.MILOTIC, 6, 2], [Pkm.LAPRAS, 4, 3]]
     }
   },
@@ -239,8 +239,8 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.SALAMENCE,
     pokemon: [Pkm.SALAMENCE, Pkm.GARCHOMP, Pkm.DRAGONITE],
     tiers: {
-      1: [[Pkm.DRAGONAIR, 3, 1], [Pkm.SHELGON, 5, 1], [Pkm.SALAMENCE, 4, 2]],
-      2: [[Pkm.SALAMENCE, 3, 2], [Pkm.GARCHOMP, 5, 2], [Pkm.DRAGONAIR, 4, 1]],
+      1: [[Pkm.BAGON, 3, 1], [Pkm.DRATINI, 5, 1], [Pkm.BAGON, 4, 1]],
+      2: [[Pkm.SHELGON, 3, 1], [Pkm.DRAGONAIR, 5, 1], [Pkm.SALAMENCE, 4, 2]],
       3: [[Pkm.SALAMENCE, 2, 2], [Pkm.GARCHOMP, 6, 2], [Pkm.DRAGONITE, 4, 3]]
     }
   },
@@ -249,8 +249,8 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.METAGROSS,
     pokemon: [Pkm.METAGROSS, Pkm.LUCARIO, Pkm.SCIZOR],
     tiers: {
-      1: [[Pkm.LUCARIO, 3, 1], [Pkm.SCIZOR, 5, 1], [Pkm.METAGROSS, 4, 2]],
-      2: [[Pkm.METAGROSS, 4, 2], [Pkm.LUCARIO, 2, 1], [Pkm.SCIZOR, 6, 1], [Pkm.MAGNETON, 4, 1]],
+      1: [[Pkm.BELDUM, 3, 1], [Pkm.RIOLU, 5, 1], [Pkm.SCYTHER, 4, 1]],
+      2: [[Pkm.METANG, 4, 2], [Pkm.LUCARIO, 2, 1], [Pkm.SCIZOR, 6, 1]],
       3: [[Pkm.METAGROSS, 4, 3], [Pkm.LUCARIO, 2, 2], [Pkm.SCIZOR, 6, 2], [Pkm.MAGNETON, 4, 1]]
     }
   },
@@ -259,8 +259,8 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.TYRANITAR,
     pokemon: [Pkm.TYRANITAR, Pkm.AERODACTYL, Pkm.HERACROSS],
     tiers: {
-      1: [[Pkm.HERACROSS, 3, 1], [Pkm.AERODACTYL, 5, 2], [Pkm.PUPITAR, 4, 1]],
-      2: [[Pkm.TYRANITAR, 4, 2], [Pkm.HERACROSS, 2, 1], [Pkm.AERODACTYL, 6, 2]],
+      1: [[Pkm.LARVITAR, 3, 1], [Pkm.LARVITAR, 5, 1], [Pkm.HERACROSS, 4, 1]],
+      2: [[Pkm.PUPITAR, 4, 2], [Pkm.HERACROSS, 2, 1], [Pkm.AERODACTYL, 6, 1]],
       3: [[Pkm.TYRANITAR, 4, 3], [Pkm.HERACROSS, 2, 1], [Pkm.AERODACTYL, 6, 2], [Pkm.PUPITAR, 3, 1]]
     }
   },
@@ -269,8 +269,8 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.GARDEVOIR,
     pokemon: [Pkm.GARDEVOIR, Pkm.GALLADE, Pkm.ALAKAZAM],
     tiers: {
-      1: [[Pkm.GARDEVOIR, 3, 2], [Pkm.GALLADE, 5, 1], [Pkm.KADABRA, 4, 1]],
-      2: [[Pkm.GARDEVOIR, 3, 2], [Pkm.GALLADE, 5, 2], [Pkm.ALAKAZAM, 4, 1]],
+      1: [[Pkm.RALTS, 3, 1], [Pkm.ABRA, 5, 1], [Pkm.RALTS, 4, 1]],
+      2: [[Pkm.KIRLIA, 3, 1], [Pkm.KADABRA, 5, 1], [Pkm.GARDEVOIR, 4, 2]],
       3: [[Pkm.GARDEVOIR, 2, 2], [Pkm.GALLADE, 6, 2], [Pkm.ALAKAZAM, 4, 3]]
     }
   },
@@ -279,8 +279,8 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.TOGEKISS,
     pokemon: [Pkm.TOGEKISS, Pkm.MILOTIC, Pkm.GARDEVOIR],
     tiers: {
-      1: [[Pkm.TOGEKISS, 4, 2], [Pkm.TOGETIC, 3, 1], [Pkm.FEEBAS, 5, 1]],
-      2: [[Pkm.TOGEKISS, 4, 2], [Pkm.MILOTIC, 2, 1], [Pkm.GARDEVOIR, 6, 2]],
+      1: [[Pkm.TOGEPI, 3, 1], [Pkm.FEEBAS, 5, 1], [Pkm.RALTS, 4, 1]],
+      2: [[Pkm.TOGETIC, 4, 2], [Pkm.MILOTIC, 2, 1], [Pkm.KIRLIA, 6, 1]],
       3: [[Pkm.TOGEKISS, 4, 3], [Pkm.MILOTIC, 2, 2], [Pkm.GARDEVOIR, 6, 2]]
     }
   },
@@ -289,8 +289,8 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.ELECTIVIRE,
     pokemon: [Pkm.ELECTIVIRE, Pkm.MAGMORTAR, Pkm.PORYGON_Z],
     tiers: {
-      1: [[Pkm.ELECTIVIRE, 3, 1], [Pkm.MAGMORTAR, 5, 1], [Pkm.PORYGON_2, 4, 2]],
-      2: [[Pkm.ELECTIVIRE, 3, 2], [Pkm.MAGMORTAR, 5, 2], [Pkm.PORYGON_Z, 4, 1]],
+      1: [[Pkm.ELEKID, 3, 1], [Pkm.MAGBY, 5, 1], [Pkm.PORYGON, 4, 1]],
+      2: [[Pkm.ELECTABUZZ, 3, 1], [Pkm.MAGMAR, 5, 1], [Pkm.PORYGON_2, 4, 2]],
       3: [[Pkm.ELECTIVIRE, 2, 2], [Pkm.MAGMORTAR, 6, 2], [Pkm.PORYGON_Z, 4, 3]]
     }
   },
@@ -299,8 +299,8 @@ const ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.SNORLAX,
     pokemon: [Pkm.SNORLAX, Pkm.SLAKING, Pkm.DITTO],
     tiers: {
-      1: [[Pkm.SNORLAX, 4, 2], [Pkm.MUNCHLAX, 3, 1], [Pkm.DITTO, 5, 1]],
-      2: [[Pkm.SNORLAX, 4, 2], [Pkm.SLAKING, 2, 1], [Pkm.DITTO, 6, 1]],
+      1: [[Pkm.MUNCHLAX, 3, 1], [Pkm.SLAKOTH, 5, 1], [Pkm.DITTO, 4, 1]],
+      2: [[Pkm.SNORLAX, 4, 2], [Pkm.VIGOROTH, 2, 1], [Pkm.DITTO, 6, 1]],
       3: [[Pkm.SNORLAX, 4, 3], [Pkm.SLAKING, 2, 2], [Pkm.DITTO, 6, 1], [Pkm.MUNCHLAX, 4, 1]]
     }
   }
