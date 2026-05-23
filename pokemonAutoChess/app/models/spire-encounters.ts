@@ -203,11 +203,36 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter } = {
   }
 }
 
-function getEncounterTier(act: number, floor: number): number {
-  const progress = (act - 1) * 15 + floor
-  if (progress <= 5) return 1
-  if (progress <= 15) return 2
-  return 3
+interface DifficultyConfig {
+  pokemonCount: number
+  maxStars: number
+  allowedRarities: string[]
+}
+
+function getDifficultyConfig(act: number, floor: number): DifficultyConfig {
+  const progress = (act - 1) * 15 + floor // 1-45
+
+  if (progress <= 2) {
+    return { pokemonCount: 1, maxStars: 1, allowedRarities: ["COMMON"] }
+  } else if (progress <= 5) {
+    return { pokemonCount: randomBetween(1, 2), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"] }
+  } else if (progress <= 8) {
+    return { pokemonCount: randomBetween(2, 3), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"] }
+  } else if (progress <= 12) {
+    return { pokemonCount: randomBetween(2, 3), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"] }
+  } else if (progress <= 16) {
+    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"] }
+  } else if (progress <= 22) {
+    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"] }
+  } else if (progress <= 28) {
+    return { pokemonCount: randomBetween(3, 5), maxStars: 2, allowedRarities: ["RARE", "EPIC"] }
+  } else if (progress <= 35) {
+    return { pokemonCount: randomBetween(4, 5), maxStars: 3, allowedRarities: ["RARE", "EPIC"] }
+  } else if (progress <= 40) {
+    return { pokemonCount: randomBetween(4, 6), maxStars: 3, allowedRarities: ["RARE", "EPIC", "ULTRA"] }
+  } else {
+    return { pokemonCount: randomBetween(5, 7), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"] }
+  }
 }
 
 export function getRegionalWildEncounter(act: number, floor: number, region: string): SpireEncounter {
@@ -216,17 +241,36 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
     return getWildEncounter(act, floor, 0)
   }
 
-  const tier = getEncounterTier(act, floor)
-  const pokemonCount = tier === 1 ? randomBetween(2, 3) : tier === 2 ? randomBetween(3, 4) : randomBetween(4, 6)
+  const difficulty = getDifficultyConfig(act, floor)
 
+  // Build candidate pool filtered by region synergies, stars, and rarity
   const candidatePool: Pkm[] = []
   for (const syn of synergies) {
     const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn]
     if (typed) {
       for (const pkm of typed) {
         const data = getPokemonData(pkm)
-        if (data.stars === 1 && !candidatePool.includes(pkm)) {
+        if (
+          data.stars <= difficulty.maxStars &&
+          difficulty.allowedRarities.includes(data.rarity) &&
+          !candidatePool.includes(pkm)
+        ) {
           candidatePool.push(pkm)
+        }
+      }
+    }
+  }
+
+  if (candidatePool.length === 0) {
+    // Fallback: try with just star filter, any rarity
+    for (const syn of synergies) {
+      const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn]
+      if (typed) {
+        for (const pkm of typed) {
+          const data = getPokemonData(pkm)
+          if (data.stars <= difficulty.maxStars && !candidatePool.includes(pkm)) {
+            candidatePool.push(pkm)
+          }
         }
       }
     }
@@ -236,23 +280,47 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
     return getWildEncounter(act, floor, 0)
   }
 
-  const selected = pickNRandomIn(candidatePool, pokemonCount)
+  // Select pokemon, biasing toward higher stars at higher difficulties
+  const selected: Pkm[] = []
+  const pool = [...candidatePool]
+  for (let i = 0; i < difficulty.pokemonCount && pool.length > 0; i++) {
+    // For later slots, prefer higher-star Pokemon
+    if (i >= difficulty.pokemonCount - 2 && difficulty.maxStars >= 2) {
+      const highStar = pool.filter(p => getPokemonData(p).stars >= 2)
+      if (highStar.length > 0) {
+        const pick = pickRandomIn(highStar)
+        selected.push(pick)
+        pool.splice(pool.indexOf(pick), 1)
+        continue
+      }
+    }
+    const pick = pickRandomIn(pool)
+    selected.push(pick)
+    pool.splice(pool.indexOf(pick), 1)
+  }
+
   const positions = [
-    [2, 1], [3, 1], [4, 1], [5, 1], [6, 1], [3, 2], [5, 2]
+    [4, 1], [2, 1], [6, 1], [3, 1], [5, 1], [3, 2], [5, 2]
   ]
   const board: [Pkm, number, number][] = selected.map((pkm, i) => {
     const pos = positions[i % positions.length]
     return [pkm, pos[0], pos[1]]
   })
 
-  const avatar = selected[0]
   const regionName = (region as string).replace(/([A-Z])/g, " $1").trim()
 
   return {
     name: regionName,
-    avatar,
+    avatar: selected[0],
     board
   }
+}
+
+function getEncounterTier(act: number, floor: number): number {
+  const progress = (act - 1) * 15 + floor
+  if (progress <= 5) return 1
+  if (progress <= 15) return 2
+  return 3
 }
 
 export function getWildEncounter(act: number, floor: number, seed: number): SpireEncounter {

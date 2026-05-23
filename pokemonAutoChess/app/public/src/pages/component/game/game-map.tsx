@@ -44,6 +44,7 @@ interface GameMapProps {
   currentAct: number
   currentFloor: number
   runHP: number
+  onHide: () => void
 }
 
 export default function GameMap({
@@ -51,7 +52,8 @@ export default function GameMap({
   mapEdges,
   currentAct,
   currentFloor,
-  runHP
+  runHP,
+  onHide
 }: GameMapProps) {
   const handleNodeClick = (nodeId: string) => {
     const node = mapNodes.get(nodeId)
@@ -62,14 +64,14 @@ export default function GameMap({
 
   const nodes = Array.from(mapNodes.values())
   const maxFloor = Math.max(...nodes.map((n) => n.floor), 1)
-  const svgWidth = 400
-  const svgHeight = maxFloor * 55 + 60
+  const svgWidth = 800
+  const svgHeight = maxFloor * 85 + 80
   const colWidth = svgWidth / 5
-  const floorHeight = 50
+  const floorHeight = 80
 
   const getNodePos = (node: MapNode) => ({
     cx: node.x * colWidth + colWidth / 2,
-    cy: svgHeight - (node.floor * floorHeight + 30)
+    cy: svgHeight - (node.floor * floorHeight + 40)
   })
 
   return (
@@ -133,7 +135,7 @@ export default function GameMap({
             const isVisited = node.visited
             const synergies = getRegionSynergies(node.region)
             const isWild = node.nodeType === MapNodeType.WILD_BATTLE
-            const nodeRadius = isWild && synergies.length > 0 ? 20 : (isAvailable ? 18 : 14)
+            const nodeRadius = isWild && synergies.length > 0 ? 28 : (isAvailable ? 24 : 20)
 
             return (
               <g
@@ -154,15 +156,15 @@ export default function GameMap({
                 )}
                 {isWild && synergies.length > 0 ? (
                   synergies.map((syn, si) => {
-                    const iconSize = 32
+                    const iconSize = 40
                     let ix = pos.cx
                     let iy = pos.cy
                     if (synergies.length === 2) {
-                      ix = pos.cx + (si === 0 ? -10 : 10)
+                      ix = pos.cx + (si === 0 ? -14 : 14)
                     } else if (synergies.length === 3) {
-                      if (si === 0) { ix = pos.cx; iy = pos.cy - 12 }
-                      else if (si === 1) { ix = pos.cx - 13; iy = pos.cy + 8 }
-                      else { ix = pos.cx + 13; iy = pos.cy + 8 }
+                      if (si === 0) { ix = pos.cx; iy = pos.cy - 16 }
+                      else if (si === 1) { ix = pos.cx - 17; iy = pos.cy + 10 }
+                      else { ix = pos.cx + 17; iy = pos.cy + 10 }
                     }
                     return (
                       <image
@@ -179,9 +181,9 @@ export default function GameMap({
                 ) : (
                   <text
                     x={pos.cx}
-                    y={pos.cy + 5}
+                    y={pos.cy + 7}
                     textAnchor="middle"
-                    fontSize="14"
+                    fontSize="20"
                     fill="white"
                   >
                     {NODE_LABELS[node.nodeType]}
@@ -190,9 +192,9 @@ export default function GameMap({
                 {isAvailable && (
                   <text
                     x={pos.cx}
-                    y={pos.cy + 34}
+                    y={pos.cy + 42}
                     textAnchor="middle"
-                    fontSize="10"
+                    fontSize="12"
                     fill="#ccc"
                   >
                     {isWild && node.region
@@ -206,8 +208,24 @@ export default function GameMap({
         </svg>
       </div>
 
-      <div style={{ marginTop: "12px", fontSize: "12px", color: "#888" }}>
-        Click an available node to proceed
+      <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+        <button
+          onClick={onHide}
+          style={{
+            padding: "8px 24px",
+            fontSize: "14px",
+            borderRadius: "6px",
+            border: "1px solid #666",
+            background: "#333",
+            color: "#ccc",
+            cursor: "pointer"
+          }}
+        >
+          Hide Map (View Board)
+        </button>
+        <span style={{ fontSize: "12px", color: "#888" }}>
+          Click an available node to proceed
+        </span>
       </div>
     </div>
   )

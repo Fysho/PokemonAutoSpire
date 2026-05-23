@@ -51,8 +51,10 @@ export function generateActMap(
 
   for (let floor = 1; floor <= totalFloors; floor++) {
     let nodeCount: number
-    if (floor === 1 || floor === totalFloors) {
+    if (floor === totalFloors) {
       nodeCount = 1
+    } else if (floor === 1) {
+      nodeCount = 3
     } else if (floor === 5 || floor === 10) {
       nodeCount = randomBetween(2, 3)
     } else {
@@ -60,12 +62,18 @@ export function generateActMap(
     }
 
     const ids: string[] = []
+    const usedRegions: string[] = []
     for (let col = 0; col < nodeCount; col++) {
       const id = nodeId(act, floor, col)
       const x = nodeCount === 1 ? 2 : Math.round((col / (nodeCount - 1)) * 4)
       const nodeType = assignNodeType(act, floor, totalFloors)
 
-      const region = nodeType === MapNodeType.WILD_BATTLE ? pickRandomIn(ALL_DUNGEONS) : ""
+      let region = ""
+      if (nodeType === MapNodeType.WILD_BATTLE) {
+        const available = ALL_DUNGEONS.filter((d) => !usedRegions.includes(d))
+        region = pickRandomIn(available.length > 0 ? available : ALL_DUNGEONS)
+        usedRegions.push(region)
+      }
       const node = new MapNode(id, nodeType, x, floor, act, floor, `act${act}_floor${floor}_${col}`, region)
 
       if (floor === 1) {

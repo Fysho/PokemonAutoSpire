@@ -188,6 +188,7 @@ export default function Game() {
   const connecting = useRef<boolean>(false)
   const connected = useRef<boolean>(false)
   const [mapVersion, setMapVersion] = useState<number>(0)
+  const [mapHidden, setMapHidden] = useState<boolean>(false)
   const [runComplete, setRunComplete] = useState<boolean>(false)
   const [runFailed, setRunFailed] = useState<boolean>(false)
   const [loaded, setLoaded] = useState<boolean>(false)
@@ -557,6 +558,9 @@ export default function Game() {
           }
         }
         dispatch(setPhase(newPhase))
+        if (newPhase !== GamePhaseState.MAP) {
+          setMapHidden(false)
+        }
       })
 
       $state.listen("stageLevel", (value) => {
@@ -898,7 +902,7 @@ export default function Game() {
   const isEventPhase = phase === GamePhaseState.EVENT
   const isShopPhase = phase === GamePhaseState.SHOP
   const isRewardPhase = phase === GamePhaseState.REWARD
-  const isBoardHidden = isMapPhase || isRestPhase || isEventPhase
+  const isBoardHidden = (isMapPhase && !mapHidden) || isRestPhase || isEventPhase
 
   return (
     <main id="game-wrapper" onContextMenu={(e) => e.preventDefault()}>
@@ -924,7 +928,7 @@ export default function Game() {
             leave={leave}
             visible={finalRankVisibility === FinalRankVisibility.VISIBLE}
           />
-          {isMapPhase && room?.state && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 0) === 0 && (
+          {isMapPhase && !mapHidden && room?.state && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 0) === 0 && (
             <GameMap
               key={mapVersion}
               mapNodes={room.state.mapNodes as any}
@@ -932,7 +936,34 @@ export default function Game() {
               currentAct={currentAct}
               currentFloor={currentFloor}
               runHP={runHP}
+              onHide={() => setMapHidden(true)}
             />
+          )}
+          {isMapPhase && mapHidden && (
+            <div style={{
+              position: "absolute",
+              top: "8px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 50
+            }}>
+              <button
+                onClick={() => setMapHidden(false)}
+                style={{
+                  padding: "8px 24px",
+                  fontSize: "14px",
+                  borderRadius: "6px",
+                  border: "2px solid #f39c12",
+                  background: "linear-gradient(180deg, #2c3e50 0%, #1a1a2e 100%)",
+                  color: "#f39c12",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)"
+                }}
+              >
+                Show Map
+              </button>
+            </div>
           )}
           {isRestPhase && (
             <GameRest
