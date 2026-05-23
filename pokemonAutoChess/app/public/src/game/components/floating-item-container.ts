@@ -1,5 +1,6 @@
 import Phaser, { GameObjects } from "phaser"
 import { Item } from "../../../../types/enum/Item"
+import { Pkm, PkmIndex } from "../../../../types/enum/Pokemon"
 import { preference } from "../../preferences"
 import { DEPTH } from "../depths"
 import GameScene from "../scenes/game-scene"
@@ -44,13 +45,14 @@ export class FloatingItemContainer extends GameObjects.Container {
     this.add(this.circle)
 
     if (pokemonName && pokemonName !== "") {
+      const index = PkmIndex[pokemonName as Pkm]
       this.sprite = new GameObjects.Image(
         manager.scene,
         0,
         0,
-        "item",
-        "EGG_FOR_SELL.png"
+        `portrait-${index}`
       )
+      this.sprite.setScale(0.5)
     } else {
       this.sprite = new GameObjects.Image(
         manager.scene,
@@ -59,8 +61,8 @@ export class FloatingItemContainer extends GameObjects.Container {
         "item",
         this.name + ".png"
       )
+      this.sprite.setScale(0.32)
     }
-    this.sprite.setScale(0.32)
     this.add(this.sprite)
     this.setDepth(DEPTH.INANIMATE_OBJECTS)
 
