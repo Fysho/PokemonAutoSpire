@@ -1144,17 +1144,19 @@ export default function Game() {
             position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
             display: "flex", flexDirection: "column", gap: "8px", zIndex: 300
           }}>
-            <button
-              onClick={() => { setRunComplete(true); setEliteFourAvailable(true) }}
-              style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
-            >
-              Test Victory
-            </button>
+            {localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) === "Fisho" && (
+              <button
+                onClick={() => { setRunComplete(true); setEliteFourAvailable(true) }}
+                style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+              >
+                Test Victory
+              </button>
+            )}
             <button
               onClick={() => setRunFailed(true)}
               style={{ padding: "6px 12px", background: "#e74c3c", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
             >
-              Test Defeat
+              Abandon Run
             </button>
           </div>
         </>

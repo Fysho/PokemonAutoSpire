@@ -222,7 +222,7 @@ function SpireLobbyContent({
           <ul className="room-list" style={{ padding: 0 }}>
             <li style={{ listStyle: "none" }}>
               <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
-                <span className="room-name">Pokemon Auto Spire</span>
+                <span className="room-name">Pokemon Auto Spire v1.1</span>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <button
                     className={cc("bubbly", { loading: starting })}
