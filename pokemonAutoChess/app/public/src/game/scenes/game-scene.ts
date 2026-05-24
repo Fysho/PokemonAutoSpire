@@ -321,6 +321,10 @@ export default class GameScene extends Scene {
       this.minigameManager?.dispose()
     }
 
+    if (previousPhase === GamePhaseState.SHOP) {
+      this.wandererManager?.dispose()
+    }
+
     if (newPhase === GamePhaseState.FIGHT) {
       this.board?.battleMode(true)
     } else if (newPhase === GamePhaseState.TOWN) {

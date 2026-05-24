@@ -4,7 +4,7 @@ import { getPokemonData } from "./precomputed/precomputed-pokemon-data"
 import { PRECOMPUTED_POKEMONS_PER_TYPE } from "./precomputed/precomputed-types"
 import { DungeonPMDO } from "../types/enum/Dungeon"
 import { Pkm } from "../types/enum/Pokemon"
-import { CraftableItems, Item, ItemComponents, NonSpecialBerries, Tools } from "../types/enum/Item"
+import { CraftableItems, Item, ItemComponentsNoFossilOrScarf, NonSpecialBerries, Tools } from "../types/enum/Item"
 import { Synergy } from "../types/enum/Synergy"
 import { pickNRandomIn, pickRandomIn, randomBetween } from "../utils/random"
 
@@ -226,11 +226,11 @@ const ACT2_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
   },
   {
     name: "Dark Omen",
-    avatar: Pkm.ABSOL,
-    pokemon: [Pkm.ABSOL, Pkm.SPIRITOMB, Pkm.MEGA_SABLEYE],
+    avatar: Pkm.DARKRAI,
+    pokemon: [Pkm.ABSOL, Pkm.SPIRITOMB, Pkm.MEGA_SABLEYE, Pkm.DARKRAI],
     rewards: [Pkm.ABSOL, Pkm.SPIRITOMB, Pkm.SABLEYE],
-    board: [[Pkm.ABSOL, 3, 2], [Pkm.SPIRITOMB, 5, 2], [Pkm.MEGA_SABLEYE, 4, 3]],
-    items: [[], [], [Item.RED_ORB]]
+    board: [[Pkm.ABSOL, 3, 2], [Pkm.SPIRITOMB, 5, 2], [Pkm.MEGA_SABLEYE, 4, 3], [Pkm.DARKRAI, 4, 1]],
+    items: [[], [], [Item.RED_ORB], []]
   },
   {
     name: "Masquerade",
@@ -240,6 +240,7 @@ const ACT2_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     board: [
       [Pkm.MIMIKYU, 4, 2],
       [Pkm.ZOROARK, 4, 3],
+      [Pkm.MEOWSCARADA, 2, 2], [Pkm.MEOWSCARADA, 6, 2],
       [Pkm.DITTO, 2, 1], [Pkm.DITTO, 6, 1], [Pkm.DITTO, 3, 1], [Pkm.DITTO, 5, 1], [Pkm.DITTO, 4, 1]
     ]
   }
@@ -274,9 +275,9 @@ const ACT3_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
   {
     name: "Mother's Fury",
     avatar: Pkm.KANGASKHAN,
-    pokemon: [Pkm.KANGASKHAN, Pkm.KANGASKHAN, Pkm.KANGASKHAN, Pkm.KANGASKHAN],
+    pokemon: [Pkm.KANGASKHAN, Pkm.KANGASKHAN, Pkm.KANGASKHAN, Pkm.KANGASKHAN, Pkm.BLISSEY, Pkm.BLISSEY, Pkm.MAUSHOLD_FOUR],
     rewards: [Pkm.KANGASKHAN],
-    board: [[Pkm.KANGASKHAN, 3, 3], [Pkm.KANGASKHAN, 5, 3], [Pkm.KANGASKHAN, 2, 1], [Pkm.KANGASKHAN, 6, 1]]
+    board: [[Pkm.KANGASKHAN, 3, 3], [Pkm.KANGASKHAN, 5, 3], [Pkm.KANGASKHAN, 2, 2], [Pkm.KANGASKHAN, 6, 2], [Pkm.BLISSEY, 2, 1], [Pkm.BLISSEY, 6, 1], [Pkm.MAUSHOLD_FOUR, 4, 1]]
   },
   {
     name: "Luchador Ring",
@@ -319,7 +320,7 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter[] } = {
       avatar: Pkm.LUGIA,
       board: [[Pkm.LUGIA, 3, 3], [Pkm.HO_OH, 5, 3]],
       items: [
-        [Item.LEFTOVERS],
+        [Item.AQUA_EGG],
         [Item.SHELL_BELL]
       ],
       bonusHP: 100,
@@ -331,9 +332,9 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter[] } = {
       avatar: Pkm.AZELF,
       board: [[Pkm.AZELF, 2, 2], [Pkm.MESPRIT, 4, 3], [Pkm.UXIE, 6, 2]],
       items: [
-        [Item.CHOICE_SPECS, Item.WIDE_LENS],
-        [Item.SHELL_BELL, Item.SOUL_DEW],
-        [Item.LEFTOVERS, Item.WISE_GLASSES]
+        [Item.CHOICE_SPECS],
+        [Item.SOUL_DEW],
+        [Item.POWER_LENS]
       ],
       bonusHP: 100,
       bonusAtk: 5,
@@ -343,12 +344,12 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter[] } = {
   2: [
     {
       name: "Weather Trio",
-      avatar: Pkm.RAYQUAZA,
-      board: [[Pkm.GROUDON, 2, 2], [Pkm.KYOGRE, 6, 2], [Pkm.RAYQUAZA, 4, 3]],
+      avatar: Pkm.MEGA_RAYQUAZA,
+      board: [[Pkm.PRIMAL_GROUDON, 2, 2], [Pkm.PRIMAL_KYOGRE, 6, 2], [Pkm.MEGA_RAYQUAZA, 4, 3]],
       items: [
         [Item.RED_ORB, Item.ROCKY_HELMET, Item.ASSAULT_VEST],
-        [Item.BLUE_ORB, Item.SHELL_BELL, Item.WISE_GLASSES],
-        [Item.RAZOR_CLAW, Item.SCOPE_LENS, Item.RAZOR_FANG]
+        [Item.BLUE_ORB, Item.SHELL_BELL, Item.POWER_LENS],
+        [Item.GREEN_ORB, Item.SCOPE_LENS, Item.RAZOR_FANG]
       ],
       bonusHP: 200,
       bonusAtk: 10,
@@ -374,7 +375,7 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter[] } = {
       items: [
         [Item.CHOICE_SPECS, Item.WIDE_LENS],
         [Item.FLAME_ORB, Item.ASSAULT_VEST],
-        [Item.LEFTOVERS, Item.SHELL_BELL],
+        [Item.STAR_DUST, Item.SHELL_BELL],
         [Item.RUSTED_SWORD, Item.RAZOR_CLAW]
       ],
       bonusHP: 200,
@@ -385,73 +386,168 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter[] } = {
   3: [
     {
       name: "Weather Trio",
-      avatar: Pkm.RAYQUAZA,
-      board: [[Pkm.GROUDON, 2, 2], [Pkm.KYOGRE, 6, 2], [Pkm.RAYQUAZA, 4, 3]],
+      avatar: Pkm.MEGA_RAYQUAZA,
+      board: [[Pkm.PRIMAL_GROUDON, 2, 2], [Pkm.PRIMAL_KYOGRE, 6, 2], [Pkm.MEGA_RAYQUAZA, 4, 3]],
       items: [
         [Item.RED_ORB, Item.ROCKY_HELMET, Item.ASSAULT_VEST],
-        [Item.BLUE_ORB, Item.SHELL_BELL, Item.WISE_GLASSES],
-        [Item.RAZOR_CLAW, Item.SCOPE_LENS, Item.RAZOR_FANG]
+        [Item.BLUE_ORB, Item.SHELL_BELL, Item.POWER_LENS],
+        [Item.GREEN_ORB, Item.SCOPE_LENS, Item.RAZOR_FANG]
       ],
-      bonusHP: 2000,
-      bonusAtk: 30,
-      bonusAP: 100
+      bonusHP: 1500,
+      bonusAtk: 20,
+      bonusAP: 70
+    },
+    {
+      name: "Creation Trio",
+      avatar: Pkm.GIRATINA,
+      board: [[Pkm.DIALGA, 2, 3], [Pkm.PALKIA, 6, 3], [Pkm.ORIGIN_GIRATINA, 4, 2]],
+      items: [
+        [Item.METAL_COAT, Item.ASSAULT_VEST, Item.ROCKY_HELMET],
+        [Item.MYSTIC_WATER, Item.CHOICE_SPECS, Item.POWER_LENS],
+        [Item.REAPER_CLOTH, Item.SCOPE_LENS, Item.SHELL_BELL]
+      ],
+      bonusHP: 1500,
+      bonusAtk: 20,
+      bonusAP: 70
     }
   ]
 }
 
+export type DifficultyMode = 0 | 1 | 2 // 0=easy, 1=normal, 2=hard
+
+function getStarBudgetOffset(act: number, floor: number, mode: DifficultyMode): number {
+  if (mode === 1 || mode === 2) return 0
+  const progress = (act - 1) * 20 + floor
+  if (progress <= 8) return 0
+  if (act === 1) return -2
+  if (act === 2) return -3
+  return -4
+}
+
 interface DifficultyConfig {
   pokemonCount: number
-  maxStars: number
+  maxStarsPerPokemon: number
+  starBudget: [number, number]
   allowedRarities: string[]
   minItemsPerPokemon: number
   maxItemsPerPokemon: number
   useCraftedItems: boolean
 }
 
-function getDifficultyConfig(act: number, floor: number): DifficultyConfig {
+function getDifficultyConfig(act: number, floor: number, mode: DifficultyMode = 1): DifficultyConfig {
   const progress = (act - 1) * 20 + floor // 1-60
 
-  // --- Act 1 ---
+  let config: DifficultyConfig
+  // --- Act 1 (no 3-star pokemon) ---
   if (progress <= 1) {
-    return { pokemonCount: 1, maxStars: 1, allowedRarities: ["COMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
+    config = { pokemonCount: 1, maxStarsPerPokemon: 1, starBudget: [1, 1], allowedRarities: ["COMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
   } else if (progress <= 3) {
-    return { pokemonCount: 2, maxStars: 1, allowedRarities: ["COMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
+    config = { pokemonCount: 2, maxStarsPerPokemon: 1, starBudget: [2, 2], allowedRarities: ["COMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
   } else if (progress <= 5) {
-    return { pokemonCount: randomBetween(2, 3), maxStars: 1, allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
+    config = { pokemonCount: randomBetween(2, 3), maxStarsPerPokemon: 1, starBudget: [2, 3], allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
   } else if (progress <= 8) {
-    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
+    config = { pokemonCount: randomBetween(3, 4), maxStarsPerPokemon: 2, starBudget: [4, 5], allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 12) {
-    return { pokemonCount: randomBetween(3, 4), maxStars: 2, allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
+    config = { pokemonCount: randomBetween(3, 4), maxStarsPerPokemon: 2, starBudget: [4, 6], allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 16) {
-    return { pokemonCount: randomBetween(3, 5), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
+    config = { pokemonCount: randomBetween(3, 5), maxStarsPerPokemon: 2, starBudget: [6, 8], allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
   } else if (progress <= 20) {
-    return { pokemonCount: randomBetween(4, 5), maxStars: 2, allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: true }
+    config = { pokemonCount: randomBetween(4, 5), maxStarsPerPokemon: 2, starBudget: [7, 9], allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: true }
   // --- Act 2 ---
   } else if (progress <= 25) {
-    return { pokemonCount: randomBetween(5, 7), maxStars: 3, allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
+    config = { pokemonCount: randomBetween(5, 7), maxStarsPerPokemon: 3, starBudget: [6, 10], allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
   } else if (progress <= 30) {
-    return { pokemonCount: randomBetween(6, 7), maxStars: 3, allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
+    config = { pokemonCount: randomBetween(6, 7), maxStarsPerPokemon: 3, starBudget: [8, 12], allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
   } else if (progress <= 35) {
-    return { pokemonCount: randomBetween(6, 8), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 1, maxItemsPerPokemon: 3, useCraftedItems: true }
+    config = { pokemonCount: randomBetween(6, 7), maxStarsPerPokemon: 3, starBudget: [10, 14], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 1, maxItemsPerPokemon: 3, useCraftedItems: true }
   } else if (progress <= 40) {
-    return { pokemonCount: randomBetween(7, 8), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
+    config = { pokemonCount: randomBetween(7, 8), maxStarsPerPokemon: 3, starBudget: [12, 15], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
   // --- Act 3 ---
   } else if (progress <= 45) {
-    return { pokemonCount: randomBetween(7, 8), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
+    config = { pokemonCount: randomBetween(7, 8), maxStarsPerPokemon: 3, starBudget: [13, 18], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
   } else if (progress <= 50) {
-    return { pokemonCount: randomBetween(7, 9), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
+    config = { pokemonCount: randomBetween(7, 9), maxStarsPerPokemon: 3, starBudget: [15, 21], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
   } else {
-    return { pokemonCount: randomBetween(8, 9), maxStars: 3, allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 3, maxItemsPerPokemon: 3, useCraftedItems: true }
+    config = { pokemonCount: randomBetween(8, 9), maxStarsPerPokemon: 3, starBudget: [17, 23], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 3, maxItemsPerPokemon: 3, useCraftedItems: true }
   }
+
+  const offset = getStarBudgetOffset(act, floor, mode)
+  if (offset !== 0) {
+    config.starBudget = [
+      Math.max(config.pokemonCount, config.starBudget[0] + offset),
+      Math.max(config.pokemonCount, config.starBudget[1] + offset)
+    ]
+  }
+  return config
 }
 
-export function getRegionalWildEncounter(act: number, floor: number, region: string): SpireEncounter {
+function selectWithStarBudget(
+  candidatePool: Pkm[],
+  primaryPool: Pkm[],
+  secondaryPool: Pkm[],
+  difficulty: DifficultyConfig
+): Pkm[] {
+  const clampedMin = Math.max(difficulty.starBudget[0], difficulty.pokemonCount)
+  const clampedMax = Math.min(difficulty.starBudget[1], difficulty.pokemonCount * difficulty.maxStarsPerPokemon)
+  const targetStars = randomBetween(clampedMin, clampedMax)
+  const selected: Pkm[] = []
+  let currentStars = 0
+
+  const primary = [...primaryPool]
+  const secondary = [...secondaryPool]
+  const fallback = [...candidatePool]
+
+  for (let i = 0; i < difficulty.pokemonCount; i++) {
+    const pool = primary.length > 0 ? primary : secondary.length > 0 ? secondary : fallback
+    if (pool.length === 0) break
+
+    const slotsLeft = difficulty.pokemonCount - i
+    const starsNeeded = targetStars - currentStars
+    const maxAffordable = Math.min(difficulty.maxStarsPerPokemon, starsNeeded - (slotsLeft - 1))
+    const minNeeded = Math.max(1, starsNeeded - (slotsLeft - 1) * difficulty.maxStarsPerPokemon)
+
+    const starFilter = (p: Pkm) => {
+      const s = getPokemonData(p).stars
+      return s >= minNeeded && s <= maxAffordable
+    }
+
+    let eligible = pool.filter(starFilter)
+    if (eligible.length === 0 && pool !== secondary && secondary.length > 0) {
+      eligible = secondary.filter(starFilter)
+    }
+    if (eligible.length === 0 && pool !== fallback && fallback.length > 0) {
+      eligible = fallback.filter(starFilter)
+    }
+    if (eligible.length === 0) {
+      const allPools = [...pool, ...secondary, ...fallback]
+      if (starsNeeded > slotsLeft) {
+        const maxAvail = Math.max(...allPools.map(p => getPokemonData(p).stars))
+        eligible = allPools.filter(p => getPokemonData(p).stars === maxAvail)
+      } else {
+        eligible = allPools
+      }
+    }
+
+    const pick = pickRandomIn(eligible)
+    selected.push(pick)
+    currentStars += getPokemonData(pick).stars
+    const removeFrom = [primary, secondary, fallback]
+    for (const arr of removeFrom) {
+      const idx = arr.indexOf(pick)
+      if (idx !== -1) arr.splice(idx, 1)
+    }
+  }
+
+  return selected
+}
+
+export function getRegionalWildEncounter(act: number, floor: number, region: string, mode: DifficultyMode = 1): SpireEncounter {
   const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
   if (synergies.length === 0) {
     return getWildEncounter(act, floor, 0)
   }
 
-  const difficulty = getDifficultyConfig(act, floor)
+  const difficulty = getDifficultyConfig(act, floor, mode)
 
   // Build candidate pool filtered by region synergies, stars, and rarity
   // In acts 2+3, focus on one synergy for most of the team
@@ -465,7 +561,7 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
       for (const pkm of typed) {
         const data = getPokemonData(pkm)
         if (
-          data.stars <= difficulty.maxStars &&
+          data.stars <= difficulty.maxStarsPerPokemon &&
           difficulty.allowedRarities.includes(data.rarity)
         ) {
           if (focusSynergy && syn === focusSynergy) {
@@ -486,7 +582,7 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
       if (typed) {
         for (const pkm of typed) {
           const data = getPokemonData(pkm)
-          if (data.stars <= difficulty.maxStars && !candidatePool.includes(pkm)) {
+          if (data.stars <= difficulty.maxStarsPerPokemon && !candidatePool.includes(pkm)) {
             candidatePool.push(pkm)
           }
         }
@@ -498,33 +594,9 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
     return getWildEncounter(act, floor, 0)
   }
 
-  // Select pokemon, biasing toward higher stars at higher difficulties
-  // In acts 2+3, fill most slots from the focus synergy pool
-  const selected: Pkm[] = []
-  const focusPool = [...primaryPool]
-  const offPool = [...secondaryPool]
-  const usePool = focusSynergy ? focusPool : [...candidatePool]
-
-  for (let i = 0; i < difficulty.pokemonCount && (usePool.length > 0 || offPool.length > 0 || candidatePool.length > 0); i++) {
-    // Last 1-2 slots can come from secondary synergy for variety
-    const pickFromOff = focusSynergy && i >= difficulty.pokemonCount - 1 && offPool.length > 0
-    const pool = pickFromOff ? offPool : (usePool.length > 0 ? usePool : offPool.length > 0 ? offPool : candidatePool)
-
-    if (pool.length === 0) break
-
-    if (i >= difficulty.pokemonCount - 2 && difficulty.maxStars >= 2) {
-      const highStar = pool.filter(p => getPokemonData(p).stars >= 2)
-      if (highStar.length > 0) {
-        const pick = pickRandomIn(highStar)
-        selected.push(pick)
-        pool.splice(pool.indexOf(pick), 1)
-        continue
-      }
-    }
-    const pick = pickRandomIn(pool)
-    selected.push(pick)
-    pool.splice(pool.indexOf(pick), 1)
-  }
+  const selected = focusSynergy
+    ? selectWithStarBudget(candidatePool, primaryPool, secondaryPool, difficulty)
+    : selectWithStarBudget(candidatePool, candidatePool, [], difficulty)
 
   const board: [Pkm, number, number][] = []
   if (act === 1) {
@@ -569,12 +641,12 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
 
   const regionName = (region as string).replace(/([A-Z])/g, " $1").trim()
 
-  return {
+  return addHardModeItems({
     name: regionName,
     avatar: selected[0],
     board,
     items
-  }
+  }, act, floor, mode)
 }
 
 function generateEncounterItems(pokemonCount: number, minItems: number, maxItems: number, useCrafted: boolean): Item[][] {
@@ -591,7 +663,7 @@ function generateEncounterItems(pokemonCount: number, minItems: number, maxItems
       if (useCrafted && Math.random() < 0.3) {
         pkmItems.push(pickRandomIn(CraftableItems))
       } else {
-        pkmItems.push(pickRandomIn(ItemComponents))
+        pkmItems.push(pickRandomIn(ItemComponentsNoFossilOrScarf))
       }
     }
     result.push(pkmItems)
@@ -617,8 +689,9 @@ export function getWildEncounter(act: number, floor: number, seed: number): Spir
   }
 }
 
-export function generateGymEncounter(synergy: Synergy, act: number, floor: number): SpireEncounter {
-  const difficulty = getDifficultyConfig(act, floor)
+export function generateGymEncounter(synergy: Synergy, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
+  const difficulty = getDifficultyConfig(act, floor, mode)
+  difficulty.starBudget = [difficulty.starBudget[0], difficulty.starBudget[1] + 1]
   const signaturePokemon = GYM_LEADER_POKEMON[synergy] ?? []
   const names = GYM_LEADER_NAMES[synergy] ?? ["Gym Leader"]
   const name = pickRandomIn(names)
@@ -626,7 +699,7 @@ export function generateGymEncounter(synergy: Synergy, act: number, floor: numbe
   const candidatePool: Pkm[] = []
   for (const pkm of signaturePokemon) {
     const data = getPokemonData(pkm)
-    if (data.stars <= difficulty.maxStars && difficulty.allowedRarities.includes(data.rarity)) {
+    if (data.stars <= difficulty.maxStarsPerPokemon && difficulty.allowedRarities.includes(data.rarity)) {
       candidatePool.push(pkm)
     }
   }
@@ -636,7 +709,7 @@ export function generateGymEncounter(synergy: Synergy, act: number, floor: numbe
   for (const pkm of typed) {
     const data = getPokemonData(pkm)
     if (
-      data.stars <= difficulty.maxStars &&
+      data.stars <= difficulty.maxStarsPerPokemon &&
       difficulty.allowedRarities.includes(data.rarity) &&
       !candidatePool.includes(pkm)
     ) {
@@ -648,7 +721,7 @@ export function generateGymEncounter(synergy: Synergy, act: number, floor: numbe
   if (act >= 2) {
     const uniqueTyped = typed.filter(pkm => {
       const data = getPokemonData(pkm)
-      return data.stars <= difficulty.maxStars && (data.rarity === "ULTRA" || data.rarity === "EPIC") && !candidatePool.includes(pkm)
+      return data.stars <= difficulty.maxStarsPerPokemon && (data.rarity === "ULTRA" || data.rarity === "EPIC") && !candidatePool.includes(pkm)
     })
     candidatePool.push(...uniqueTyped)
   }
@@ -668,44 +741,31 @@ export function generateGymEncounter(synergy: Synergy, act: number, floor: numbe
   if (candidatePool.length === 0) {
     for (const pkm of typed) {
       const data = getPokemonData(pkm)
-      if (data.stars <= difficulty.maxStars && !candidatePool.includes(pkm)) {
+      if (data.stars <= difficulty.maxStarsPerPokemon && !candidatePool.includes(pkm)) {
         candidatePool.push(pkm)
       }
     }
   }
 
-  // Select Pokemon
+  // Select Pokemon with star budget
   const targetCount = Math.max(3, difficulty.pokemonCount)
+  const gymDifficulty = { ...difficulty, pokemonCount: targetCount }
   const selected: Pkm[] = []
-  const pool = [...candidatePool]
 
   // Add legendary first if act 3
   if (legendaryPick) {
     selected.push(legendaryPick)
+    gymDifficulty.pokemonCount--
+    gymDifficulty.starBudget = [
+      Math.max(gymDifficulty.pokemonCount, gymDifficulty.starBudget[0] - getPokemonData(legendaryPick).stars),
+      Math.max(gymDifficulty.pokemonCount, gymDifficulty.starBudget[1] - getPokemonData(legendaryPick).stars)
+    ]
   }
 
-  // Fill remaining slots, biasing signature Pokemon
-  const sigPool = pool.filter(p => signaturePokemon.includes(p))
-  const otherPool = pool.filter(p => !signaturePokemon.includes(p))
-
-  while (selected.length < targetCount && (sigPool.length > 0 || otherPool.length > 0)) {
-    // 70% chance to pick from signature pool when available
-    const useSig = sigPool.length > 0 && (otherPool.length === 0 || Math.random() < 0.7)
-    const source = useSig ? sigPool : otherPool
-    if (source.length === 0) break
-    if (selected.length >= targetCount - 2 && difficulty.maxStars >= 2) {
-      const highStar = source.filter(p => getPokemonData(p).stars >= 2)
-      if (highStar.length > 0) {
-        const pick = pickRandomIn(highStar)
-        selected.push(pick)
-        source.splice(source.indexOf(pick), 1)
-        continue
-      }
-    }
-    const pick = pickRandomIn(source)
-    selected.push(pick)
-    source.splice(source.indexOf(pick), 1)
-  }
+  // Use signature Pokemon as primary pool for star budget selection
+  const sigCandidates = candidatePool.filter(p => signaturePokemon.includes(p))
+  const otherCandidates = candidatePool.filter(p => !signaturePokemon.includes(p))
+  selected.push(...selectWithStarBudget(candidatePool, sigCandidates, otherCandidates, gymDifficulty))
 
   if (selected.length === 0 && signaturePokemon.length > 0) {
     selected.push(...pickNRandomIn(signaturePokemon, Math.min(3, signaturePokemon.length)))
@@ -736,13 +796,13 @@ export function generateGymEncounter(synergy: Synergy, act: number, floor: numbe
 
   const items = generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
 
-  return {
+  return addHardModeItems({
     name,
     avatar: selected[0],
     board,
     items,
     synergy
-  }
+  }, act, floor, mode)
 }
 
 export function getGymSynergies(): Synergy[] {
@@ -789,7 +849,44 @@ export function getGymLeaderGem(synergy: Synergy): Item {
   return Item.NORMAL_GEM
 }
 
-export function getEliteEncounter(index: number, act: number, floor: number): SpireEncounter {
+function addHardModeItems(encounter: SpireEncounter, act: number, floor: number, mode: DifficultyMode): SpireEncounter {
+  if (mode !== 2) return encounter
+  const progress = (act - 1) * 20 + floor
+  if (progress <= 8) return encounter
+
+  let extraComponents: number
+  if (act === 1) extraComponents = Math.round(encounter.board.length * 0.5)
+  else if (act === 2) extraComponents = encounter.board.length
+  else extraComponents = Math.round(encounter.board.length * 1.5)
+
+  const adjusted = { ...encounter, items: encounter.items ? encounter.items.map(list => [...list]) : encounter.board.map(() => [] as Item[]) }
+  for (let i = 0; i < extraComponents; i++) {
+    const slot = i % adjusted.items!.length
+    adjusted.items![slot].push(pickRandomIn(ItemComponentsNoFossilOrScarf))
+  }
+  return adjusted
+}
+
+function adjustEncounterItems(encounter: SpireEncounter, mode: DifficultyMode): SpireEncounter {
+  if (mode === 1 || !encounter.items) return encounter
+  const adjusted = { ...encounter, items: encounter.items.map(list => [...list]) }
+  if (mode === 0) {
+    for (const list of adjusted.items!) {
+      if (list.length > 0) { list.pop(); break }
+    }
+  } else {
+    for (const list of adjusted.items!) {
+      if (list.length > 0) { list.push(pickRandomIn(CraftableItems)); break }
+    }
+  }
+  return adjusted
+}
+
+export function getEliteEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
+  return addHardModeItems(adjustEncounterItems(getEliteEncounterBase(index, act, floor), mode), act, floor, mode)
+}
+
+function getEliteEncounterBase(index: number, act: number, floor: number): SpireEncounter {
   const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
   const template = encounters[index % encounters.length]
 
@@ -969,9 +1066,9 @@ export function getGymLeaderDisplayName(synergy: string): string {
   return synergy.replace(/_/g, " ")
 }
 
-export function getLegendaryBossEncounter(act: number): SpireEncounter {
+export function getLegendaryBossEncounter(act: number, mode: DifficultyMode = 1): SpireEncounter {
   const bosses = LEGENDARY_BOSSES[act] || LEGENDARY_BOSSES[1]
-  return pickRandomIn(bosses)
+  return adjustEncounterItems(pickRandomIn(bosses), mode)
 }
 
 export function getRegionalPokemonForReward(region: string, act: number): Pkm | null {
@@ -985,7 +1082,7 @@ export function getRegionalPokemonForReward(region: string, act: number): Pkm | 
       for (const pkm of typed) {
         const data = getPokemonData(pkm)
         const maxStars = act === 1 ? 1 : act === 2 ? 1 : 2
-        if (data.stars <= maxStars && !candidates.includes(pkm)) {
+        if (data.stars <= maxStars && data.rarity !== "HATCH" && !candidates.includes(pkm)) {
           candidates.push(pkm)
         }
       }
@@ -1066,6 +1163,278 @@ export function getGoldReward(nodeType: string, act: number): number {
     case "ELITE": return 3 + act * 2
     case "GYM_LEADER": return 5 + act * 3
     case "LEGENDARY_BOSS": return 11 + act * 4
+    case "ELITE_FOUR": return 8 + act * 3
+    case "CHAMPION": return 15 + act * 5
     default: return 0
   }
+}
+
+// ─── Elite Four ───────────────────────────────────────────────
+
+const ELITE_FOUR_NAMES: Partial<Record<Synergy, string[]>> = {
+  [Synergy.ICE]: ["Lorelei", "Glacia"],
+  [Synergy.FIGHTING]: ["Bruno", "Marshal", "Hala"],
+  [Synergy.GHOST]: ["Agatha", "Phoebe", "Shauntal", "Acerola"],
+  [Synergy.DRAGON]: ["Lance", "Drake", "Drasna", "Hassel"],
+  [Synergy.DARK]: ["Karen", "Sidney", "Grimsley"],
+  [Synergy.PSYCHIC]: ["Will", "Lucian", "Caitlin"],
+  [Synergy.POISON]: ["Koga"],
+  [Synergy.BUG]: ["Aaron"],
+  [Synergy.GROUND]: ["Bertha", "Rika"],
+  [Synergy.FIRE]: ["Flint", "Malva"],
+  [Synergy.WATER]: ["Siebold"],
+  [Synergy.STEEL]: ["Wikstrom", "Poppy"],
+  [Synergy.FLYING]: ["Kahili"],
+  [Synergy.ROCK]: ["Olivia"],
+  [Synergy.NORMAL]: ["Larry"],
+  [Synergy.FAIRY]: ["Diantha", "Valerie"],
+  [Synergy.GRASS]: ["Ramos"],
+  [Synergy.ELECTRIC]: ["Volkner"]
+}
+
+const ELITE_FOUR_SYNERGIES: Synergy[] = Object.keys(ELITE_FOUR_NAMES) as Synergy[]
+
+export function getEliteFourSynergies(): Synergy[] {
+  return ELITE_FOUR_SYNERGIES
+}
+
+export function getEliteFourDisplayName(synergy: string): string {
+  const names = ELITE_FOUR_NAMES[synergy as Synergy]
+  if (names && names.length > 0) return pickRandomIn(names)
+  return synergy.replace(/_/g, " ")
+}
+
+export function generateEliteFourEncounter(
+  synergy: Synergy,
+  e4Index: number,
+  mode: DifficultyMode = 1
+): SpireEncounter {
+  const floor = (e4Index + 1) * 2
+  const difficulty = getDifficultyConfig(3, 18, mode)
+  difficulty.pokemonCount = Math.min(9, difficulty.pokemonCount + 1)
+  difficulty.starBudget = [difficulty.starBudget[0] + 2, difficulty.starBudget[1] + 4]
+  difficulty.maxStarsPerPokemon = 3
+  difficulty.allowedRarities = [...difficulty.allowedRarities]
+  if (!difficulty.allowedRarities.includes("LEGENDARY")) difficulty.allowedRarities.push("LEGENDARY")
+  if (!difficulty.allowedRarities.includes("UNIQUE")) difficulty.allowedRarities.push("UNIQUE")
+
+  const signaturePokemon = GYM_LEADER_POKEMON[synergy] ?? []
+  const names = ELITE_FOUR_NAMES[synergy] ?? ["Elite Four"]
+  const name = pickRandomIn(names)
+
+  const candidatePool: Pkm[] = []
+  for (const pkm of signaturePokemon) {
+    const data = getPokemonData(pkm)
+    if (data.stars <= difficulty.maxStarsPerPokemon && difficulty.allowedRarities.includes(data.rarity)) {
+      candidatePool.push(pkm)
+    }
+  }
+
+  const typed = PRECOMPUTED_POKEMONS_PER_TYPE[synergy] ?? []
+  for (const pkm of typed) {
+    const data = getPokemonData(pkm)
+    if (
+      data.stars <= difficulty.maxStarsPerPokemon &&
+      difficulty.allowedRarities.includes(data.rarity) &&
+      !candidatePool.includes(pkm)
+    ) {
+      candidatePool.push(pkm)
+    }
+  }
+
+  const uniqueTyped = typed.filter(pkm => {
+    const data = getPokemonData(pkm)
+    return data.stars <= difficulty.maxStarsPerPokemon &&
+      (data.rarity === "ULTRA" || data.rarity === "EPIC" || data.rarity === "LEGENDARY" || data.rarity === "UNIQUE") &&
+      !candidatePool.includes(pkm)
+  })
+  candidatePool.push(...uniqueTyped)
+
+  const legendaries = typed.filter(pkm => {
+    const data = getPokemonData(pkm)
+    return data.rarity === "LEGENDARY" || data.rarity === "UNIQUE"
+  })
+  let legendaryPick: Pkm | null = null
+  if (legendaries.length > 0) {
+    legendaryPick = pickRandomIn(legendaries)
+  }
+
+  if (candidatePool.length === 0) {
+    for (const pkm of typed) {
+      const data = getPokemonData(pkm)
+      if (data.stars <= difficulty.maxStarsPerPokemon && !candidatePool.includes(pkm)) {
+        candidatePool.push(pkm)
+      }
+    }
+  }
+
+  const targetCount = Math.max(5, difficulty.pokemonCount)
+  const gymDifficulty = { ...difficulty, pokemonCount: targetCount }
+  const selected: Pkm[] = []
+
+  if (legendaryPick) {
+    selected.push(legendaryPick)
+    gymDifficulty.pokemonCount--
+    gymDifficulty.starBudget = [
+      Math.max(gymDifficulty.pokemonCount, gymDifficulty.starBudget[0] - getPokemonData(legendaryPick).stars),
+      Math.max(gymDifficulty.pokemonCount, gymDifficulty.starBudget[1] - getPokemonData(legendaryPick).stars)
+    ]
+  }
+
+  const sigCandidates = candidatePool.filter(p => signaturePokemon.includes(p))
+  const otherCandidates = candidatePool.filter(p => !signaturePokemon.includes(p))
+  selected.push(...selectWithStarBudget(candidatePool, sigCandidates, otherCandidates, gymDifficulty))
+
+  if (selected.length === 0 && signaturePokemon.length > 0) {
+    selected.push(...pickNRandomIn(signaturePokemon, Math.min(5, signaturePokemon.length)))
+  }
+
+  const board: [Pkm, number, number][] = []
+  const frontRow: [number, number][] = [[2, 3], [3, 3], [4, 3], [5, 3], [6, 3]]
+  const midRow: [number, number][] = [[2, 2], [3, 2], [4, 2], [5, 2], [6, 2]]
+  const backRow: [number, number][] = [[2, 1], [3, 1], [4, 1], [5, 1], [6, 1]]
+  let fi = 0, mi = 0, bi = 0
+  selected.forEach((pkm) => {
+    const range = getPokemonData(pkm).range
+    if (range <= 1 && fi < frontRow.length) {
+      board.push([pkm, frontRow[fi][0], frontRow[fi][1]]); fi++
+    } else if (range === 2 && mi < midRow.length) {
+      board.push([pkm, midRow[mi][0], midRow[mi][1]]); mi++
+    } else if (range >= 3 && bi < backRow.length) {
+      board.push([pkm, backRow[bi][0], backRow[bi][1]]); bi++
+    } else if (fi < frontRow.length) {
+      board.push([pkm, frontRow[fi][0], frontRow[fi][1]]); fi++
+    } else if (mi < midRow.length) {
+      board.push([pkm, midRow[mi][0], midRow[mi][1]]); mi++
+    } else if (bi < backRow.length) {
+      board.push([pkm, backRow[bi][0], backRow[bi][1]]); bi++
+    }
+  })
+
+  const items = generateEncounterItems(selected.length, 1, 2, true)
+
+  const bonusHP = 50 + e4Index * 50
+  const bonusAtk = 3 + e4Index * 2
+  const bonusAP = 10 + e4Index * 10
+
+  return addHardModeItems({
+    name,
+    avatar: selected[0],
+    board,
+    items,
+    synergy,
+    bonusHP,
+    bonusAtk,
+    bonusAP
+  }, 4, floor, mode)
+}
+
+// ─── Champions ────────────────────────────────────────────────
+
+const CHAMPION_ENCOUNTERS: SpireEncounter[] = [
+  {
+    name: "Blue",
+    avatar: Pkm.PIDGEOT,
+    board: [
+      [Pkm.PIDGEOT, 4, 1], [Pkm.ALAKAZAM, 3, 1],
+      [Pkm.RHYDON, 3, 3], [Pkm.EXEGGUTOR, 5, 2],
+      [Pkm.GYARADOS, 5, 3], [Pkm.ARCANINE, 2, 3]
+    ],
+    items: [
+      [Item.RAZOR_FANG], [Item.CHOICE_SPECS],
+      [Item.ROCKY_HELMET, Item.ASSAULT_VEST], [Item.MIRACLE_SEED],
+      [Item.MYSTIC_WATER, Item.SCOPE_LENS], [Item.CHARCOAL, Item.RAZOR_FANG]
+    ],
+    bonusHP: 500,
+    bonusAtk: 20,
+    bonusAP: 60
+  },
+  {
+    name: "Lance",
+    avatar: Pkm.DRAGONITE,
+    board: [
+      [Pkm.DRAGONITE, 4, 3], [Pkm.DRAGONITE, 3, 3], [Pkm.DRAGONITE, 5, 3],
+      [Pkm.AERODACTYL, 2, 1], [Pkm.CHARIZARD, 6, 1], [Pkm.GYARADOS, 4, 2]
+    ],
+    items: [
+      [Item.DRAGON_SCALE, Item.SCOPE_LENS], [Item.DRAGON_SCALE, Item.RAZOR_CLAW], [Item.DRAGON_SCALE, Item.ASSAULT_VEST],
+      [Item.RAZOR_FANG, Item.RAZOR_FANG], [Item.CHARCOAL, Item.SHELL_BELL], [Item.MYSTIC_WATER, Item.WIDE_LENS]
+    ],
+    bonusHP: 500,
+    bonusAtk: 20,
+    bonusAP: 60
+  },
+  {
+    name: "Steven",
+    avatar: Pkm.METAGROSS,
+    board: [
+      [Pkm.METAGROSS, 4, 3], [Pkm.AGGRON, 3, 3],
+      [Pkm.SKARMORY, 2, 2], [Pkm.CLAYDOL, 5, 1],
+      [Pkm.CRADILY, 6, 2], [Pkm.ARMALDO, 5, 3]
+    ],
+    items: [
+      [Item.METAL_COAT, Item.ASSAULT_VEST, Item.SCOPE_LENS], [Item.METAL_COAT, Item.ROCKY_HELMET],
+      [Item.RAZOR_FANG, Item.RAZOR_CLAW], [Item.CHOICE_SPECS, Item.POWER_LENS],
+      [Item.MIRACLE_SEED, Item.SHELL_BELL], [Item.ROCKY_HELMET, Item.RAZOR_CLAW]
+    ],
+    bonusHP: 500,
+    bonusAtk: 20,
+    bonusAP: 60
+  },
+  {
+    name: "Cynthia",
+    avatar: Pkm.GARCHOMP,
+    board: [
+      [Pkm.GARCHOMP, 4, 3], [Pkm.SPIRITOMB, 3, 2],
+      [Pkm.ROSERADE, 5, 1], [Pkm.TOGEKISS, 2, 1],
+      [Pkm.LUCARIO, 6, 3], [Pkm.MILOTIC, 2, 2]
+    ],
+    items: [
+      [Item.DRAGON_SCALE, Item.SCOPE_LENS, Item.RAZOR_CLAW], [Item.SPELL_TAG, Item.SHELL_BELL],
+      [Item.MIRACLE_SEED, Item.CHOICE_SPECS], [Item.RAZOR_FANG, Item.WIDE_LENS],
+      [Item.BLACK_BELT, Item.ASSAULT_VEST], [Item.MYSTIC_WATER, Item.POWER_LENS]
+    ],
+    bonusHP: 500,
+    bonusAtk: 20,
+    bonusAP: 60
+  },
+  {
+    name: "Iris",
+    avatar: Pkm.HYDREIGON,
+    board: [
+      [Pkm.HYDREIGON, 4, 2], [Pkm.HAXORUS, 3, 3],
+      [Pkm.DRUDDIGON, 5, 3], [Pkm.LAPRAS, 2, 1],
+      [Pkm.AGGRON, 6, 3], [Pkm.SALAMENCE, 4, 1]
+    ],
+    items: [
+      [Item.DRAGON_SCALE, Item.CHOICE_SPECS, Item.SCOPE_LENS], [Item.DRAGON_SCALE, Item.RAZOR_CLAW],
+      [Item.DRAGON_SCALE, Item.ASSAULT_VEST], [Item.MYSTIC_WATER, Item.SHELL_BELL],
+      [Item.METAL_COAT, Item.ROCKY_HELMET], [Item.DRAGON_SCALE, Item.RAZOR_FANG]
+    ],
+    bonusHP: 500,
+    bonusAtk: 20,
+    bonusAP: 60
+  },
+  {
+    name: "Diantha",
+    avatar: Pkm.GARDEVOIR,
+    board: [
+      [Pkm.GARDEVOIR, 4, 1], [Pkm.HAWLUCHA, 3, 3],
+      [Pkm.TYRANTRUM, 5, 3], [Pkm.AURORUS, 2, 2],
+      [Pkm.GOODRA, 6, 2], [Pkm.GOURGEIST, 4, 2]
+    ],
+    items: [
+      [Item.CHOICE_SPECS, Item.POWER_LENS, Item.SHELL_BELL], [Item.BLACK_BELT, Item.RAZOR_CLAW],
+      [Item.ROCKY_HELMET, Item.ASSAULT_VEST], [Item.ICY_ROCK, Item.WIDE_LENS],
+      [Item.DRAGON_SCALE, Item.ROCKY_HELMET], [Item.SPELL_TAG, Item.SCOPE_LENS]
+    ],
+    bonusHP: 500,
+    bonusAtk: 20,
+    bonusAP: 60
+  }
+]
+
+export function getChampionEncounter(mode: DifficultyMode = 1): SpireEncounter {
+  const champion = pickRandomIn(CHAMPION_ENCOUNTERS)
+  return adjustEncounterItems(champion, mode)
 }

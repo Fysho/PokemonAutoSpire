@@ -1,6 +1,7 @@
 import React from "react"
+import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
-import { PASSIVE_ITEM_DEFINITIONS, PASSIVE_ITEMS } from "../../../../../core/relic-effects"
+import { PASSIVE_ITEMS } from "../../../../../core/relic-effects"
 import { Item } from "../../../../../types/enum/Item"
 
 interface GameRelicBarProps {
@@ -8,6 +9,7 @@ interface GameRelicBarProps {
 }
 
 export default function GameRelicBar({ items }: GameRelicBarProps) {
+  const { t } = useTranslation()
   const passiveItems = items.filter(i => (PASSIVE_ITEMS as readonly string[]).includes(i))
   if (passiveItems.length === 0) return null
 
@@ -25,9 +27,8 @@ export default function GameRelicBar({ items }: GameRelicBarProps) {
       zIndex: 40
     }}>
       {passiveItems.map((itemId, i) => {
-        const def = PASSIVE_ITEM_DEFINITIONS[itemId as Item]
-        const name = def?.name ?? itemId
-        const desc = def?.description ?? ""
+        const name = t(`item.${itemId}` as any) as string
+        const desc = t(`item_description.${itemId}` as any) as string
         return (
           <div
             key={`${itemId}-${i}`}

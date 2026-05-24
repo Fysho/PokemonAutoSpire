@@ -53,6 +53,7 @@ export default class GameState extends Schema {
   @type("string") townEncounter: TownEncounter | null = null
 
   // Spire fields
+  @type("uint8") difficultyMode: number = 1 // 0=easy, 1=normal, 2=hard
   @type("uint8") currentAct: number = 1
   @type("uint8") currentFloor: number = 0
   @type({ map: MapNode }) mapNodes = new MapSchema<MapNode>()
@@ -61,12 +62,16 @@ export default class GameState extends Schema {
   @type("int16") runHP: number = 100
   @type("boolean") runComplete: boolean = false
   @type("boolean") runFailed: boolean = false
+  @type("boolean") eliteFourAvailable: boolean = false
   @type(["string"]) spireEncounterBoard = new ArraySchema<string>()
   @type("uint16") encounterDifficulty: number = 0
   @type("uint8") encounterPokemonCount: number = 0
   @type("uint8") encounterTotalStars: number = 0
   @type("uint8") encounterTotalItems: number = 0
   @type("string") encounterName: string = ""
+  @type("uint16") encounterBonusHP: number = 0
+  @type("uint8") encounterBonusAtk: number = 0
+  @type("uint8") encounterBonusAP: number = 0
   challengeItem: string = ""
   @type("string") spireEventName: string = ""
   @type("string") spireEventDescription: string = ""

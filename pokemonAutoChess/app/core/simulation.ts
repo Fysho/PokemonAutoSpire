@@ -115,7 +115,8 @@ export default class Simulation extends Schema implements ISimulation {
     redPlayer: Player | { id: "pve"; board: MapSchema<Pokemon> },
     stageLevel: number,
     weather: Weather,
-    isGhostBattle = false
+    isGhostBattle = false,
+    pveEffects?: Set<EffectEnum>
   ) {
     super()
     this.id = id
@@ -131,7 +132,11 @@ export default class Simulation extends Schema implements ISimulation {
     this.started = false
 
     this.bluePlayer.effects.forEach((e) => this.blueEffects.add(e))
-    this.redPlayer?.effects.forEach((e) => this.redEffects.add(e))
+    if (this.redPlayer) {
+      this.redPlayer.effects.forEach((e) => this.redEffects.add(e))
+    } else if (pveEffects) {
+      pveEffects.forEach((e) => this.redEffects.add(e))
+    }
 
     // beforeSimulationStart hooks
     const playerEffects: [
@@ -248,6 +253,13 @@ export default class Simulation extends Schema implements ISimulation {
               effect.apply({ simulation: this, player, team, entity })
             })
           }
+        })
+      } else {
+        // PVE: no player, but still fire OnSimulationStartEffect for opponent entities
+        schemaValues(team).forEach((entity) => {
+          ;(entity as PokemonEntity).getEffects(OnSimulationStartEffect).forEach((effect) => {
+            effect.apply({ simulation: this, player: undefined as any, team, entity: entity as PokemonEntity })
+          })
         })
       }
     }

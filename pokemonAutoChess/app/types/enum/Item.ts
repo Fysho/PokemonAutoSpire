@@ -658,9 +658,9 @@ export const ShinyItems = [
   Item.ABSORB_BULB,
   Item.SACRED_ASH,
   Item.COMET_SHARD,
-  Item.REPEAT_BALL,
-  Item.GOLD_BOW,
-  Item.RED_SCALE
+  // Item.REPEAT_BALL,
+  Item.GOLD_BOW
+  // Item.RED_SCALE
 ] satisfies Item[]
 
 export type ShinyItem = (typeof ShinyItems)[number]

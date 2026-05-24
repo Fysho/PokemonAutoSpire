@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { RegionDetails } from "../../../../../config"
 import { MapEdge, MapNode, MapNodeType } from "../../../../../models/colyseus-models/map-node"
 import { Transfer } from "../../../../../types"
@@ -13,7 +13,9 @@ const NODE_COLORS: Record<string, string> = {
   [MapNodeType.POKEMART]: "#3498db",
   [MapNodeType.POKEMON_CENTER]: "#2ecc71",
   [MapNodeType.MYSTERY_ENCOUNTER]: "#9b59b6",
-  [MapNodeType.LEGENDARY_BOSS]: "#e67e22"
+  [MapNodeType.LEGENDARY_BOSS]: "#e67e22",
+  [MapNodeType.ELITE_FOUR]: "#8e44ad",
+  [MapNodeType.CHAMPION]: "#f1c40f"
 }
 
 const NODE_ICONS: Record<string, string> = {
@@ -25,7 +27,9 @@ const NODE_ICONS: Record<string, string> = {
 const NODE_LABELS: Record<string, string> = {
   [MapNodeType.GYM_LEADER]: "🏅",
   [MapNodeType.ELITE]: "⚔️",
-  [MapNodeType.LEGENDARY_BOSS]: "👑"
+  [MapNodeType.LEGENDARY_BOSS]: "👑",
+  [MapNodeType.ELITE_FOUR]: "🏆",
+  [MapNodeType.CHAMPION]: "👑"
 }
 
 const NODE_NAMES: Record<string, string> = {
@@ -35,7 +39,9 @@ const NODE_NAMES: Record<string, string> = {
   [MapNodeType.POKEMART]: "PokeMart",
   [MapNodeType.POKEMON_CENTER]: "Pokemon Center",
   [MapNodeType.MYSTERY_ENCOUNTER]: "Mystery",
-  [MapNodeType.LEGENDARY_BOSS]: "BOSS"
+  [MapNodeType.LEGENDARY_BOSS]: "BOSS",
+  [MapNodeType.ELITE_FOUR]: "Elite Four",
+  [MapNodeType.CHAMPION]: "CHAMPION"
 }
 
 function getRegionSynergies(region: string): Synergy[] {
@@ -128,13 +134,13 @@ export default function GameMap({
     }
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (scrollRef.current) {
       const currentFloorY = svgHeight - (currentFloor * floorHeight + 40)
       const containerHeight = scrollRef.current.clientHeight
       scrollRef.current.scrollTop = currentFloorY - containerHeight / 2
     }
-  }, [currentFloor, svgHeight])
+  }, [currentFloor, currentAct, svgHeight])
 
   return (
     <div
@@ -154,7 +160,7 @@ export default function GameMap({
       }}
     >
       <h2 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>
-        Act {currentAct} - Floor {currentFloor}
+        {currentAct === 4 ? "Elite Four" : `Act ${currentAct}`} - Floor {currentFloor}
       </h2>
       <div style={{ display: "flex", gap: "20px", marginBottom: "12px", fontSize: "16px" }}>
         <span>HP: {runHP}/100</span>
@@ -213,7 +219,8 @@ export default function GameMap({
             const synergies = getRegionSynergies(node.region)
             const isWild = node.nodeType === MapNodeType.WILD_BATTLE
             const isGym = node.nodeType === MapNodeType.GYM_LEADER
-            const hasSynergyIcon = (isWild && synergies.length > 0) || (isGym && node.gymLeaderSynergy)
+            const isE4 = node.nodeType === MapNodeType.ELITE_FOUR
+            const hasSynergyIcon = (isWild && synergies.length > 0) || ((isGym || isE4) && node.gymLeaderSynergy)
             const nodeRadius = hasSynergyIcon ? 28 : (isAvailable ? 24 : 20)
             const nodeOpacity = isMissed ? 0.25 : isVisited ? 0.4 : isAvailable ? 1 : 0.6
 
@@ -243,7 +250,7 @@ export default function GameMap({
                     opacity={isHovered ? 0.9 : 0.6}
                   />
                 )}
-                {isGym && node.gymLeaderSynergy ? (
+                {(isGym || isE4) && node.gymLeaderSynergy ? (
                   <image
                     href={`/assets/item/${node.gymLeaderSynergy}_GEM.png`}
                     x={pos.cx - 18}
@@ -293,9 +300,9 @@ export default function GameMap({
                 ) : (
                   <text
                     x={pos.cx}
-                    y={pos.cy + (node.nodeType === MapNodeType.LEGENDARY_BOSS ? 21 : 11)}
+                    y={pos.cy + (node.nodeType === MapNodeType.LEGENDARY_BOSS || node.nodeType === MapNodeType.CHAMPION ? 21 : 11)}
                     textAnchor="middle"
-                    fontSize={node.nodeType === MapNodeType.LEGENDARY_BOSS ? "60" : "30"}
+                    fontSize={node.nodeType === MapNodeType.LEGENDARY_BOSS || node.nodeType === MapNodeType.CHAMPION ? "60" : "30"}
                     fill={isMissed ? "#555" : "white"}
                     opacity={nodeOpacity}
                   >

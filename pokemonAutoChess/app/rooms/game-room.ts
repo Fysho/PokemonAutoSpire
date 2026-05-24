@@ -100,7 +100,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
     minRank,
     maxRank,
     tournamentId,
-    bracketId
+    bracketId,
+    difficultyMode
   }: {
     users: Record<string, IGameUser>
     preparationId: string
@@ -113,6 +114,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     maxRank: EloRank | null
     tournamentId: string | null
     bracketId: string | null
+    difficultyMode?: number
   }) {
     logger.info("Create Game ", this.roomId)
     logger.info("onCreate options:", JSON.stringify({ name, ownerName, gameMode, users: Object.keys(users || {}) }))
@@ -140,6 +142,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
       maxRank,
       specialGameRule
     )
+    if (difficultyMode === 0 || difficultyMode === 2) {
+      this.state.difficultyMode = difficultyMode
+    }
     this.miniGame.create(
       this.state.avatars,
       this.state.floatingItems,
@@ -597,6 +602,28 @@ export default class GameRoom extends Room<{ state: GameState }> {
         this.state.time = 0
       }
     })
+
+    this.onMessage(Transfer.ENTER_ELITE_FOUR, (client) => {
+      if (client.auth && !this.state.gameFinished) {
+        const { generateActMap } = require("../core/map-generator")
+        this.state.runComplete = false
+        this.state.runFailed = false
+        this.state.eliteFourAvailable = false
+        this.state.gameFinished = false
+        this.state.currentAct = 4
+        this.state.currentFloor = 0
+        this.state.mapNodes.clear()
+        this.state.mapEdges.clear()
+        generateActMap(4, this.state.mapNodes, this.state.mapEdges)
+        this.state.players.forEach((p: Player) => {
+          p.dojoFamilies.clear()
+          if (!p.isBot) { p.alive = true }
+        })
+        this.state.phase = GamePhaseState.MAP
+        this.state.time = 999 * 1000
+        this.state.roundTime = 999
+      }
+    })
   }
 
   startGame() {
@@ -954,7 +981,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
         }
       })
     }
-    return damage
+    return damage * 2
   }
 
   rankPlayers() {

@@ -53,7 +53,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | Map generation | `app/core/map-generator.ts` → `generateActMap()`, `assignNodeType()` |
 | Map layout (floors, nodes per floor) | `map-generator.ts` → `FLOORS_PER_ACT`, `MIN/MAX_NODES_PER_FLOOR` |
 | Shop contents/pricing | `app/models/spire-shops.ts` → `generateShopItems()`, `RARITY_BASE_PRICE` |
-| Pokemon sell price | `app/models/shop.ts` → `getSellPrice()` (currently always returns 1) |
+| Pokemon sell price | `app/models/shop.ts` → `getSellPrice()` (1★=3g, 2★=6g, 3★=10g) |
 | Mystery events | `app/models/spire-events.ts` |
 | Passive item effects | `app/core/relic-effects.ts` → `PASSIVE_ITEMS`, helper functions |
 | Gold rewards | `spire-encounters.ts` → `getGoldReward()` |
@@ -61,7 +61,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | Map UI | `app/public/src/pages/component/game/game-map.tsx` |
 | Opponent synergies | `app/public/src/pages/component/game/game-opponent-synergies.tsx` |
 | Game page layout | `app/public/src/pages/game.tsx` |
-| Start Fight button | `app/public/src/pages/component/game/game-experience.tsx` |
+| Start Fight button | `app/public/src/pages/game.tsx` (centered button at bottom: 170px during PICK phase) |
 | Board rendering/modes | `app/public/src/game/components/board-manager.ts` |
 | Phase rendering in Phaser | `app/public/src/game/scenes/game-scene.ts` → `updatePhase()` |
 | Room creation & lifecycle | `app/rooms/game-room.ts` |
@@ -74,30 +74,37 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 ### Run Structure
 - **3 acts**, 20 floors each (60 total floors)
 - 3-5 nodes per floor with branching paths (no crossing edges)
-- Each act ends with a Legendary Boss (Mewtwo → Lugia+Ho-Oh → Weather Trio)
+- Each act ends with a Legendary Boss (random from pool per act)
 
 ### Map Node Types
-- **Wild Battle**: Regional encounters with synergy icons. Enemy Pokemon from region's synergy types. Background tilemap changes to region.
-- **Gym Leader**: Floor 9 = easy (2-3 unevolved), Floor 18 = hard (3-4 evolved). Awards synergy gem + item choice.
-- **Elite**: Floors 8/13/17. Themed encounters (18 total: Eeveelutions, Rotom forms, etc.). Win = special Pokemon, Lose = regular Pokemon.
-- **PokeMart**: Walk-around shop carousel. 6 Pokemon + 6 items. Gold pricing (aggressive scaling).
-- **Pokemon Center**: Floor 10 + Floor 19 guaranteed, ~10% random. Choose: Heal 30 HP | Ditto + item | Dojo ticket.
+- **Wild Battle**: Regional encounters with synergy icons. In Acts 2-3, encounters focus on one synergy from the region.
+- **Gym Leader**: Dynamically generated from `GYM_LEADER_POKEMON` map (18 synergy types). Floors 6/12/18 guaranteed, 9/15 at 40%. No synergy repeats per act. Act 2 biases unique Pokemon, Act 3 includes legendaries.
+- **Elite**: Floors 8/13/17 (50% chance). Themed encounters with act-specific tiers.
+- **PokeMart**: Walk-around shop. 6 Pokemon + 6 items + 2 eggs (Acts 1-2, 12g each). Ditto 3x weighted.
+- **Pokemon Center**: Floor 10 + Floor 19 guaranteed, ~10% random. Choose: item component | Ditto | Dojo ticket (instant stats).
 - **Mystery Encounter**: Random event with 2-3 choices.
-- **Legendary Boss**: Floor 20 of each act. Awards gold (shiny) items.
+- **Legendary Boss**: Floor 20 of each act. Boss randomly selected from act pool.
+
+### Boss Encounters
+- **Act 1** (3 options): Mewtwo & Mew, Tower Duo (Lugia + Ho-Oh), Lake Guardians (Azelf, Mesprit, Uxie)
+- **Act 2** (3 options): Weather Trio, Legendary Birds, Beasts & Blade (Raikou, Entei, Suicune, Zacian)
+- **Act 3** (1 option): Weather Trio (harder stats)
 
 ### Economy
-- Gold from battles: Wild 4+2*act, Elite 8+4*act, Gym 12+4*act, Boss 24+6*act
-- Pokemon sell for 1 gold (flat)
-- Shop prices: Pokemon scale by rarity (Common 2g → Ultra 24g, +6g/star). Items: components 4g, crafted 10g, tickets 2g, berries 4g.
+- Gold from battles: Wild 2+act, Elite 3+act*2, Gym 5+act*3, Boss 11+act*4
+- Loss penalty: 1/3 of win gold
+- Pokemon sell: 1★=3g, 2★=6g, 3★=10g
+- Shop prices: Pokemon scale by rarity (Common 2g → Ultra 24g, +6g/star). Items: tickets 2g, berries 4g, components 6g, crafted 10g. Eggs 12g.
 - No interest/streak system
 
 ### Post-Fight Rewards
-- **Wild wins**: Choose 1 of 3 Pokemon (each paired with random item component) + Ditto option (no item). Picking Ditto = no item bonus.
-- **Wild losses**: Choose 1 of 3 random Pokemon (no items)
-- **Elite wins**: Choose from the encounter's special Pokemon (with items)
-- **Elite losses**: Choose from regular random Pokemon
-- **Gym wins**: Synergy gem (auto-applied to bonusSynergies) + item choice from passive pool
-- **Boss wins**: Gold/shiny item choice (Dynamax Band, Rare Candy, etc.)
+- **Wild wins** (4 choices): 2-3 Pokemon + 1-2 item components. 33% chance one option is Ditto.
+- **Wild losses** (3 choices): 1-2 Pokemon + 1-2 item components. No Ditto.
+- **Elite wins**: Encounter-specific themed Pokemon with items
+- **Elite losses**: Standard wild loss rewards
+- **Gym wins**: Synergy gem (auto-applied) + choose one of: crafted item, Pokemon + component, or tool
+- **Gym losses**: Standard wild loss rewards
+- **Boss wins**: Choose 1 of 3 shiny items. No Pokemon offered.
 - Auto-transitions to MAP when all choices picked
 
 ### Starter Selection
@@ -109,12 +116,12 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 ### Server-Side
 | File | Purpose |
 |---|---|
-| `app/core/map-generator.ts` | StS-style branching maps: 20 floors/act, 3-5 nodes/floor, no-crossing edges, fixed gym/elite/center/boss floors |
+| `app/core/map-generator.ts` | StS-style branching maps: 20 floors/act, 3-5 nodes/floor, no-crossing edges. Gyms on floors 6/12/18 (guaranteed) + 9/15 (40%). Elites on 8/13/17 (50%). Centers on 10/19. Boss on 20. |
 | `app/core/relic-effects.ts` | 15 passive items (PASSIVE_ITEMS list). Helpers: `getRelicBonusGold()`, `getRelicPostBattleHeal()`, `getRelicDamageReduction()`, `getRelicPokemonOfferCount()`, `getRelicBonusXP()`, `getRelicRestHealBonus()`, `getRandomItemChoices()` |
-| `app/models/colyseus-models/map-node.ts` | `MapNode` (id, type, x, y, region, gymLeaderIndex, gymLeaderIsEarly, gymLeaderSynergy, eliteEncounterIndex) and `MapEdge` schemas. `MapNodeType` enum. |
-| `app/models/spire-encounters.ts` | Regional wild encounters via `getRegionalWildEncounter()` with difficulty scaling (`getDifficultyConfig()`). 8 early + 8 late gym leaders. 18 elite encounter templates with 3 tiers. 3 legendary bosses. `getGoldReward()`. |
+| `app/models/colyseus-models/map-node.ts` | `MapNode` (id, type, x, y, region, gymLeaderSynergy, eliteEncounterIndex, displayName) and `MapEdge` schemas. `MapNodeType` enum. |
+| `app/models/spire-encounters.ts` | Regional wild encounters via `getRegionalWildEncounter()` with difficulty scaling (`getDifficultyConfig()`). Dynamic gym generation via `generateGymEncounter()` with 18 synergy types and `GYM_LEADER_POKEMON` map. Elite encounter templates with act-specific tiers. Multiple boss options per act via `LEGENDARY_BOSSES` arrays. `getGoldReward()`. |
 | `app/models/spire-events.ts` | Mystery encounter templates with choices. `getRandomEvent()`, `getEventItems()`, `getEventBerries()` |
-| `app/models/spire-shops.ts` | Always 6 Pokemon + 6 items. Ditto weighted 3x. Pricing: `RARITY_BASE_PRICE` + `STAR_BONUS_PRICE`. `generateShopItems(act)` |
+| `app/models/spire-shops.ts` | 6 Pokemon + 2 eggs (Acts 1-2, 12g) + 6 items. Ditto weighted 3x. Pricing: `RARITY_BASE_PRICE` + `STAR_BONUS_PRICE`. `generateShopItems(act)` |
 
 ### Client-Side
 | File | Purpose |
@@ -140,10 +147,10 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 
 ### `app/rooms/commands/game-commands.ts`
 - `OnUpdatePhaseCommand.execute()`: Full state machine (MAP/PICK/FIGHT/REWARD/SHOP/REST/EVENT)
-- `onSelectMapNode()`: Sets player.map to region for tilemap, sets spireEncounterBoard, uses early/late gym leader functions
+- `onSelectMapNode()`: Sets player.map to region for tilemap, sets spireEncounterBoard, generates gym encounters dynamically via `generateGymEncounter()`
 - `initializeShopPhase()`: Calls `miniGame.initialize(state, room, true)` (skipEncounters=true) then `initializeShopCarousel()`
-- `initializeRestPhase()`: Sets up 3 choices (heal/ditto+item/dojo ticket by act) via spireEvent state fields
-- `initializeRewardPhase()`: Gold + passive item effects (bonus gold, heal, XP). Pokemon picks with paired items. Ditto as 4th option for wild. Elite: special Pokemon on win, regular on loss. Gym: synergy gem + item choice. Boss: gold items + act transition.
+- `initializeRestPhase()`: Sets up 3 choices (item component/ditto/dojo ticket by act) via spireEvent state fields
+- `initializeRewardPhase()`: Gold + passive item effects (bonus gold, heal, XP). Wild: 4 choices on win (2-3 Pokemon + items, 33% Ditto), 3 on loss (1-2 Pokemon + items). Elite: themed rewards on win, wild-loss on loss. Gym: synergy gem + choose crafted item/Pokemon+component/tool. Boss: 3 shiny items only (no Pokemon). Act transition on boss win.
 - `stopSpireFightingPhase()`: HP damage with passive item reduction. Cleans up simulations.
 - `initializeMapPhase()`: Clears encounter board, avatars, floating items. Resets player.map to "town".
 - `initializePickingPhase()`: Clears avatars/floatingItems. Infinite timer.

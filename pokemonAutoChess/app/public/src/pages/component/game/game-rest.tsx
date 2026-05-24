@@ -6,7 +6,6 @@ import { Pkm } from "../../../../../types/enum/Pokemon"
 import { DEPTH } from "../../../game/depths"
 import { rooms } from "../../../network"
 import { playSound, SOUNDS } from "../../utils/audio"
-import { addIconsToDescription } from "../../utils/descriptions"
 import GamePokemonPortrait from "./game-pokemon-portrait"
 import "./game-choice.css"
 
@@ -31,7 +30,7 @@ export default function GameRest({ runHP, choices }: GameRestProps) {
 
   if (choices.length === 0) return null
 
-  const componentItem = choices[1]?.description as Item
+  const healLabel = choices[0]?.label ?? "Heal 30"
   const dojoTicket = choices[2]?.description as Item
 
   return (
@@ -43,7 +42,7 @@ export default function GameRest({ runHP, choices }: GameRestProps) {
         <h2>Pokemon Center (HP: {runHP}/100)</h2>
 
         <div className="game-choice-pokemons-list">
-          {/* Item component */}
+          {/* Heal */}
           <div
             className="my-box active clickable"
             onClick={(e) => {
@@ -53,9 +52,9 @@ export default function GameRest({ runHP, choices }: GameRestProps) {
           >
             <img
               style={{ width: "4rem", height: "4rem" }}
-              src={"assets/item/" + componentItem + ".png"}
+              src="assets/item/ORAN_BERRY.png"
             />
-            <h3 style={{ margin: "0.25em 0" }}>{t(`item.${componentItem}`)}</h3>
+            <h3 style={{ margin: "0.25em 0" }}>{healLabel}</h3>
           </div>
 
           {/* Ditto */}

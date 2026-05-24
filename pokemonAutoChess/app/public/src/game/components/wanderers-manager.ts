@@ -29,12 +29,30 @@ List of wanderers:
 
 export default class WanderersManager {
   scene: GameScene
+  sprites: Map<string, { sprite: PokemonSprite; tweens: Phaser.Tweens.Tween[] }> = new Map()
 
   constructor(scene: GameScene) {
     this.scene = scene
     scene.board?.player.wanderers.forEach((wanderer) => {
       this.addWanderer(wanderer)
     })
+  }
+
+  removeWanderer(id: string) {
+    const entry = this.sprites.get(id)
+    if (entry) {
+      entry.tweens.forEach((t) => t.destroy())
+      entry.sprite.destroy()
+      this.sprites.delete(id)
+    }
+  }
+
+  dispose() {
+    this.sprites.forEach((entry) => {
+      entry.tweens.forEach((t) => t.destroy())
+      entry.sprite.destroy()
+    })
+    this.sprites.clear()
   }
 
   addWanderer(wanderer: Wanderer) {
@@ -234,6 +252,9 @@ export default class WanderersManager {
       false
     )
 
+    const entry = { sprite, tweens }
+    this.sprites.set(wanderer.id, entry)
+
     const tween = this.scene.tweens.add({
       targets: sprite,
       x: endX,
@@ -266,6 +287,7 @@ export default class WanderersManager {
               x: startX,
               y: startY,
               onComplete: () => {
+                this.sprites.delete(wanderer.id)
                 sprite.destroy()
               },
               onStart: () => {
@@ -280,6 +302,7 @@ export default class WanderersManager {
             })
           )
         } else {
+          this.sprites.delete(wanderer.id)
           sprite.destroy()
         }
       }
@@ -291,7 +314,10 @@ export default class WanderersManager {
     sprite.sprite.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (caught || !onClick) return
       caught = onClick(wanderer, sprite, pointer)
-      if (caught) tweens.forEach((tween) => tween.destroy())
+      if (caught) {
+        tweens.forEach((tween) => tween.destroy())
+        this.sprites.delete(wanderer.id)
+      }
     })
 
     return sprite

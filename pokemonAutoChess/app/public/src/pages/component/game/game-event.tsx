@@ -40,21 +40,17 @@ export default function GameEvent({
         alignItems: "center",
         justifyContent: "center",
         background: "rgba(0,0,0,0.85)",
-        zIndex: 100,
-        color: "white"
+        zIndex: 100
       }}
     >
-      <div style={{
-        background: "#1a1a2e",
-        border: "2px solid #9b59b6",
-        borderRadius: "12px",
+      <div className="my-container" style={{
         padding: "30px 40px",
         textAlign: "center",
         maxWidth: "500px"
       }}>
         <div style={{ fontSize: "36px", marginBottom: "8px" }}>?</div>
-        <h2 style={{ margin: "0 0 8px", color: "#9b59b6" }}>{eventName}</h2>
-        <p style={{ fontSize: "14px", color: "#aaa", margin: "0 0 20px" }}>
+        <h2 style={{ margin: "0 0 8px" }}>{eventName}</h2>
+        <p style={{ fontSize: "14px", opacity: 0.7, margin: "0 0 20px" }}>
           {eventDescription}
         </p>
         <div style={{ display: "flex", gap: "8px", marginBottom: "15px", justifyContent: "center", fontSize: "14px" }}>
@@ -65,20 +61,17 @@ export default function GameEvent({
           {choices.map((choice, i) => (
             <button
               key={i}
+              className="my-box clickable"
               onClick={() => handleChoice(i)}
               style={{
                 padding: "10px 20px",
                 fontSize: "14px",
-                borderRadius: "6px",
-                border: "1px solid #9b59b6",
-                background: "#2d1b4e",
-                color: "white",
                 cursor: "pointer",
                 textAlign: "left"
               }}
             >
               <strong>{choice.label}</strong>
-              <div style={{ fontSize: "12px", color: "#aaa", marginTop: "4px" }}>
+              <div style={{ fontSize: "12px", opacity: 0.7, marginTop: "4px" }}>
                 {choice.description}
               </div>
             </button>

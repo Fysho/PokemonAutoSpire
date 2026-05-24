@@ -52,6 +52,7 @@ export interface GameStateStore {
   additionalPokemons: Pkm[]
   podium: ILeaderboardInfo[]
   runHP: number
+  difficultyMode: number
   currentAct: number
   currentFloor: number
   encounterDifficulty: number
@@ -92,6 +93,7 @@ const initialState: GameStateStore = {
   specialGameRule: null,
   podium: new Array<ILeaderboardInfo>(),
   runHP: 100,
+  difficultyMode: 1,
   currentAct: 1,
   currentFloor: 0,
   encounterDifficulty: 0,
@@ -119,6 +121,9 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
     },
     setRunHP: (state, action: PayloadAction<number>) => {
       state.runHP = action.payload
+    },
+    setDifficultyMode: (state, action: PayloadAction<number>) => {
+      state.difficultyMode = action.payload
     },
     setCurrentAct: (state, action: PayloadAction<number>) => {
       state.currentAct = action.payload
@@ -364,6 +369,7 @@ export const {
   setPhase,
   setStageLevel,
   setRunHP,
+  setDifficultyMode,
   setCurrentAct,
   setCurrentFloor,
   setEncounterDifficulty,

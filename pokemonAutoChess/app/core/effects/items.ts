@@ -1,6 +1,6 @@
 import { ARMOR_FACTOR, RegionDetails } from "../../config"
 import { getSynergyStep } from "../../models/colyseus-models/synergies"
-import PokemonFactory from "../../models/pokemon-factory"
+import PokemonFactory, { getPokemonBaseline } from "../../models/pokemon-factory"
 import { PVEStages } from "../../models/pve-stages"
 import { Title, Transfer } from "../../types"
 import { Ability } from "../../types/enum/Ability"
@@ -339,12 +339,15 @@ export class DojoTicketOnItemDroppedEffect extends OnItemDroppedEffect {
   constructor(ticketLevel: number) {
     super(({ pokemon, player, room, item }) => {
       if (NonPkm.includes(pokemon.name)) return false
+      const baseline = getPokemonBaseline(pokemon.name)
+      if (player.dojoFamilies.includes(baseline)) return false
       const hpBonus = [50, 100, 150][ticketLevel - 1] ?? 0
       const atkBonus = [5, 10, 15][ticketLevel - 1] ?? 0
       const apBonus = [15, 30, 45][ticketLevel - 1] ?? 0
       pokemon.addMaxHP(hpBonus)
       pokemon.addAttack(atkBonus)
       pokemon.addAbilityPower(apBonus)
+      player.dojoFamilies.push(baseline)
       removeInArray(player.items, item)
       return false // prevent item from being equipped
     })

@@ -6,11 +6,9 @@ import {
   BOARD_WIDTH,
   getRegionTint,
   ItemStats,
-  PortalCarouselStages,
   RegionDetails,
   SynergyTriggers
 } from "../../../../config"
-import { getMusicAlt } from "../../../../config/game/music"
 import {
   FLOWER_POTS_POSITIONS_BLUE,
   FlowerPotMons,
@@ -23,7 +21,6 @@ import { getPokemonData } from "../../../../models/precomputed/precomputed-pokem
 import { PVEStage, PVEStages } from "../../../../models/pve-stages"
 import GameState from "../../../../rooms/states/game-state"
 import { IPokemon, IPokemonEntity } from "../../../../types"
-import { DungeonMusic } from "../../../../types/enum/Dungeon"
 import {
   GameMode,
   GamePhaseState,
@@ -47,7 +44,6 @@ import { randomBetween } from "../../../../utils/random"
 import { schemaValues } from "../../../../utils/schemas"
 import { GamePokemonDetailDOMWrapper } from "../../pages/component/game/game-pokemon-detail"
 import { getGameContainer } from "../../pages/game"
-import { playMusic } from "../../pages/utils/audio"
 import {
   transformBoardCoordinates,
   transformEntityCoordinates
@@ -267,11 +263,19 @@ export default class BoardManager {
     }
 
     if (this.mode === BoardMode.PICK && this.state.spireEncounterBoard?.length > 0) {
-      const board = Array.from(this.state.spireEncounterBoard).map((entry: string) => {
-        const [pkm, x, y] = entry.split(",")
-        return [pkm as Pkm, parseInt(x), parseInt(y)] as [Pkm, number, number]
+      const board: [Pkm, number, number][] = []
+      const encounterItems: Item[][] = []
+      Array.from(this.state.spireEncounterBoard).forEach((entry: string) => {
+        const parts = entry.split(",")
+        board.push([parts[0] as Pkm, parseInt(parts[1]), parseInt(parts[2])])
+        encounterItems.push(parts.slice(3) as Item[])
       })
-      this.addPvePokemons({ board, name: "spire" as any, avatar: board[0]?.[0] ?? Pkm.MAGIKARP }, !phaseJustChanged)
+      this.addPvePokemons(
+        { board, name: "spire" as any, avatar: board[0]?.[0] ?? Pkm.MAGIKARP },
+        !phaseJustChanged,
+        encounterItems,
+        this.state.encounterBonusHP
+      )
     }
   }
 
@@ -812,15 +816,6 @@ export default class BoardManager {
     // logger.debug('pickMode');
     this.mode = BoardMode.PICK
     this.scene.setMap(this.player.map)
-    if (
-      this.scene.cache.audio.has(
-        "music_" + RegionDetails[this.player.map].music
-      ) &&
-      PortalCarouselStages.includes(this.state.stageLevel)
-    ) {
-      // play back original region music when leaving town
-      playMusic(this.scene, RegionDetails[this.player.map].music)
-    }
     this.renderBoard(phaseJustChanged)
     this.updatePlayerAvatar()
     this.updateOpponentAvatar(null, null)
@@ -830,21 +825,6 @@ export default class BoardManager {
   minigameMode() {
     this.mode = BoardMode.TOWN
     this.scene.setMap("town")
-    if (this.state.townEncounter === TownEncounters.LUDICOLO) {
-      playMusic(this.scene, DungeonMusic.CARNIVAL_LUDICOLO)
-      this.scene.music?.once("looped", () => {
-        playMusic(
-          this.scene,
-          RegionDetails[this.player.map].music ?? DungeonMusic.TREASURE_TOWN
-        )
-      })
-    } else if (this.state.stageLevel === PortalCarouselStages[0]) {
-      playMusic(this.scene, getMusicAlt(DungeonMusic.TREASURE_TOWN_STAGE_0))
-    } else if (this.state.stageLevel === PortalCarouselStages[1]) {
-      playMusic(this.scene, getMusicAlt(DungeonMusic.TREASURE_TOWN_STAGE_10))
-    } else if (this.state.stageLevel === PortalCarouselStages[2]) {
-      playMusic(this.scene, getMusicAlt(DungeonMusic.TREASURE_TOWN_STAGE_20))
-    }
     this.hideLightCell()
     this.hideBerryTrees()
     this.hideFlowerPots()
@@ -1157,7 +1137,7 @@ export default class BoardManager {
     })
   }
 
-  addPvePokemons(pveStage: PVEStage, immediately: boolean) {
+  addPvePokemons(pveStage: PVEStage, immediately: boolean, encounterItems?: Item[][], bonusHP?: number) {
     pveStage.board.forEach(([pkm, boardX, boardY], i) => {
       const [x, y] = transformEntityCoordinates(boardX, boardY - 1, true)
       const id = `pve_${this.state.stageLevel}_${i}`
@@ -1174,6 +1154,12 @@ export default class BoardManager {
         i in pveStage.marowakItems
       ) {
         pveStage.marowakItems[i]!.forEach((item) => pokemon.items.add(item))
+      }
+      if (encounterItems?.[i]?.length) {
+        encounterItems[i].forEach((item) => pokemon.items.add(item))
+      }
+      if (bonusHP) {
+        pokemon.addMaxHP(bonusHP)
       }
 
       const pkmSprite = new PokemonSprite(

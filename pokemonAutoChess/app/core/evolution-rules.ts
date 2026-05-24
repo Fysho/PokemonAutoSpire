@@ -108,7 +108,8 @@ export class CountEvolutionRule extends EvolutionRule {
     const copies = schemaValues(player.board).filter(
       (p) => p.index === pokemon.index && !p.items.has(Item.EVIOLITE)
     )
-    return copies.length >= this.numberRequired
+    const required = pokemon.stars >= 2 ? Math.min(this.numberRequired, 2) : this.numberRequired
+    return copies.length >= required
   }
 
   canEvolveIfGettingOne(pokemon: Pokemon, player: Player): boolean {
@@ -127,7 +128,8 @@ export class CountEvolutionRule extends EvolutionRule {
     const copies = schemaValues(player.board).filter(
       (p) => p.index === pokemon.index && !p.items.has(Item.EVIOLITE)
     )
-    return copies.length === this.numberRequired - 1
+    const required = pokemon.stars >= 2 ? Math.min(this.numberRequired, 2) : this.numberRequired
+    return copies.length === required - 1
   }
 
   evolve(pokemon: Pokemon, player: Player, stageLevel: number): Pokemon {
@@ -139,12 +141,13 @@ export class CountEvolutionRule extends EvolutionRule {
     const itemsCompleteOnBoard: Item[] = []
 
     const pokemonsBeforeEvolution: Pokemon[] = []
+    const required = pokemon.stars >= 2 ? Math.min(this.numberRequired, 2) : this.numberRequired
 
     player.board.forEach((pkm, id) => {
       if (
         pkm.index == pokemon.index &&
         !pkm.items.has(Item.EVIOLITE) &&
-        pokemonsBeforeEvolution.length < this.numberRequired
+        pokemonsBeforeEvolution.length < required
       ) {
         // logger.debug(pkm.name, pokemon.name)
         if (coord) {
@@ -396,23 +399,24 @@ export function carryOverPermanentStats(
   pokemonsBeforeEvolution: Pokemon[]
 ) {
   // carry over the permanent stat buffs
-  const permanentBuffStats = [
-    "hp",
-    "maxHP",
-    "atk",
-    "def",
-    "speDef",
-    "speed",
-    "ap",
-    "luck"
-  ] as const
   const pkm = pokemonsBeforeEvolution[0].name
   const baseData = PokemonFactory.createPokemonFromName(pkm)
-  for (const stat of permanentBuffStats) {
+  const statMapping: [keyof Pokemon, (p: Pokemon, v: number) => void][] = [
+    ["hp", (p, v) => p.addMaxHP(v)],
+    ["atk", (p, v) => p.addAttack(v)],
+    ["def", (p, v) => p.addDefense(v)],
+    ["speDef", (p, v) => p.addSpecialDefense(v)],
+    ["speed", (p, v) => p.addSpeed(v)],
+    ["ap", (p, v) => p.addAbilityPower(v)],
+    ["luck", (p, v) => p.addLuck(v)]
+  ]
+  for (const [stat, apply] of statMapping) {
     const sumOfPermaStatsModifier = sum(
-      pokemonsBeforeEvolution.map((p) => p[stat] - baseData[stat])
+      pokemonsBeforeEvolution.map((p) => (p[stat] as number) - (baseData[stat] as number))
     )
-    pokemonEvolved.applyStat(stat, sumOfPermaStatsModifier) // can be negative or positive
+    if (sumOfPermaStatsModifier !== 0) {
+      apply(pokemonEvolved, sumOfPermaStatsModifier)
+    }
   }
 
   // carry over TM

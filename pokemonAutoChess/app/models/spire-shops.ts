@@ -31,11 +31,18 @@ const RARITY_BASE_PRICE: Record<string, number> = {
 
 const STAR_BONUS_PRICE = 6
 
+const STAR_PRICE_MULTIPLIER: Record<number, number> = {
+  1: 1,
+  2: 1.5,
+  3: 2
+}
+
 function getPokemonPrice(pkm: Pkm): number {
   const data = getPokemonData(pkm)
   const base = RARITY_BASE_PRICE[data.rarity] ?? 3
   const starBonus = (data.stars - 1) * STAR_BONUS_PRICE
-  return base + starBonus
+  const multiplier = STAR_PRICE_MULTIPLIER[data.stars] ?? 1
+  return Math.round((base + starBonus) * multiplier)
 }
 
 function getItemPrice(item: Item): number {
@@ -53,8 +60,9 @@ function pickShopPokemon(act: number): Pkm[] {
   for (let i = 0; i < 3; i++) pool.push(Pkm.DITTO)
 
   if (act === 1) {
-    pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON)
-    pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON)
+    const maxStars = 2
+    pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON.filter(p => getPokemonData(p).stars <= maxStars))
+    pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON.filter(p => getPokemonData(p).stars <= maxStars))
   } else if (act === 2) {
     pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON)
     pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON)

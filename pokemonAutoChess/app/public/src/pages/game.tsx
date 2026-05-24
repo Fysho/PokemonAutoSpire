@@ -69,6 +69,7 @@ import {
   setPhase,
   setPodium,
   setRunHP,
+  setDifficultyMode,
   setCurrentAct,
   setCurrentFloor,
   setEncounterDifficulty,
@@ -197,6 +198,7 @@ export default function Game() {
   const [mapHidden, setMapHidden] = useState<boolean>(true)
   const [runComplete, setRunComplete] = useState<boolean>(false)
   const [runFailed, setRunFailed] = useState<boolean>(false)
+  const [eliteFourAvailable, setEliteFourAvailable] = useState<boolean>(false)
   const [loaded, setLoaded] = useState<boolean>(false)
   const [connectError, setConnectError] = useState<string>("")
   const [finalRank, setFinalRank] = useState<number>(0)
@@ -577,6 +579,10 @@ export default function Game() {
         dispatch(setRunHP(value))
       })
 
+      $state.listen("difficultyMode", (value) => {
+        dispatch(setDifficultyMode(value))
+      })
+
       $state.listen("currentAct", (value) => {
         dispatch(setCurrentAct(value))
       })
@@ -599,11 +605,23 @@ export default function Game() {
       })
 
       $state.listen("runComplete", (value) => {
-        if (value) setRunComplete(true)
+        setRunComplete(value)
+        if (value) {
+          const g = getGameScene()
+          if (g?.board) g.board.pickMode(false)
+        }
       })
 
       $state.listen("runFailed", (value) => {
-        if (value) setRunFailed(true)
+        if (value) {
+          setRunFailed(true)
+          const g = getGameScene()
+          if (g?.board) g.board.pickMode(false)
+        }
+      })
+
+      $state.listen("eliteFourAvailable", (value) => {
+        setEliteFourAvailable(value)
       })
 
       $state.listen("noElo", (value) => {
@@ -878,6 +896,15 @@ export default function Game() {
             }
           }
         })
+
+        $player.wanderers.onRemove((wanderer: Wanderer) => {
+          if (player.id === store.getState().network.uid) {
+            const g = getGameScene()
+            if (g && g.wandererManager) {
+              g.wandererManager.removeWanderer(wanderer.id)
+            }
+          }
+        })
       })
 
       $state.players.onRemove((player) => {
@@ -891,6 +918,9 @@ export default function Game() {
         setMapVersion((v) => v + 1)
       })
       $state.mapEdges.onAdd(() => {
+        setMapVersion((v) => v + 1)
+      })
+      $state.mapEdges.onRemove(() => {
         setMapVersion((v) => v + 1)
       })
 
@@ -916,6 +946,7 @@ export default function Game() {
   const currentAct = useAppSelector((state) => state.game.currentAct)
   const currentFloor = useAppSelector((state) => state.game.currentFloor)
   const money = useAppSelector((state) => state.game.money)
+  const difficultyMode = useAppSelector((state) => state.game.difficultyMode)
   const isMapPhase = phase === GamePhaseState.MAP
   const isRestPhase = phase === GamePhaseState.REST
   const isEventPhase = phase === GamePhaseState.EVENT
@@ -931,17 +962,24 @@ export default function Game() {
         <>
           <MainSidebar page="game" leave={leave} leaveLabel={t("leave_game")} />
           <GameRelicBar items={Array.from(connectedPlayer?.items ?? [])} />
-          {(runComplete || runFailed) && (
-            <GameRunEnd
-              victory={runComplete}
-              currentAct={currentAct}
-              currentFloor={currentFloor}
-              items={Array.from(connectedPlayer?.items ?? [])}
-              onNewRun={() => {
-                window.location.href = "/"
-              }}
-            />
-          )}
+          {(runComplete || runFailed) && (() => {
+            const history = Array.from(connectedPlayer?.history ?? [])
+            const battlesWon = history.filter(h => h.result === "WIN").length
+            const battlesLost = history.filter(h => h.result === "DEFEAT").length
+            const totalGold = connectedPlayer?.gameStats?.totalMoneyEarned ?? 0
+            return (
+              <GameRunEnd
+                victory={runComplete}
+                runHP={runHP}
+                battlesWon={battlesWon}
+                battlesLost={battlesLost}
+                totalGold={totalGold}
+                difficultyMode={difficultyMode}
+                eliteFourAvailable={eliteFourAvailable}
+                currentAct={currentAct}
+              />
+            )
+          })()}
           <GameFinalRank
             rank={finalRank}
             hide={spectateTillTheEnd}
@@ -984,7 +1022,51 @@ export default function Game() {
           {isRewardPhase && (
             <GameReward runHP={runHP} gold={money} />
           )}
-          {isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
+          {(runComplete || runFailed) && (
+            <div style={{
+              position: "absolute",
+              bottom: "170px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 210,
+              display: "flex",
+              gap: "16px",
+              flexDirection: "column",
+              alignItems: "center"
+            }}>
+              {eliteFourAvailable && (
+                <button
+                  className="bubbly"
+                  onClick={() => {
+                    rooms.game?.send(Transfer.ENTER_ELITE_FOUR)
+                    setRunComplete(false)
+                    setRunFailed(false)
+                    setEliteFourAvailable(false)
+                    setMapHidden(false)
+                  }}
+                >
+                  Enter the Elite Four
+                </button>
+              )}
+              <button
+                onClick={() => { window.location.href = "/" }}
+                style={{
+                  padding: "12px 36px",
+                  fontSize: "18px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: runComplete ? "#2ecc71" : "#e74c3c",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  boxShadow: `0 4px 12px ${runComplete ? "rgba(46,204,113,0.4)" : "rgba(231,76,60,0.4)"}`
+                }}
+              >
+                Back to Lobby
+              </button>
+            </div>
+          )}
+          {!runComplete && !runFailed && isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
             <div style={{
               position: "absolute",
               bottom: "170px",
@@ -1058,6 +1140,23 @@ export default function Game() {
           <GameBalancePanel />
           <GameDpsMeter />
           <GameToasts />
+          <div style={{
+            position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
+            display: "flex", flexDirection: "column", gap: "8px", zIndex: 300
+          }}>
+            <button
+              onClick={() => { setRunComplete(true); setEliteFourAvailable(true) }}
+              style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+            >
+              Test Victory
+            </button>
+            <button
+              onClick={() => setRunFailed(true)}
+              style={{ padding: "6px 12px", background: "#e74c3c", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+            >
+              Test Defeat
+            </button>
+          </div>
         </>
       ) : (
         <GameLoadingScreen connectError={connectError} />

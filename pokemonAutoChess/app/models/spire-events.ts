@@ -36,8 +36,8 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     name: "Ancient Shrine",
     description: "An ancient shrine radiates mysterious energy...",
     choices: [
-      { label: "Pray (costs 15 HP)", description: "Receive a powerful item" },
-      { label: "Meditate", description: "Gain 5 gold" },
+      { label: "Sacrifice (costs 20 HP)", description: "Receive a crafted item" },
+      { label: "Offering (costs 10 HP)", description: "Receive an item component" },
       { label: "Skip", description: "Nothing happens" }
     ]
   },
@@ -56,8 +56,7 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     description: "A traveling merchant has rare wares...",
     choices: [
       { label: "Buy supplies (8 gold)", description: "Receive 2 random items" },
-      { label: "Chat", description: "Learn something useful - gain 4 XP" },
-      { label: "Rob them (lose 10 HP)", description: "Gain 15 gold" },
+      { label: "Rob them (lose 30 HP)", description: "Gain 15 gold" },
       { label: "Skip", description: "Nothing happens" }
     ]
   },

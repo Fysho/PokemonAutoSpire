@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
 import { ItemStats, RarityColor } from "../../../../../config"
 import { DishByPkm } from "../../../../../core/dishes"
-import PokemonFactory from "../../../../../models/pokemon-factory"
+import PokemonFactory, { getPokemonBaseline } from "../../../../../models/pokemon-factory"
 import { getPokemonData } from "../../../../../models/precomputed/precomputed-pokemon-data"
 import { Emotion, IPokemon, IPokemonEntity } from "../../../../../types"
 import { Ability } from "../../../../../types/enum/Ability"
@@ -23,6 +23,7 @@ import { getPortraitSrc } from "../../../../../utils/avatar"
 import { roundToNDigits } from "../../../../../utils/number"
 import { schemaValues } from "../../../../../utils/schemas"
 import { addIconsToDescription } from "../../utils/descriptions"
+import { getGameContainer } from "../../game"
 import { cc } from "../../utils/jsx"
 import { AbilityTooltip } from "../ability/ability-tooltip"
 import SynergyIcon from "../icons/synergy-icon"
@@ -189,7 +190,14 @@ export function GamePokemonDetail(props: {
     pokemon.evolution != null &&
     pokemon.evolution != Pkm.DEFAULT
   ) {
-    name += ` (${t(`pkm.${pokemon.evolution}`)})` // indicate the original pokemon for Dojo substitute
+    name += ` (${t(`pkm.${pokemon.evolution}`)})`
+  }
+  if (pokemon) {
+    const baseline = getPokemonBaseline(pokemon.name)
+    const dojoFamilies = getGameContainer()?.player?.dojoFamilies
+    if (dojoFamilies && dojoFamilies.includes(baseline)) {
+      name += " (d)"
+    }
   }
 
   const tmIcon = useMemo(() => {

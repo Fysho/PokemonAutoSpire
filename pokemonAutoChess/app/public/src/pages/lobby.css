@@ -149,6 +149,14 @@
   margin: 0 auto;
 }
 
+.spire-lobby-empty {
+  text-align: center;
+  color: var(--color-fg-primary);
+  opacity: 0.5;
+  padding: 2em;
+  font-style: italic;
+}
+
 @media (width <= 960px) {
   #lobby-logo {
     display: none;
