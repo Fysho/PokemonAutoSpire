@@ -1,5 +1,13 @@
 # Terms of Service
 
+## Fan Mod Notice
+
+Pokemon Auto Spire was created by Fish. It is a fan-made, non-commercial modification of [Pokemon Auto Chess](https://github.com/keldaanCommunity/pokemonAutoChess), an open-source fan project. This mod transforms the multiplayer auto-battler into a single-player roguelike experience. It is not affiliated with, endorsed by, or connected to The Pokemon Company, Nintendo, Game Freak, or the original Pokemon Auto Chess developers. All Pokemon intellectual property belongs to its respective rights holders.
+
+The following is the terms of service of Pokemon Auto Chess. Some sections (e.g. accounts, chat, bot builder) may not apply to this mod.
+
+---
+
 Effective date: April 23, 2026
 Last updated: April 23, 2026
 

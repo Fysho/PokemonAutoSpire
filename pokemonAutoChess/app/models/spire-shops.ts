@@ -108,6 +108,16 @@ export function generateShopItems(act: number): ShopItem[] {
     })
   })
 
+  if (act <= 2) {
+    for (let i = 0; i < 2; i++) {
+      result.push({
+        type: "pokemon",
+        pokemon: Pkm.EGG,
+        price: 12
+      })
+    }
+  }
+
   const items = pickShopItems()
   items.forEach((item) => {
     result.push({

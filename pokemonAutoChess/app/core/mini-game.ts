@@ -184,8 +184,9 @@ export class MiniGame {
 
             player.money -= price
 
-            if (item.pokemonName && item.pokemonName !== "") {
-              // Pokemon shop item
+            if (item.pokemonName && item.pokemonName === "EGG") {
+              giveRandomEgg(player)
+            } else if (item.pokemonName && item.pokemonName !== "") {
               room.spawnOnBench(player, item.pokemonName as any)
             } else {
               player.items.push(item.name)

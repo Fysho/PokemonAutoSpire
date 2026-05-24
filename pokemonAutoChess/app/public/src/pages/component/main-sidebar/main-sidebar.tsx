@@ -19,7 +19,7 @@ import Booster from "../booster/booster"
 import TeamBuilderModal from "../bot-builder/team-builder-modal"
 import PokemonCollection from "../collection/pokemon-collection"
 import Jukebox from "../jukebox/jukebox"
-import MetaReport from "../meta-report/meta-report"
+import HowToPlay from "../how-to-play/how-to-play"
 import { Modal } from "../modal/modal"
 import ModerationPanel from "../moderation/moderation-panel"
 import GameOptionsModal from "../options/game-options-modal"
@@ -106,7 +106,7 @@ export function MainSidebar(props: MainSidebarProps) {
         setModal((current) => (current === "wiki" ? undefined : "wiki"))
       } else if (key === keybindings.meta_report) {
         e.preventDefault()
-        setModal((current) => (current === "meta" ? undefined : "meta"))
+        setModal((current) => (current === "how-to-play" ? undefined : "how-to-play"))
       } else if (
         key === keybindings.team_planner &&
         profileLevel >= GADGETS.team_planner.levelRequired
@@ -149,7 +149,7 @@ export function MainSidebar(props: MainSidebarProps) {
         <div className="sidebar-logo" onClick={() => setCollapsed(!collapsed)}>
           <img src={`assets/ui/colyseus-icon.png`} />
           <div>
-            <h1>Pokemon Auto Chess</h1>
+            <h1>Pokemon Auto Spire</h1>
             <small>v{version}</small>
           </div>
         </div>
@@ -221,10 +221,10 @@ export function MainSidebar(props: MainSidebarProps) {
         <NavLink
           svg="meta"
           className="green"
-          location="meta"
+          location="how-to-play"
           handleClick={changeModal}
         >
-          {t("meta")}
+          How to Play
         </NavLink>
 
         {profileLevel >= GADGETS.team_planner.levelRequired && (
@@ -475,7 +475,7 @@ export type Modals =
   | "collection"
   | "jukebox"
   | "keybinds"
-  | "meta"
+  | "how-to-play"
   | "news"
   | "options"
   | "pokeguesser"
@@ -554,8 +554,8 @@ function Modals({
       >
         <Wiki inGame={page === "game"} />
       </Modal>
-      <Modal show={modal === "meta"} header={t("meta")} onClose={closeModal}>
-        <MetaReport />
+      <Modal show={modal === "how-to-play"} header="How to Play" onClose={closeModal}>
+        <HowToPlay />
       </Modal>
       <Modal
         onClose={closeModal}

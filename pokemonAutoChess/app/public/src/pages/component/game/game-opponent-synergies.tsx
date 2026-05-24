@@ -55,7 +55,7 @@ export default function GameOpponentSynergies() {
 
   return (
     <DraggableWindow
-      title="Enemy Synergies"
+      title="Enemy"
       className="my-container synergies-container"
       initialPosition={offsetPosition}
       onMove={() => {}}

@@ -25,6 +25,7 @@ export class MapNode extends Schema {
   @type("boolean") gymLeaderIsEarly: boolean = true
   @type("string") gymLeaderSynergy: string = ""
   @type("int8") eliteEncounterIndex: number = -1
+  @type("string") displayName: string = ""
 
   constructor(
     id: string,

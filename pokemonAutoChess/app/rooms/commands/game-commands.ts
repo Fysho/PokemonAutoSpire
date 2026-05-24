@@ -48,8 +48,7 @@ import {
   getEliteEncounter,
   getEliteEncounterPokemon,
   getGoldReward,
-  getEarlyGymLeaderEncounter,
-  getLateGymLeaderEncounter,
+  generateGymEncounter,
   getGymLeaderGem,
   getLegendaryBossEncounter,
   getRegionalWildEncounter,
@@ -1126,10 +1125,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       const regionalPkm = getRegionalPokemonForReward(node.region, this.state.currentAct)
       if (regionalPkm) pokemonPool.push(regionalPkm)
     }
-    while (pokemonPool.length < pokemonSlots) {
+    let attempts = 0
+    while (pokemonPool.length < pokemonSlots && attempts < 20) {
       const p = this.state.shop.pickPokemon(player, this.state)
-      if (p) pokemonPool.push(p)
-      else break
+      attempts++
+      if (!p) break
+      const data = (require("../../models/precomputed/precomputed-pokemon-data") as any).getPokemonData(p)
+      if (data.rarity === "HATCH") continue
+      pokemonPool.push(p)
     }
 
     // Generate item options
@@ -1224,9 +1227,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             ? getRegionalWildEncounter(this.state.currentAct, node.floor, node.region)
             : getWildEncounter(this.state.currentAct, node.floor, node.x + node.floor * 7)
         } else if (node.nodeType === MapNodeType.GYM_LEADER) {
-          encounter = node.gymLeaderIsEarly
-            ? getEarlyGymLeaderEncounter(node.gymLeaderIndex)
-            : getLateGymLeaderEncounter(node.gymLeaderIndex)
+          encounter = generateGymEncounter(
+            node.gymLeaderSynergy as Synergy,
+            this.state.currentAct,
+            node.floor
+          )
         } else if (node.nodeType === MapNodeType.ELITE) {
           encounter = getEliteEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor)
         } else {
@@ -1244,6 +1249,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         this.state.encounterPokemonCount = stats.pokemonCount
         this.state.encounterTotalStars = stats.totalStars
         this.state.encounterTotalItems = stats.totalItems
+        this.state.encounterName = encounter.name
         this.initializePickingPhase()
         break
       }
@@ -1293,13 +1299,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.spireEventName = "Pokemon Center"
     this.state.spireEventDescription = "Choose one:"
     resetArraySchema(this.state.spireEventChoiceLabels, [
-      "Heal 30 HP",
-      "Ditto + Item Component",
+      "Item Component",
+      "Ditto",
       dojoTicket.replace(/_/g, " ")
     ])
     resetArraySchema(this.state.spireEventChoiceDescs, [
-      `Restore 30 HP (current: ${this.state.runHP}/100)`,
       randomComponent,
+      "",
       dojoTicket
     ])
 
@@ -1312,14 +1318,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     const player = this.state.players.get(playerId)
     if (!player) return
 
-    const relicBonus = getRelicRestHealBonus(player.items)
-
     if (choiceIndex === 0) {
-      this.state.runHP = Math.min(100, this.state.runHP + 30 + relicBonus)
-      this.syncRunHPToPlayers()
+      player.items.push(this.restRandomComponent)
     } else if (choiceIndex === 1) {
       this.room.spawnOnBench(player, Pkm.DITTO)
-      player.items.push(this.restRandomComponent)
     } else if (choiceIndex === 2) {
       const dojoTicket = this.state.currentAct === 1
         ? Item.BRONZE_DOJO_TICKET
@@ -1355,7 +1357,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     } else if (label.includes("search") || label.includes("explore")) {
       const items = getEventItems(2)
       items.forEach(item => player.items.push(item))
-    } else if (label.includes("berries") || label.includes("pick berries")) {
+    } else if (label.includes("pick all berries")) {
+      if (player.money >= 6) {
+        player.addMoney(-6, false, null)
+        const berries = getEventBerries(7)
+        berries.forEach(item => player.items.push(item))
+      }
+    } else if (label.includes("pick more berries")) {
+      if (player.money >= 3) {
+        player.addMoney(-3, false, null)
+        const berries = getEventBerries(5)
+        berries.forEach(item => player.items.push(item))
+      }
+    } else if (label.includes("pick berries")) {
       const berries = getEventBerries(3)
       berries.forEach(item => player.items.push(item))
     } else if (label.includes("trade 10 gold") || label.includes("buy supplies")) {
@@ -1396,6 +1410,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       this.state.challengeItem = Item.BLUE_ORB
     } else if (label.includes("green orb challenge")) {
       this.state.challengeItem = Item.GREEN_ORB
+    } else if (label.includes("exchange ticket")) {
+      player.items.push(Item.EXCHANGE_TICKET)
+    } else if (label.includes("recycle ticket")) {
+      player.items.push(Item.RECYCLE_TICKET)
+    } else if (label === "trash") {
+      player.items.push(Item.TRASH)
     }
   }
 
@@ -1469,12 +1489,53 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             player.choices.push(
               new PlayerChoice({ type: "addPick", pokemons: offers, items: pairedItems })
             )
+          } else if (won && template.name === "Bat Cave") {
+            const comp1 = pickRandomIn(ItemComponentsNoFossilOrScarf)
+            const comp2 = pickRandomIn(ItemComponentsNoFossilOrScarf)
+            const pokemons: Pkm[] = [Pkm.ZUBAT, Pkm.WOOBAT, Pkm.NOIBAT]
+            const items: Item[] = [comp1, comp2, Pkm.DEFAULT as any]
+            player.choices.push(
+              new PlayerChoice({ type: "addPick", pokemons, items })
+            )
           } else if (won && template.name === "Rival Flames") {
             const synergyItem = pickRandomIn([Item.ELECTIRIZER, Item.MAGMARIZER])
             const pokemons: Pkm[] = [Pkm.ELEKID, Pkm.MAGBY, Pkm.DEFAULT]
             const items: Item[] = [Pkm.DEFAULT as any, Pkm.DEFAULT as any, synergyItem]
             player.choices.push(
               new PlayerChoice({ type: "wildReward", pokemons, items })
+            )
+          } else if (won && template.name === "Iron Defense") {
+            const comp1 = pickRandomIn(ItemComponentsNoFossilOrScarf)
+            const comp2 = pickRandomIn(ItemComponentsNoFossilOrScarf)
+            const pokemons: Pkm[] = [Pkm.BELDUM, Pkm.RIOLU, Pkm.SCYTHER]
+            const items: Item[] = [comp1, comp2, Pkm.DEFAULT as any]
+            player.choices.push(
+              new PlayerChoice({ type: "addPick", pokemons, items })
+            )
+          } else if (won && template.name === "Psychic Conclave") {
+            const rewardPool: Pkm[] = [Pkm.ABRA, Pkm.RALTS, Pkm.DROWZEE, Pkm.FENNEKIN]
+            const offers = pickNRandomIn(rewardPool, 2)
+            const comps: Item[] = offers.map(() => pickRandomIn(ItemComponentsNoFossilOrScarf))
+            const pokemons: Pkm[] = [offers[0], offers[1], Pkm.DEFAULT]
+            const items: Item[] = [comps[0], comps[1], Item.TWISTED_SPOON]
+            player.choices.push(
+              new PlayerChoice({ type: "wildReward", pokemons, items })
+            )
+          } else if (won && template.name === "Sleeping Giant") {
+            const comp1 = pickRandomIn(ItemComponentsNoFossilOrScarf)
+            const comp2 = pickRandomIn(ItemComponentsNoFossilOrScarf)
+            const pokemons: Pkm[] = [Pkm.SNORLAX, Pkm.SLAKOTH, Pkm.DEFAULT]
+            const items: Item[] = [comp1, comp2, Item.BIG_EATER_BELT]
+            player.choices.push(
+              new PlayerChoice({ type: "wildReward", pokemons, items })
+            )
+          } else if (won && template.name === "Poltergeist") {
+            const foughtRotoms = Array.from(this.state.spireEncounterBoard)
+              .map((entry: string) => entry.split(",")[0] as Pkm)
+              .filter((pkm) => pkm !== Pkm.DEFAULT)
+            const offers = foughtRotoms.length > 0 ? foughtRotoms : [Pkm.ROTOM]
+            player.choices.push(
+              new PlayerChoice({ type: "addPick", pokemons: offers })
             )
           } else if (won) {
             const elitePokemon = getEliteEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct)
@@ -1502,19 +1563,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             }
           }
           if (won) {
-            // Choose one: a crafted item OR a pokemon + item component
             const craftedItem = pickRandomIn(getRandomItemChoices(player.items, 3) as Item[])
             const pokemon = this.state.shop.pickPokemon(player, this.state) ?? Pkm.DITTO
             const component = pickRandomIn(ItemComponentsNoFossilOrScarf)
-            const pokemons: Pkm[] = [Pkm.DEFAULT, pokemon]
-            const items: Item[] = [craftedItem, component]
+            const tool = pickRandomIn([...Tools])
+            const pokemons: Pkm[] = [Pkm.DEFAULT, pokemon, Pkm.DEFAULT]
+            const items: Item[] = [craftedItem, component, tool]
             player.choices.push(
               new PlayerChoice({ type: "wildReward", pokemons, items })
             )
           } else {
             this.generateWildRewardChoice(player, node, false)
           }
-        } else {
+        } else if (node.nodeType !== MapNodeType.LEGENDARY_BOSS) {
           const offerCount = getRelicPokemonOfferCount(player.items)
           const pokemonOffers: Pkm[] = []
           while (pokemonOffers.length < offerCount) {
@@ -1563,6 +1624,25 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.room.disconnect()
           }, 30 * 1000)
         }
+      } else if (this.state.currentAct < 3) {
+        this.state.currentAct += 1
+        this.state.mapNodes.clear()
+        this.state.mapEdges.clear()
+        generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges)
+      } else {
+        this.state.runFailed = true
+        this.state.gameFinished = true
+        this.state.players.forEach((p: Player) => {
+          if (!p.isBot) {
+            p.life = 0
+            p.alive = false
+          }
+        })
+        this.syncRunHPToPlayers()
+        this.clock.setTimeout(() => {
+          this.room.broadcast(Transfer.GAME_END)
+          this.room.disconnect()
+        }, 10 * 1000)
       }
     }
   }
@@ -2247,7 +2327,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       const isBoss = node?.nodeType === MapNodeType.LEGENDARY_BOSS
       const bossEncounter = isBoss ? getLegendaryBossEncounter(this.state.currentAct) : null
       const encounter: SpireEncounter = {
-        name: node?.region || "Wild",
+        name: this.state.encounterName || node?.region || "Wild",
         avatar: board[0][0],
         board,
         items: encounterItems,

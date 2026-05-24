@@ -114,67 +114,8 @@ export function getSellPrice(
   specialGameRule?: SpecialGameRule | null,
   ignoreRareCandy = false
 ): number {
-  return 3
-
-  // Original sell price logic below (disabled for PokemonAutoSpire)
-  const name = pokemon.name
-
-  if (specialGameRule === SpecialGameRule.FREE_MARKET && name !== Pkm.EGG)
-    return 0
-
-  const duo = Object.entries(PkmDuos).find(([key, duo]) => duo.includes(name))
-
-  let price = 1
-  let stars = pokemon.stars
-  const hasRareCandy = pokemon.items && pokemon.items.has(Item.RARE_CANDY)
-
-  if (hasRareCandy && !ignoreRareCandy) {
-    stars = min(1)(stars - 1)
-  }
-
-  if (name === Pkm.EGG) {
-    price = pokemon.shiny ? SellPrices.SHINY_EGG : SellPrices.EGG
-  } else if (name == Pkm.DITTO) {
-    price = SellPrices.DITTO
-  } else if (name == Pkm.FALINKS_TROOPER) {
-    price = SellPrices.FALINKS_TROOPER
-  } else if (name == Pkm.MELTAN) {
-    price = SellPrices.MELTAN
-  } else if (name === Pkm.MAGIKARP) {
-    price = SellPrices.MAGIKARP
-  } else if (name === Pkm.FEEBAS) {
-    price = SellPrices.FEEBAS
-  } else if (name === Pkm.WISHIWASHI) {
-    price = SellPrices.WISHIWASHI
-  } else if (name === Pkm.REMORAID) {
-    price = SellPrices.REMORAID
-  } else if (name === Pkm.OCTILLERY) {
-    price = hasRareCandy ? SellPrices.REMORAID : SellPrices.OCTILLERY
-  } else if (name === Pkm.GYARADOS) {
-    price = hasRareCandy ? SellPrices.MAGIKARP : SellPrices.GYARADOS
-  } else if (name === Pkm.MILOTIC) {
-    price = hasRareCandy ? SellPrices.FEEBAS : SellPrices.MILOTIC
-  } else if (name === Pkm.WISHIWASHI_SCHOOL) {
-    price = hasRareCandy ? SellPrices.WISHIWASHI : SellPrices.WISHIWASHI_SCHOOL
-  } else if (Unowns.includes(name)) {
-    price = SellPrices.UNOWN
-  } else if (pokemon.rarity === Rarity.HATCH) {
-    price = SellPrices.HATCH[stars - 1] ?? SellPrices.HATCH.at(-1)
-  } else if (pokemon.rarity === Rarity.UNIQUE) {
-    price = duo ? SellPrices.UNIQUE_DUO : SellPrices.UNIQUE
-  } else if (pokemon.rarity === Rarity.LEGENDARY) {
-    price = duo ? SellPrices.LEGENDARY_DUO : SellPrices.LEGENDARY
-  } else if (getPokemonBaseline(name) === Pkm.EEVEE) {
-    price = SellPrices.EEVEE
-  } else if (duo) {
-    price = Math.ceil((RarityCost[pokemon.rarity] * stars) / 2)
-  } else if (name === Pkm.MOTHIM) {
-    price = RarityCost[pokemon.rarity] * 1
-  } else {
-    price = RarityCost[pokemon.rarity] * stars
-  }
-
-  return price
+  const stars = pokemon.stars ?? 1
+  return stars <= 1 ? 3 : stars === 2 ? 6 : 10
 }
 
 export function getBuyPrice(

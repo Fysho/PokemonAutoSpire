@@ -20,7 +20,7 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     choices: [
       { label: "Take an Egg", description: "Receive a random egg Pokemon" },
       { label: "Search the grounds", description: "Find 2 random items" },
-      { label: "Leave", description: "Nothing happens" }
+      { label: "Skip", description: "Nothing happens" }
     ]
   },
   {
@@ -29,7 +29,7 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     choices: [
       { label: "Trade 10 gold", description: "Receive a rare item" },
       { label: "Trade an item", description: "Receive 8 gold" },
-      { label: "Decline", description: "Nothing happens" }
+      { label: "Skip", description: "Nothing happens" }
     ]
   },
   {
@@ -38,15 +38,17 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     choices: [
       { label: "Pray (costs 15 HP)", description: "Receive a powerful item" },
       { label: "Meditate", description: "Gain 5 gold" },
-      { label: "Walk away", description: "Nothing happens" }
+      { label: "Skip", description: "Nothing happens" }
     ]
   },
   {
     name: "Berry Grove",
     description: "You discover a grove full of berry trees!",
     choices: [
-      { label: "Pick berries", description: "Receive 3 random berries" },
-      { label: "Rest under a tree", description: "Heal 10 HP" }
+      { label: "Pick berries", description: "Receive 3 random berries (free)" },
+      { label: "Pick more berries (3 gold)", description: "Receive 5 random berries" },
+      { label: "Pick all berries (6 gold)", description: "Receive 7 random berries" },
+      { label: "Skip", description: "Nothing happens" }
     ]
   },
   {
@@ -55,7 +57,8 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     choices: [
       { label: "Buy supplies (8 gold)", description: "Receive 2 random items" },
       { label: "Chat", description: "Learn something useful - gain 4 XP" },
-      { label: "Rob them (lose 10 HP)", description: "Gain 15 gold" }
+      { label: "Rob them (lose 10 HP)", description: "Gain 15 gold" },
+      { label: "Skip", description: "Nothing happens" }
     ]
   },
   {
@@ -63,7 +66,8 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     description: "An old mine entrance beckons...",
     choices: [
       { label: "Explore", description: "Find a random item (or nothing)" },
-      { label: "Mine for gems", description: "Gain 6 gold" }
+      { label: "Mine for gems", description: "Gain 6 gold" },
+      { label: "Skip", description: "Nothing happens" }
     ]
   },
   {
@@ -72,7 +76,8 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     choices: [
       { label: "Rocky Helmet challenge", description: "Next wild encounter: all enemies get Rocky Helmet. Win to earn one." },
       { label: "Assault Vest challenge", description: "Next wild encounter: all enemies get Assault Vest. Win to earn one." },
-      { label: "Kings Rock challenge", description: "Next wild encounter: all enemies get Kings Rock. Win to earn one." }
+      { label: "Kings Rock challenge", description: "Next wild encounter: all enemies get Kings Rock. Win to earn one." },
+      { label: "Skip", description: "Nothing happens" }
     ]
   },
   {
@@ -81,7 +86,18 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     choices: [
       { label: "Red Orb challenge", description: "Next wild encounter: all enemies get Red Orb. Win to earn one." },
       { label: "Blue Orb challenge", description: "Next wild encounter: all enemies get Blue Orb. Win to earn one." },
-      { label: "Green Orb challenge", description: "Next wild encounter: all enemies get Green Orb. Win to earn one." }
+      { label: "Green Orb challenge", description: "Next wild encounter: all enemies get Green Orb. Win to earn one." },
+      { label: "Skip", description: "Nothing happens" }
+    ]
+  },
+  {
+    name: "Junk Collector",
+    description: "A scruffy collector rummages through a pile of odds and ends. \"I've got some useful tools if you're interested!\"",
+    choices: [
+      { label: "Exchange Ticket", description: "Receive an Exchange Ticket" },
+      { label: "Recycle Ticket", description: "Receive a Recycle Ticket" },
+      { label: "Trash", description: "Receive a Trash item" },
+      { label: "Skip", description: "Nothing happens" }
     ]
   }
 ]

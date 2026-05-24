@@ -43,7 +43,7 @@ export default function GameRest({ runHP, choices }: GameRestProps) {
         <h2>Pokemon Center (HP: {runHP}/100)</h2>
 
         <div className="game-choice-pokemons-list">
-          {/* Heal 30 HP */}
+          {/* Item component */}
           <div
             className="my-box active clickable"
             onClick={(e) => {
@@ -53,15 +53,12 @@ export default function GameRest({ runHP, choices }: GameRestProps) {
           >
             <img
               style={{ width: "4rem", height: "4rem" }}
-              src="assets/item/ORAN_BERRY.png"
+              src={"assets/item/" + componentItem + ".png"}
             />
-            <h3 style={{ margin: "0.25em 0" }}>{choices[0].label}</h3>
-            <p style={{ marginBottom: "0.5em", fontSize: "80%" }}>
-              {choices[0].description}
-            </p>
+            <h3 style={{ margin: "0.25em 0" }}>{t(`item.${componentItem}`)}</h3>
           </div>
 
-          {/* Ditto + item component */}
+          {/* Ditto */}
           <div
             className="my-box active clickable"
             onClick={(e) => {
@@ -74,27 +71,6 @@ export default function GameRest({ runHP, choices }: GameRestProps) {
               index={1}
               pokemon={Pkm.DITTO}
             />
-            <div className="choice-additional-item">
-              <span
-                style={{
-                  fontSize: "2rem",
-                  verticalAlign: "middle"
-                }}
-              >
-                +
-              </span>
-              <img
-                style={{
-                  width: "2rem",
-                  height: "2rem",
-                  verticalAlign: "middle"
-                }}
-                src={"assets/item/" + componentItem + ".png"}
-              />
-              <p>
-                {addIconsToDescription(t(`item_description.${componentItem}`))}
-              </p>
-            </div>
           </div>
 
           {/* Dojo ticket */}

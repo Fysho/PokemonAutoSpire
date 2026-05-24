@@ -1,6 +1,6 @@
 import { ArraySchema, MapSchema } from "@colyseus/schema"
 import { MapEdge, MapNode, MapNodeType } from "../models/colyseus-models/map-node"
-import { getEarlyGymLeaderCount, getEarlyGymLeaderEncounter, getEliteEncounterCount, getLateGymLeaderCount, getLateGymLeaderEncounter } from "../models/spire-encounters"
+import { getEliteEncounterCount, getEliteEncounterName, getGymLeaderDisplayName, getGymSynergies } from "../models/spire-encounters"
 import { DungeonPMDO } from "../types/enum/Dungeon"
 import { pickRandomIn, randomBetween, shuffleArray } from "../utils/random"
 
@@ -32,12 +32,16 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
     return roll < 0.5 ? MapNodeType.POKEMART : MapNodeType.WILD_BATTLE
   }
 
-  if (floor === 9 || floor === 18) {
+  if (floor === 6 || floor === 12 || floor === 18) {
     return MapNodeType.GYM_LEADER
   }
 
   if (floor === 8 || floor === 13 || floor === 17) {
     return roll < 0.5 ? MapNodeType.ELITE : MapNodeType.WILD_BATTLE
+  }
+
+  if (floor === 9 || floor === 15) {
+    return roll < 0.4 ? MapNodeType.GYM_LEADER : MapNodeType.WILD_BATTLE
   }
 
   if (roll < 0.50) return MapNodeType.WILD_BATTLE
@@ -55,12 +59,9 @@ export function generateActMap(
   const totalFloors = FLOORS_PER_ACT
   const floorNodes: string[][] = []
 
-  const earlyGymIndices = Array.from({ length: getEarlyGymLeaderCount() }, (_, i) => i)
-  shuffleArray(earlyGymIndices)
-  let earlyGymPick = 0
-  const lateGymIndices = Array.from({ length: getLateGymLeaderCount() }, (_, i) => i)
-  shuffleArray(lateGymIndices)
-  let lateGymPick = 0
+  const gymSynergies = [...getGymSynergies()]
+  shuffleArray(gymSynergies)
+  let gymPick = 0
 
   const eliteTotal = getEliteEncounterCount(act)
   const eliteIndices = Array.from({ length: eliteTotal }, (_, i) => i)
@@ -95,27 +96,18 @@ export function generateActMap(
       const node = new MapNode(id, nodeType, x, floor, act, floor, `act${act}_floor${floor}_${col}`, region)
 
       if (nodeType === MapNodeType.GYM_LEADER) {
-        const isEarlyFloor = floor <= 12
-        if (isEarlyFloor) {
-          const idx = earlyGymIndices[earlyGymPick % earlyGymIndices.length]
-          earlyGymPick++
-          node.gymLeaderIndex = idx
-          node.gymLeaderIsEarly = true
-          const encounter = getEarlyGymLeaderEncounter(idx)
-          node.gymLeaderSynergy = encounter.synergy ?? ""
-        } else {
-          const idx = lateGymIndices[lateGymPick % lateGymIndices.length]
-          lateGymPick++
-          node.gymLeaderIndex = idx
-          node.gymLeaderIsEarly = false
-          const encounter = getLateGymLeaderEncounter(idx)
-          node.gymLeaderSynergy = encounter.synergy ?? ""
-        }
+        const synergy = gymSynergies[gymPick % gymSynergies.length]
+        gymPick++
+        node.gymLeaderIndex = 0
+        node.gymLeaderIsEarly = false
+        node.gymLeaderSynergy = synergy
+        node.displayName = getGymLeaderDisplayName(synergy)
       }
 
       if (nodeType === MapNodeType.ELITE) {
         node.eliteEncounterIndex = eliteIndices[elitePick % eliteIndices.length]
         elitePick++
+        node.displayName = getEliteEncounterName(node.eliteEncounterIndex, act)
       }
 
       if (floor === 1) {

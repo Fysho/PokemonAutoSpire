@@ -66,6 +66,7 @@ export default class GameState extends Schema {
   @type("uint8") encounterPokemonCount: number = 0
   @type("uint8") encounterTotalStars: number = 0
   @type("uint8") encounterTotalItems: number = 0
+  @type("string") encounterName: string = ""
   challengeItem: string = ""
   @type("string") spireEventName: string = ""
   @type("string") spireEventDescription: string = ""

@@ -10,9 +10,6 @@ interface GameRunEndProps {
 
 export default function GameRunEnd({
   victory,
-  currentAct,
-  currentFloor,
-  items,
   onNewRun
 }: GameRunEndProps) {
   return (
@@ -34,48 +31,14 @@ export default function GameRunEnd({
         color: "white"
       }}
     >
-      <div style={{
-        textAlign: "center",
-        maxWidth: "500px"
-      }}>
-        <div style={{ fontSize: "64px", marginBottom: "10px" }}>
-          {victory ? "🏆" : "💀"}
-        </div>
+      <div style={{ textAlign: "center" }}>
         <h1 style={{
-          fontSize: "36px",
-          margin: "0 0 10px",
+          fontSize: "48px",
+          margin: "0 0 30px",
           color: victory ? "#2ecc71" : "#e74c3c"
         }}>
           {victory ? "Victory!" : "Defeated"}
         </h1>
-        <p style={{ fontSize: "18px", color: "#aaa", margin: "0 0 20px" }}>
-          {victory
-            ? "You conquered all three acts and defeated the Weather Trio!"
-            : `You fell in Act ${currentAct}, Floor ${currentFloor}`
-          }
-        </p>
-
-        <div style={{
-          background: "rgba(255,255,255,0.1)",
-          borderRadius: "8px",
-          padding: "15px 20px",
-          marginBottom: "20px",
-          textAlign: "left"
-        }}>
-          <h3 style={{ margin: "0 0 10px", fontSize: "16px" }}>Run Summary</h3>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-            <span>Acts Completed:</span>
-            <span>{victory ? 3 : currentAct - 1}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-            <span>Floors Cleared:</span>
-            <span>{victory ? 45 : (currentAct - 1) * 15 + currentFloor}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-            <span>Relics Collected:</span>
-            <span>{items.length}</span>
-          </div>
-        </div>
 
         <button
           onClick={onNewRun}
@@ -91,7 +54,7 @@ export default function GameRunEnd({
             boxShadow: `0 4px 12px ${victory ? "rgba(46,204,113,0.4)" : "rgba(231,76,60,0.4)"}`
           }}
         >
-          New Run
+          Play Again
         </button>
       </div>
     </div>

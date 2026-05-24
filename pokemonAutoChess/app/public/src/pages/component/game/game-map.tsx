@@ -220,6 +220,7 @@ export default function GameMap({
             const isHovered = hoveredNode === node.id
             const getNodeName = () => {
               if (isWild && node.region) return node.region.replace(/([A-Z])/g, " $1").trim()
+              if (node.displayName) return node.displayName
               return NODE_NAMES[node.nodeType] || ""
             }
 
