@@ -9,7 +9,8 @@ export enum MapNodeType {
   MYSTERY_ENCOUNTER = "MYSTERY_ENCOUNTER",
   LEGENDARY_BOSS = "LEGENDARY_BOSS",
   ELITE_FOUR = "ELITE_FOUR",
-  CHAMPION = "CHAMPION"
+  CHAMPION = "CHAMPION",
+  ARCEUS_BOSS = "ARCEUS_BOSS"
 }
 
 export class MapNode extends Schema {
@@ -27,6 +28,8 @@ export class MapNode extends Schema {
   @type("boolean") gymLeaderIsEarly: boolean = true
   @type("string") gymLeaderSynergy: string = ""
   @type("int8") eliteEncounterIndex: number = -1
+  @type("string") eliteAvatar: string = ""
+  @type("string") bossSprites: string = ""
   @type("string") displayName: string = ""
 
   constructor(

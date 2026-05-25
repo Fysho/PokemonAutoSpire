@@ -130,8 +130,10 @@ export default class BoardManager {
     if (state.phase == GamePhaseState.FIGHT) {
       this.renderBoard(false)
       this.battleMode(false)
-    } else if (state.phase === GamePhaseState.MAP || state.phase === GamePhaseState.REST || state.phase === GamePhaseState.EVENT) {
+    } else if (state.phase === GamePhaseState.MAP || state.phase === GamePhaseState.EVENT) {
       this.mode = BoardMode.MAP
+    } else if (state.phase === GamePhaseState.REST) {
+      this.pickMode(false)
     } else if (state.phase === GamePhaseState.SHOP) {
       this.renderBoard(false)
       this.minigameMode()
@@ -265,16 +267,25 @@ export default class BoardManager {
     if (this.mode === BoardMode.PICK && this.state.spireEncounterBoard?.length > 0) {
       const board: [Pkm, number, number][] = []
       const encounterItems: Item[][] = []
+      const perPokemonBoosts: { hp: number, atk: number, def: number, speDef: number, ap: number, speed: number }[] = []
       Array.from(this.state.spireEncounterBoard).forEach((entry: string) => {
-        const parts = entry.split(",")
+        const [mainPart, boostPart] = entry.split("|")
+        const parts = mainPart.split(",")
         board.push([parts[0] as Pkm, parseInt(parts[1]), parseInt(parts[2])])
         encounterItems.push(parts.slice(3) as Item[])
+        if (boostPart) {
+          const b = boostPart.split(",").map(Number)
+          perPokemonBoosts.push({ hp: b[0] || 0, atk: b[1] || 0, def: b[2] || 0, speDef: b[3] || 0, ap: b[4] || 0, speed: b[5] || 0 })
+        } else {
+          perPokemonBoosts.push({ hp: 0, atk: 0, def: 0, speDef: 0, ap: 0, speed: 0 })
+        }
       })
       this.addPvePokemons(
         { board, name: "spire" as any, avatar: board[0]?.[0] ?? Pkm.MAGIKARP },
         !phaseJustChanged,
         encounterItems,
-        this.state.encounterBonusHP
+        this.state.encounterBonusHP,
+        perPokemonBoosts
       )
     }
   }
@@ -1137,7 +1148,7 @@ export default class BoardManager {
     })
   }
 
-  addPvePokemons(pveStage: PVEStage, immediately: boolean, encounterItems?: Item[][], bonusHP?: number) {
+  addPvePokemons(pveStage: PVEStage, immediately: boolean, encounterItems?: Item[][], bonusHP?: number, perPokemonBoosts?: { hp: number, atk: number, def: number, speDef: number, ap: number, speed: number }[]) {
     pveStage.board.forEach(([pkm, boardX, boardY], i) => {
       const [x, y] = transformEntityCoordinates(boardX, boardY - 1, true)
       const id = `pve_${this.state.stageLevel}_${i}`
@@ -1160,6 +1171,15 @@ export default class BoardManager {
       }
       if (bonusHP) {
         pokemon.addMaxHP(bonusHP)
+      }
+      if (perPokemonBoosts?.[i]) {
+        const b = perPokemonBoosts[i]
+        if (b.hp) pokemon.addMaxHP(b.hp)
+        if (b.atk) pokemon.addAttack(b.atk)
+        if (b.def) pokemon.addDefense(b.def)
+        if (b.speDef) pokemon.addSpecialDefense(b.speDef)
+        if (b.ap) pokemon.addAbilityPower(b.ap)
+        if (b.speed) pokemon.addSpeed(b.speed)
       }
 
       const pkmSprite = new PokemonSprite(

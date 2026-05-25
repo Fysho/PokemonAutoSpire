@@ -6,7 +6,7 @@ import { levelClick } from "../../../network"
 import { addIconsToDescription } from "../../utils/descriptions"
 import { Money } from "../icons/money"
 
-export default function GameExperience({ onShowMap }: { onShowMap?: () => void }) {
+export default function GameExperience() {
   const { t } = useTranslation()
 
   const experienceManager = useAppSelector(
@@ -22,15 +22,6 @@ export default function GameExperience({ onShowMap }: { onShowMap?: () => void }
 
   return (
     <div className="game-experience">
-      {onShowMap && (
-        <button
-          className="bubbly orange show-map-button"
-          onClick={onShowMap}
-          style={{ marginRight: "4px", whiteSpace: "nowrap" }}
-        >
-          Map
-        </button>
-      )}
       <span>
         {t("lvl")} {experienceManager.level}
       </span>

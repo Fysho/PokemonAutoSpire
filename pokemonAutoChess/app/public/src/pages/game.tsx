@@ -76,6 +76,9 @@ import {
   setEncounterPokemonCount,
   setEncounterTotalStars,
   setEncounterTotalItems,
+  setEncounterInventory,
+  setGameSpeed,
+  setArceusDamageDealt,
   setRoundTime,
   setShopFreeRolls,
   setShopLocked,
@@ -92,6 +95,7 @@ import {
 } from "../stores/NetworkStore"
 import GameChoice from "./component/game/game-choice"
 import GameEvent from "./component/game/game-event"
+import GameOpponentItems from "./component/game/game-opponent-items"
 import GameRelicBar from "./component/game/game-relic-bar"
 import GameRunEnd from "./component/game/game-run-end"
 import GameMap from "./component/game/game-map"
@@ -349,6 +353,10 @@ export default function Game() {
 
       room.onMessage(Transfer.LOADING_COMPLETE, () => {
         setLoaded(true)
+        const savedSpeed = localStore.get(LocalStoreKeys.SPIRE_GAME_SPEED)
+        if (savedSpeed && (savedSpeed === 2 || savedSpeed === 3)) {
+          room.send(Transfer.GAME_SPEED, { speed: savedSpeed })
+        }
       })
       room.onMessage(Transfer.FINAL_RANK, (finalRank) => {
         setFinalRank(finalRank)
@@ -604,6 +612,10 @@ export default function Game() {
         dispatch(setEncounterTotalItems(value))
       })
 
+      $state.encounterInventory.onChange(() => {
+        dispatch(setEncounterInventory(Array.from(room.state.encounterInventory)))
+      })
+
       $state.listen("runComplete", (value) => {
         setRunComplete(value)
         if (value) {
@@ -622,6 +634,14 @@ export default function Game() {
 
       $state.listen("eliteFourAvailable", (value) => {
         setEliteFourAvailable(value)
+      })
+
+      $state.listen("gameSpeed", (value) => {
+        dispatch(setGameSpeed(value))
+      })
+
+      $state.listen("arceusDamageDealt", (value) => {
+        dispatch(setArceusDamageDealt(value))
       })
 
       $state.listen("noElo", (value) => {
@@ -947,13 +967,14 @@ export default function Game() {
   const currentFloor = useAppSelector((state) => state.game.currentFloor)
   const money = useAppSelector((state) => state.game.money)
   const difficultyMode = useAppSelector((state) => state.game.difficultyMode)
+  const arceusDamageDealt = useAppSelector((state) => state.game.arceusDamageDealt)
   const isMapPhase = phase === GamePhaseState.MAP
   const isRestPhase = phase === GamePhaseState.REST
   const isEventPhase = phase === GamePhaseState.EVENT
   const isShopPhase = phase === GamePhaseState.SHOP
   const isRewardPhase = phase === GamePhaseState.REWARD
   const isMapShowing = !mapHidden && mapVersion > 0
-  const isBoardHidden = isMapShowing || isRestPhase || isEventPhase
+  const isBoardHidden = isMapShowing || isEventPhase
 
   return (
     <main id="game-wrapper" onContextMenu={(e) => e.preventDefault()}>
@@ -962,6 +983,7 @@ export default function Game() {
         <>
           <MainSidebar page="game" leave={leave} leaveLabel={t("leave_game")} />
           <GameRelicBar items={Array.from(connectedPlayer?.items ?? [])} />
+          <GameOpponentItems />
           {(runComplete || runFailed) && (() => {
             const history = Array.from(connectedPlayer?.history ?? [])
             const battlesWon = history.filter(h => h.result === "WIN").length
@@ -977,6 +999,21 @@ export default function Game() {
                 difficultyMode={difficultyMode}
                 eliteFourAvailable={eliteFourAvailable}
                 currentAct={currentAct}
+                arceusDamageDealt={arceusDamageDealt}
+                onEnterEliteFour={eliteFourAvailable ? () => {
+                  rooms.game?.send(Transfer.ENTER_ELITE_FOUR)
+                  setRunComplete(false)
+                  setRunFailed(false)
+                  setEliteFourAvailable(false)
+                  setMapHidden(false)
+                } : undefined}
+                onChallengeArceus={currentAct === 4 ? () => {
+                  rooms.game?.send(Transfer.ENTER_ACT_5)
+                  setRunComplete(false)
+                  setRunFailed(false)
+                  setMapHidden(false)
+                } : undefined}
+                onBackToLobby={() => { window.location.href = "/" }}
               />
             )
           })()}
@@ -1021,50 +1058,6 @@ export default function Game() {
           )}
           {isRewardPhase && (
             <GameReward runHP={runHP} gold={money} />
-          )}
-          {(runComplete || runFailed) && (
-            <div style={{
-              position: "absolute",
-              bottom: "170px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 210,
-              display: "flex",
-              gap: "16px",
-              flexDirection: "column",
-              alignItems: "center"
-            }}>
-              {eliteFourAvailable && (
-                <button
-                  className="bubbly"
-                  onClick={() => {
-                    rooms.game?.send(Transfer.ENTER_ELITE_FOUR)
-                    setRunComplete(false)
-                    setRunFailed(false)
-                    setEliteFourAvailable(false)
-                    setMapHidden(false)
-                  }}
-                >
-                  Enter the Elite Four
-                </button>
-              )}
-              <button
-                onClick={() => { window.location.href = "/" }}
-                style={{
-                  padding: "12px 36px",
-                  fontSize: "18px",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: runComplete ? "#2ecc71" : "#e74c3c",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                  boxShadow: `0 4px 12px ${runComplete ? "rgba(46,204,113,0.4)" : "rgba(231,76,60,0.4)"}`
-                }}
-              >
-                Back to Lobby
-              </button>
-            </div>
           )}
           {!runComplete && !runFailed && isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
             <div style={{
@@ -1151,6 +1144,55 @@ export default function Game() {
               >
                 Test Victory
               </button>
+            )}
+            {(localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) === "Fisho" || localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) === "Fisho2") && (
+              <>
+                {[1, 2, 3].map(act => (
+                  <button
+                    key={act}
+                    onClick={() => {
+                      rooms.game?.send(Transfer.SKIP_TO_ACT, { act })
+                      setRunComplete(false)
+                      setRunFailed(false)
+                      setMapHidden(false)
+                    }}
+                    style={{ padding: "6px 12px", background: "#2c3e50", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                  >
+                    Skip to Act {act}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    rooms.game?.send(Transfer.ENTER_ELITE_FOUR)
+                    setRunComplete(false)
+                    setRunFailed(false)
+                    setEliteFourAvailable(false)
+                    setMapHidden(false)
+                  }}
+                  style={{ padding: "6px 12px", background: "#8e44ad", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                >
+                  Skip to Elite 4
+                </button>
+                <button
+                  onClick={() => {
+                    rooms.game?.send(Transfer.ENTER_ACT_5)
+                    setRunComplete(false)
+                    setRunFailed(false)
+                    setMapHidden(false)
+                  }}
+                  style={{ padding: "6px 12px", background: "#9b59b6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                >
+                  Skip to Act 5
+                </button>
+                <button
+                  onClick={() => {
+                    rooms.game?.send(Transfer.RESET_CHAMPION)
+                  }}
+                  style={{ padding: "6px 12px", background: "#e74c3c", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                >
+                  Reset E4/Champion
+                </button>
+              </>
             )}
             <button
               onClick={() => setRunFailed(true)}

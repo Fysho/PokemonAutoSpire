@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { RegionDetails } from "../../../../../config"
 import { PlayerChoice } from "../../../../../models/colyseus-models/player-choice"
 import { type Item, ShinyItems } from "../../../../../types/enum/Item"
+import { DungeonPMDO } from "../../../../../types/enum/Dungeon"
 import {
   Pkm,
   PkmDuo,
   PkmDuos,
   PkmFamily
 } from "../../../../../types/enum/Pokemon"
+import { Synergy } from "../../../../../types/enum/Synergy"
 import { SpecialGameRule } from "../../../../../types/enum/SpecialGameRule"
 import { Transfer } from "../../../../../types"
 import { isIn } from "../../../../../utils/array"
@@ -69,10 +72,24 @@ export default function GameChoice() {
 
   const choice = choices[0]
   const isWildReward = choice.type === "wildReward"
+  const isGymReward = choice.type === "gymReward"
+  const isEliteReward = choice.type === "eliteReward"
+  const isSpecialReward = isGymReward || isEliteReward
 
   let message: string | null = null
+  let regionSynergies: Synergy[] = []
+  let regionName = ""
   if (isWildReward) {
-    message = "Choose a reward"
+    const playerMap = connectedPlayer?.map as string | undefined
+    if (playerMap && playerMap !== "town") {
+      regionName = playerMap.replace(/([A-Z])/g, " $1").trim()
+      regionSynergies = RegionDetails[playerMap as DungeonPMDO]?.synergies ?? []
+    }
+    message = regionName ? `Choose a reward from: ${regionName}` : "Choose a reward"
+  } else if (isGymReward) {
+    message = "Choose a gym reward"
+  } else if (isEliteReward) {
+    message = "Choose an elite reward"
   } else if (choice.type === "addPick") {
     message = "Choose a Pokemon"
   } else if (choice.type === "starter") {
@@ -98,9 +115,20 @@ export default function GameChoice() {
         className="my-container"
         style={{ visibility: visible ? "visible" : "hidden" }}
       >
-        {message && <h2>{message}</h2>}
+        {message && (
+          <h2 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", flexWrap: "wrap" }}>
+            {message}
+            {isWildReward && regionSynergies.map((syn) => (
+              <img
+                key={syn}
+                src={`/assets/types/${syn}.svg`}
+                style={{ width: "48px", height: "48px" }}
+              />
+            ))}
+          </h2>
+        )}
 
-        {isWildReward ? (
+        {(isWildReward || isSpecialReward) ? (
           <div className="game-choice-pokemons-list">
             {choice.pokemons.map((proposition, index) => {
               const isPokemonSlot = proposition !== Pkm.DEFAULT
@@ -272,6 +300,18 @@ export default function GameChoice() {
             }}
           >
             Reroll (1g)
+          </button>
+        )}
+        {isSpecialReward && (
+          <button
+            className={`bubbly blue active`}
+            style={{ marginLeft: "0.5em" }}
+            onClick={() => {
+              playSound(SOUNDS.BUTTON_CLICK)
+              rooms.game?.send(Transfer.PASS_REWARD)
+            }}
+          >
+            Pass (+5g)
           </button>
         )}
       </div>

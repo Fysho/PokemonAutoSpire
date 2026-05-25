@@ -1,7 +1,10 @@
 import { ArraySchema, MapSchema } from "@colyseus/schema"
 import { MapEdge, MapNode, MapNodeType } from "../models/colyseus-models/map-node"
-import { getEliteEncounterCount, getEliteEncounterName, getEliteFourDisplayName, getEliteFourSynergies, getGymLeaderDisplayName, getGymSynergies } from "../models/spire-encounters"
+import { getEliteEncounterAvatar, getEliteEncounterCount, getEliteEncounterName, getEliteFourDisplayName, getEliteFourSynergies, getGymLeaderDisplayName, getGymSynergies, pickLegendaryBoss } from "../models/spire-encounters"
+import { loadChampionData, type DifficultyMode } from "../services/champion-data"
+import { PkmIndex } from "../types/enum/Pokemon"
 import { DungeonPMDO } from "../types/enum/Dungeon"
+import { getPokemonCustomFromAvatar } from "../utils/avatar"
 import { pickRandomIn, randomBetween, shuffleArray } from "../utils/random"
 
 const ALL_DUNGEONS = Object.values(DungeonPMDO)
@@ -22,7 +25,7 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
     return MapNodeType.WILD_BATTLE
   }
 
-  if (floor === 10 || floor === totalFloors - 1) {
+  if (floor === totalFloors - 1) {
     return MapNodeType.POKEMON_CENTER
   }
 
@@ -40,59 +43,58 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
   }
 
   if (floor === 8 || floor === 13 || floor === 17) {
-    return roll < 0.5 ? MapNodeType.ELITE : MapNodeType.WILD_BATTLE
+    const eliteChance = act === 1 ? 0.7 : 0.5
+    return roll < eliteChance ? MapNodeType.ELITE : MapNodeType.WILD_BATTLE
+  }
+
+  if (floor === 4 || floor === 11) {
+    const eliteChance = act === 1 ? 0.4 : 0.3
+    return roll < eliteChance ? MapNodeType.ELITE : MapNodeType.WILD_BATTLE
   }
 
   if (floor === 9 || floor === 15) {
     return roll < 0.4 ? MapNodeType.GYM_LEADER : MapNodeType.WILD_BATTLE
   }
 
-  const pokemonCenterChance = act >= 3 ? 0.05 : 0.10
+  if (floor === 10) {
+    return roll < 0.5 ? MapNodeType.POKEMON_CENTER : MapNodeType.POKEMART
+  }
+
   if (roll < 0.50) return MapNodeType.WILD_BATTLE
   if (roll < 0.62) return MapNodeType.MYSTERY_ENCOUNTER
   if (floor >= 6 && roll < 0.78) return MapNodeType.POKEMART
-  if (roll < 0.78 + pokemonCenterChance) return MapNodeType.POKEMON_CENTER
+  if (floor >= 4 && roll < 0.82) return MapNodeType.POKEMON_CENTER
   return MapNodeType.WILD_BATTLE
 }
 
 function generateEliteFourMap(
   mapNodes: MapSchema<MapNode>,
-  mapEdges: ArraySchema<MapEdge>
+  mapEdges: ArraySchema<MapEdge>,
+  difficultyMode: DifficultyMode = 1
 ) {
   const act = 4
-  const e4Synergies = [...getEliteFourSynergies()]
-  shuffleArray(e4Synergies)
+  const championData = loadChampionData(difficultyMode)
 
-  // 10 floors: odd = rest/shop (2 nodes), even = E4 fight (1 node), floor 10 = champion
+  // 5 floors: 4 E4 fights, then champion
   const floorNodes: string[][] = []
-  for (let floor = 1; floor <= 10; floor++) {
+  for (let floor = 1; floor <= 5; floor++) {
     const ids: string[] = []
 
-    if (floor === 10) {
+    if (floor === 5) {
       const id = nodeId(act, floor, 0)
       const node = new MapNode(id, MapNodeType.CHAMPION, 2, floor, act, floor, `act4_champion`, "")
-      node.displayName = "Champion"
+      node.displayName = `Champion ${championData.champion.name}`
+      const champCustom = getPokemonCustomFromAvatar(championData.champion.avatar)
+      node.eliteAvatar = PkmIndex[champCustom.name] ?? ""
       mapNodes.set(id, node)
       ids.push(id)
-    } else if (floor % 2 === 1) {
-      // Rest/shop floor: 2 nodes (Pokemon Center + PokeMart)
-      const centerId = nodeId(act, floor, 0)
-      const centerNode = new MapNode(centerId, MapNodeType.POKEMON_CENTER, 1, floor, act, floor, `act4_floor${floor}_center`, "")
-      mapNodes.set(centerId, centerNode)
-      ids.push(centerId)
-
-      const martId = nodeId(act, floor, 1)
-      const martNode = new MapNode(martId, MapNodeType.POKEMART, 3, floor, act, floor, `act4_floor${floor}_mart`, "")
-      mapNodes.set(martId, martNode)
-      ids.push(martId)
     } else {
-      // E4 fight floor: 1 node
-      const e4Index = Math.floor(floor / 2) - 1 // 0,1,2,3
-      const synergy = e4Synergies[e4Index % e4Synergies.length]
+      const e4Index = floor - 1 // 0,1,2,3
       const id = nodeId(act, floor, 0)
       const node = new MapNode(id, MapNodeType.ELITE_FOUR, 2, floor, act, floor, `act4_e4_${e4Index}`, "")
-      node.gymLeaderSynergy = synergy
-      node.displayName = getEliteFourDisplayName(synergy)
+      node.displayName = `E4 ${championData.eliteFour[e4Index].name}`
+      const e4Custom = getPokemonCustomFromAvatar(championData.eliteFour[e4Index].avatar)
+      node.eliteAvatar = PkmIndex[e4Custom.name] ?? ""
       mapNodes.set(id, node)
       ids.push(id)
     }
@@ -119,13 +121,40 @@ function generateEliteFourMap(
   }
 }
 
-export function generateActMap(
-  act: number,
+function generateAct5Map(
   mapNodes: MapSchema<MapNode>,
   mapEdges: ArraySchema<MapEdge>
 ) {
+  const act = 5
+  const floorNodes: string[][] = []
+
+  const centerId = nodeId(act, 1, 0)
+  const centerNode = new MapNode(centerId, MapNodeType.POKEMON_CENTER, 2, 1, act, 1, `act5_floor1_center`, "")
+  centerNode.available = true
+  mapNodes.set(centerId, centerNode)
+  floorNodes.push([centerId])
+
+  const arceusId = nodeId(act, 2, 0)
+  const arceusNode = new MapNode(arceusId, MapNodeType.ARCEUS_BOSS, 2, 2, act, 2, `act5_arceus`, "")
+  arceusNode.displayName = "Arceus"
+  arceusNode.bossSprites = "0493"
+  mapNodes.set(arceusId, arceusNode)
+  floorNodes.push([arceusId])
+
+  mapEdges.push(new MapEdge(centerId, arceusId))
+}
+
+export function generateActMap(
+  act: number,
+  mapNodes: MapSchema<MapNode>,
+  mapEdges: ArraySchema<MapEdge>,
+  difficultyMode: DifficultyMode = 1
+) {
+  if (act === 5) {
+    return generateAct5Map(mapNodes, mapEdges)
+  }
   if (act === 4) {
-    return generateEliteFourMap(mapNodes, mapEdges)
+    return generateEliteFourMap(mapNodes, mapEdges, difficultyMode)
   }
 
   const totalFloors = FLOORS_PER_ACT
@@ -180,6 +209,14 @@ export function generateActMap(
         node.eliteEncounterIndex = eliteIndices[elitePick % eliteIndices.length]
         elitePick++
         node.displayName = getEliteEncounterName(node.eliteEncounterIndex, act)
+        const avatar = getEliteEncounterAvatar(node.eliteEncounterIndex, act)
+        node.eliteAvatar = PkmIndex[avatar] ?? ""
+      }
+
+      if (nodeType === MapNodeType.LEGENDARY_BOSS) {
+        const boss = pickLegendaryBoss(act)
+        node.displayName = boss.name
+        node.bossSprites = boss.sprites.map(p => PkmIndex[p] ?? "").join(",")
       }
 
       if (floor === 1) {

@@ -429,6 +429,14 @@ class GameContainer {
       this.gameScene?.minigameManager?.removeSymbol(symbol)
     })
 
+    $state.listen("gameSpeed", (value: number) => {
+      if (this.gameScene) {
+        this.gameScene.time.timeScale = value
+        this.gameScene.tweens.timeScale = value
+        this.gameScene.anims.globalTimeScale = value
+      }
+    })
+
     this.room.onError((err) => logger.error("room error", err))
   }
 

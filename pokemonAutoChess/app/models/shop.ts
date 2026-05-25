@@ -574,7 +574,8 @@ export default class Shop {
 
     if (
       player.effects.has(EffectEnum.FALINKS_BRASS) &&
-      chance(FALINKS_TROOPER_RATE)
+      chance(FALINKS_TROOPER_RATE) &&
+      !noSpecial
     ) {
       return Pkm.FALINKS_TROOPER
     }

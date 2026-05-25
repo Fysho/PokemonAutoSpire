@@ -3,7 +3,7 @@ import { PRECOMPUTED_REGIONAL_MONS } from "./precomputed/precomputed-pokemon-dat
 import { getPokemonData } from "./precomputed/precomputed-pokemon-data"
 import { PRECOMPUTED_POKEMONS_PER_TYPE } from "./precomputed/precomputed-types"
 import { DungeonPMDO } from "../types/enum/Dungeon"
-import { Pkm } from "../types/enum/Pokemon"
+import { Pkm, PkmFamily } from "../types/enum/Pokemon"
 import { CraftableItems, Item, ItemComponentsNoFossilOrScarf, NonSpecialBerries, Tools } from "../types/enum/Item"
 import { Synergy } from "../types/enum/Synergy"
 import { pickNRandomIn, pickRandomIn, randomBetween } from "../utils/random"
@@ -17,6 +17,7 @@ export type SpireEncounter = {
   bonusHP?: number
   bonusAtk?: number
   bonusAP?: number
+  bonusPP?: number
 }
 
 export type SpireEncounterTemplate = {
@@ -121,7 +122,20 @@ const GYM_LEADER_POKEMON: Partial<Record<Synergy, Pkm[]>> = {
   [Synergy.FLYING]: [Pkm.PIDGEOT, Pkm.STARAPTOR, Pkm.SKARMORY, Pkm.ALTARIA, Pkm.SWELLOW, Pkm.SWABLU, Pkm.TAILLOW, Pkm.DRIFBLIM, Pkm.CROBAT],
   [Synergy.FAIRY]: [Pkm.CLEFABLE, Pkm.TOGEKISS, Pkm.MIMIKYU, Pkm.MAWILE, Pkm.SYLVEON, Pkm.CLEFAIRY, Pkm.TOGEPI, Pkm.TOGETIC, Pkm.GARDEVOIR],
   [Synergy.NORMAL]: [Pkm.SLAKOTH, Pkm.VIGOROTH, Pkm.SLAKING, Pkm.SNORLAX, Pkm.CHANSEY, Pkm.BLISSEY, Pkm.AMBIPOM, Pkm.RATTATA, Pkm.RATICATE],
-  [Synergy.BUG]: [Pkm.SCIZOR, Pkm.FORRETRESS, Pkm.SCOLIPEDE, Pkm.CATERPIE, Pkm.METAPOD, Pkm.BUTTERFREE, Pkm.WEEDLE, Pkm.KAKUNA, Pkm.BEEDRILL]
+  [Synergy.BUG]: [Pkm.SCIZOR, Pkm.FORRETRESS, Pkm.SCOLIPEDE, Pkm.CATERPIE, Pkm.METAPOD, Pkm.BUTTERFREE, Pkm.WEEDLE, Pkm.KAKUNA, Pkm.BEEDRILL],
+  [Synergy.FIELD]: [Pkm.LILLIPUP, Pkm.HERDIER, Pkm.STOUTLAND, Pkm.SKITTY, Pkm.DELCATTY, Pkm.EEVEE, Pkm.ZIGZAGOON, Pkm.LINOONE],
+  [Synergy.ARTIFICIAL]: [Pkm.KLINK, Pkm.KLANG, Pkm.KLINKLANG, Pkm.VOLTORB, Pkm.ELECTRODE, Pkm.VAROOM, Pkm.REVAVROOM, Pkm.KOFFING, Pkm.WEEZING],
+  [Synergy.AQUATIC]: [Pkm.POLIWAG, Pkm.POLIWHIRL, Pkm.POLIWRATH, Pkm.WOOPER, Pkm.QUAGSIRE, Pkm.TENTACOOL, Pkm.TENTACRUEL, Pkm.BIDOOF, Pkm.BIBAREL],
+  [Synergy.MONSTER]: [Pkm.ARON, Pkm.LAIRON, Pkm.AGGRON, Pkm.TURTWIG, Pkm.GROTLE, Pkm.TORTERRA, Pkm.BAGON, Pkm.SHELGON, Pkm.SANDILE, Pkm.KROKOROK],
+  [Synergy.AMORPHOUS]: [Pkm.METAPOD, Pkm.SCATTERBUG, Pkm.SPEWPA, Pkm.GRIMER, Pkm.MUK, Pkm.SANDYGAST, Pkm.PALOSSAND],
+  [Synergy.WILD]: [Pkm.RATTATA, Pkm.RATICATE, Pkm.SPEAROW, Pkm.FEAROW, Pkm.AIPOM, Pkm.AMBIPOM],
+  [Synergy.SOUND]: [Pkm.ZUBAT, Pkm.GOLBAT, Pkm.CROBAT, Pkm.IGGLYBUFF, Pkm.JIGGLYPUFF, Pkm.WIGGLYTUFF, Pkm.WHISMUR, Pkm.LOUDRED],
+  [Synergy.FLORA]: [Pkm.SPRIGATITO, Pkm.FLORAGATO, Pkm.BULBASAUR, Pkm.IVYSAUR, Pkm.VENUSAUR, Pkm.SUNKERN, Pkm.SUNFLORA],
+  [Synergy.BABY]: [Pkm.PICHU, Pkm.AZURILL, Pkm.IGGLYBUFF, Pkm.CLEFFA, Pkm.TOGEPI, Pkm.RIOLU],
+  [Synergy.HUMAN]: [Pkm.FENNEKIN, Pkm.BRAIXEN, Pkm.MACHOP, Pkm.MACHOKE, Pkm.MACHAMP, Pkm.CHIMCHAR, Pkm.MONFERNO, Pkm.INFERNAPE, Pkm.PETILIL],
+  [Synergy.LIGHT]: [Pkm.MAREEP, Pkm.FLAFFY, Pkm.AMPHAROS, Pkm.LITWICK, Pkm.LAMPENT, Pkm.CHANDELURE, Pkm.CHINCHOU, Pkm.LANTURN, Pkm.ROGGENROLA, Pkm.BOLDORE],
+  [Synergy.GOURMET]: [Pkm.SMOLIV, Pkm.DOLLIV, Pkm.ARBOLIVA, Pkm.LICKITUNG, Pkm.LICKILICKY, Pkm.MUNCHLAX, Pkm.NACLI, Pkm.NACLSTACK, Pkm.GARGANACL],
+  [Synergy.FOSSIL]: [Pkm.KABUTO, Pkm.KABUTOPS, Pkm.OMANYTE, Pkm.OMASTAR, Pkm.ANORITH, Pkm.ARMALDO, Pkm.CRANIDOS, Pkm.RAMPARDOS]
 }
 
 const GYM_SYNERGIES: Synergy[] = Object.keys(GYM_LEADER_POKEMON) as Synergy[]
@@ -144,8 +158,37 @@ const GYM_LEADER_NAMES: Partial<Record<Synergy, string[]>> = {
   [Synergy.FLYING]: ["Winona", "Falkner", "Skyla"],
   [Synergy.FAIRY]: ["Valerie", "Opal", "Bede"],
   [Synergy.NORMAL]: ["Norman", "Whitney", "Lenora", "Cheren"],
-  [Synergy.BUG]: ["Bugsy", "Burgh", "Viola"]
+  [Synergy.BUG]: ["Bugsy", "Burgh", "Viola"],
+  [Synergy.FIELD]: ["Field Gym"],
+  [Synergy.ARTIFICIAL]: ["Artificial Gym"],
+  [Synergy.AQUATIC]: ["Aquatic Gym"],
+  [Synergy.MONSTER]: ["Monster Gym"],
+  [Synergy.AMORPHOUS]: ["Amorphous Gym"],
+  [Synergy.WILD]: ["Wild Gym"],
+  [Synergy.SOUND]: ["Sound Gym"],
+  [Synergy.FLORA]: ["Flora Gym"],
+  [Synergy.BABY]: ["Baby Gym"],
+  [Synergy.HUMAN]: ["Human Gym"],
+  [Synergy.LIGHT]: ["Light Gym"],
+  [Synergy.GOURMET]: ["Gourmet Gym"],
+  [Synergy.FOSSIL]: ["Fossil Gym"]
 }
+
+// ─── Adding a new Elite Encounter ───────────────────────────────
+// 1. Add the template to the appropriate ACT*_ELITE_ENCOUNTERS array below.
+//    - `avatar`: the Pokemon whose sprite shows on the map node.
+//    - `board`: positions use x=2-6, y=1 (back) / y=2 (mid) / y=3 (front).
+//    - `rewards`: Pokemon offered to the player on win.
+// 2. If items are needed, add a named handler in getEliteEncounterBase()
+//    (search for "Cursed Grotto" for an example). Items array indices must
+//    match the board array order.
+// 3. Create a map-node sprite for the avatar Pokemon:
+//    - Open the spritesheet JSON at app/public/src/assets/pokemons/<PkmIndex>.json
+//    - Find frame "Normal/Idle/Anim/7/0001" (direction 7 = southwest / down-left)
+//    - Extract that frame, place it on a transparent canvas at sourceSize, scale 2x
+//    - Save as app/public/src/assets/ui/elite-sprites-v2/<PkmIndex>.png
+//    - ALSO copy to app/public/dist/client/assets/ui/elite-sprites-v2/<PkmIndex>.png
+//      (esbuild does not copy assets to dist; both locations are required)
 
 export type EliteEncounterTemplate = {
   name: string
@@ -153,6 +196,7 @@ export type EliteEncounterTemplate = {
   pokemon: Pkm[]
   rewards: Pkm[]
   board: [pkm: Pkm, x: number, y: number][]
+  eliteType?: "legendary" | "unique"
 }
 
 // Act 1: Baby/basic Pokemon fights, reward 1-star Pokemon
@@ -190,6 +234,13 @@ const ACT1_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.LAIRON,
     pokemon: [Pkm.LAIRON, Pkm.GRAVELER, Pkm.ONIX],
     rewards: [Pkm.LAIRON, Pkm.GRAVELER, Pkm.ONIX],
+    board: []
+  },
+  {
+    name: "Bug Swarm",
+    avatar: Pkm.CATERPIE,
+    pokemon: [Pkm.CATERPIE, Pkm.WEEDLE, Pkm.SCATTERBUG, Pkm.GRUBBIN],
+    rewards: [Pkm.SCATTERBUG, Pkm.GRUBBIN],
     board: []
   }
 ]
@@ -238,10 +289,21 @@ const ACT2_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     pokemon: [Pkm.MIMIKYU, Pkm.ZOROARK, Pkm.DITTO],
     rewards: [Pkm.MIMIKYU, Pkm.DITTO, Pkm.ZORUA],
     board: [
-      [Pkm.MIMIKYU, 4, 2],
-      [Pkm.ZOROARK, 4, 3],
-      [Pkm.MEOWSCARADA, 2, 2], [Pkm.MEOWSCARADA, 6, 2],
-      [Pkm.DITTO, 2, 1], [Pkm.DITTO, 6, 1], [Pkm.DITTO, 3, 1], [Pkm.DITTO, 5, 1], [Pkm.DITTO, 4, 1]
+      [Pkm.MIMIKYU, 3, 2],
+      [Pkm.ZOROARK, 4, 1],
+      [Pkm.MEOWSCARADA, 2, 2], [Pkm.MEOWSCARADA, 5, 2],
+      [Pkm.DITTO, 0, 3], [Pkm.DITTO, 1, 3], [Pkm.DITTO, 2, 3], [Pkm.DITTO, 3, 3],
+      [Pkm.DITTO, 4, 3], [Pkm.DITTO, 5, 3], [Pkm.DITTO, 6, 3], [Pkm.DITTO, 7, 3]
+    ]
+  },
+  {
+    name: "Cursed Grotto",
+    avatar: Pkm.HOUNDOOM,
+    pokemon: [Pkm.HOUNDOOM, Pkm.BANETTE, Pkm.GRAVELER, Pkm.BOLDORE, Pkm.LAIRON, Pkm.PUPITAR],
+    rewards: [Pkm.HOUNDOUR, Pkm.SHUPPET],
+    board: [
+      [Pkm.GRAVELER, 2, 3], [Pkm.BOLDORE, 4, 3], [Pkm.LAIRON, 5, 3], [Pkm.PUPITAR, 6, 3],
+      [Pkm.HOUNDOOM, 3, 1], [Pkm.BANETTE, 5, 1]
     ]
   }
 ]
@@ -295,10 +357,66 @@ const ACT3_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
   }
 ]
 
+const LEGENDARY_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
+  Pkm.KYUREM, Pkm.RESHIRAM, Pkm.ZEKROM, Pkm.STAKATAKA, Pkm.GENESECT,
+  Pkm.GUZZLORD, Pkm.ETERNATUS, Pkm.MELOETTA, Pkm.MEW, Pkm.MEWTWO,
+  Pkm.ENTEI, Pkm.SUICUNE, Pkm.RAIKOU, Pkm.REGIDRAGO, Pkm.REGIELEKI,
+  Pkm.REGICE, Pkm.REGISTEEL, Pkm.REGIROCK, Pkm.REGIGIGAS, Pkm.CELEBI,
+  Pkm.VICTINI, Pkm.JIRACHI, Pkm.ARCEUS, Pkm.DEOXYS, Pkm.SHAYMIN,
+  Pkm.GIRATINA, Pkm.DARKRAI, Pkm.CRESSELIA, Pkm.HEATRAN, Pkm.LUGIA,
+  Pkm.HO_OH, Pkm.PALKIA, Pkm.DIALGA, Pkm.RAYQUAZA, Pkm.KYOGRE,
+  Pkm.GROUDON, Pkm.VOLCANION, Pkm.MARSHADOW, Pkm.TYPE_NULL, Pkm.XERNEAS,
+  Pkm.YVELTAL, Pkm.ZAPDOS, Pkm.MOLTRES, Pkm.ARTICUNO, Pkm.SPECTRIER,
+  Pkm.GLASTRIER, Pkm.KARTANA, Pkm.NECROZMA, Pkm.XURKITREE, Pkm.NIHILEGO,
+  Pkm.PHEROMOSA, Pkm.BUZZWOLE, Pkm.TORNADUS, Pkm.THUNDURUS, Pkm.LANDORUS,
+  Pkm.ENAMORUS, Pkm.MAGEARNA, Pkm.MELMETAL, Pkm.ZYGARDE_50, Pkm.TERRAKION,
+  Pkm.VIRIZION, Pkm.COBALION, Pkm.KELDEO, Pkm.PECHARUNT, Pkm.ROARING_MOON,
+  Pkm.ZACIAN, Pkm.IRON_VALIANT, Pkm.OKIDOGI, Pkm.MUNKIDORI, Pkm.FEZANDIPITI,
+  Pkm.CELESTEELA, Pkm.OGERPON_TEAL, Pkm.MANAPHY, Pkm.CHI_YU, Pkm.BLACEPHALON
+].map(pkm => ({
+  name: getPokemonData(pkm).name.replace(/_/g, " "),
+  avatar: pkm,
+  pokemon: [],
+  rewards: [],
+  board: [],
+  eliteType: "legendary" as const
+}))
+
+const UNIQUE_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
+  Pkm.ABSOL, Pkm.AERODACTYL, Pkm.APPLIN, Pkm.ARCTOVISH, Pkm.ARCTOZOLT,
+  Pkm.AUDINO, Pkm.AZELF, Pkm.BASCULIN_WHITE, Pkm.BRUXISH, Pkm.CARNIVINE,
+  Pkm.CASTFORM, Pkm.CHARCADET, Pkm.CHATOT, Pkm.CHINGLING, Pkm.COMFEY,
+  Pkm.COSMOG, Pkm.CRAMORANT, Pkm.CRYOGONAL, Pkm.CYCLIZAR, Pkm.DEDENNE,
+  Pkm.DELIBIRD, Pkm.DHELMISE, Pkm.DONDOZO, Pkm.DRACOVISH, Pkm.DRACOZOLT,
+  Pkm.DRAMPA, Pkm.DRUDDIGON, Pkm.DUNSPARCE, Pkm.DURALUDON, Pkm.DURANT,
+  Pkm.EISCUE_NOICE, Pkm.EMOLGA, Pkm.FALINKS_BRASS, Pkm.FARFETCH_D,
+  Pkm.FINIZEN, Pkm.FLUTTER_MANE, Pkm.FURFROU, Pkm.GALARIAN_FARFETCH_D,
+  Pkm.GIMMIGHOUL, Pkm.GREAT_TUSK, Pkm.HAWLUCHA, Pkm.HEATMOR, Pkm.HERACROSS,
+  Pkm.HISUIAN_QWILFISH, Pkm.HOOPA, Pkm.IRON_BUNDLE, Pkm.IRON_HANDS,
+  Pkm.IRON_THORNS, Pkm.KANGASKHAN, Pkm.KLEFKI, Pkm.KOMALA, Pkm.KUBFU,
+  Pkm.LAPRAS, Pkm.LUNATONE, Pkm.LUVDISC, Pkm.MANTYKE, Pkm.MARACTUS,
+  Pkm.MAWILE, Pkm.MESPRIT, Pkm.MILCERY, Pkm.MILTANK, Pkm.MIMIKYU,
+  Pkm.MINIOR, Pkm.MORPEKO, Pkm.ORTHWORM, Pkm.PACHIRISU, Pkm.PINCURCHIN,
+  Pkm.PINSIR, Pkm.POIPOLE, Pkm.PYUKUMUKU, Pkm.QWILFISH, Pkm.RELICANTH,
+  Pkm.ROTOM, Pkm.SABLEYE, Pkm.SCREAM_TAIL, Pkm.SCYTHER, Pkm.SEVIPER,
+  Pkm.SHUCKLE, Pkm.SIGILYPH, Pkm.SKARMORY, Pkm.SLITHER_WING, Pkm.SMEARGLE,
+  Pkm.SOLROCK, Pkm.SPINDA, Pkm.SPIRITOMB, Pkm.STANTLER, Pkm.STONJOURNER,
+  Pkm.TANDEMAUS, Pkm.TAPU_BULU, Pkm.TAPU_FINI, Pkm.TAPU_KOKO, Pkm.TAPU_LELE,
+  Pkm.TAUROS, Pkm.TOGEDEMARU, Pkm.TORKOAL, Pkm.TROPIUS, Pkm.TURTONATOR,
+  Pkm.TYROGUE, Pkm.UXIE, Pkm.VELUZA, Pkm.ZANGOOSE, Pkm.ZERAORA
+].map(pkm => ({
+  name: getPokemonData(pkm).name.replace(/_/g, " "),
+  avatar: pkm,
+  pokemon: [],
+  rewards: [],
+  board: [],
+  eliteType: "unique" as const
+}))
+
 const ELITE_ENCOUNTERS_BY_ACT: { [act: number]: EliteEncounterTemplate[] } = {
   1: ACT1_ELITE_ENCOUNTERS,
-  2: ACT2_ELITE_ENCOUNTERS,
-  3: ACT3_ELITE_ENCOUNTERS
+  2: [...ACT2_ELITE_ENCOUNTERS, ...UNIQUE_ELITE_ENCOUNTERS],
+  3: [...ACT3_ELITE_ENCOUNTERS, ...LEGENDARY_ELITE_ENCOUNTERS]
 }
 
 const LEGENDARY_BOSSES: { [act: number]: SpireEncounter[] } = {
@@ -393,9 +511,9 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter[] } = {
         [Item.BLUE_ORB, Item.SHELL_BELL, Item.POWER_LENS],
         [Item.GREEN_ORB, Item.SCOPE_LENS, Item.RAZOR_FANG]
       ],
-      bonusHP: 1500,
-      bonusAtk: 20,
-      bonusAP: 70
+      bonusHP: 1200,
+      bonusAtk: 15,
+      bonusAP: 50
     },
     {
       name: "Creation Trio",
@@ -406,9 +524,10 @@ const LEGENDARY_BOSSES: { [act: number]: SpireEncounter[] } = {
         [Item.MYSTIC_WATER, Item.CHOICE_SPECS, Item.POWER_LENS],
         [Item.REAPER_CLOTH, Item.SCOPE_LENS, Item.SHELL_BELL]
       ],
-      bonusHP: 1500,
-      bonusAtk: 20,
-      bonusAP: 70
+      bonusHP: 1200,
+      bonusAtk: 15,
+      bonusAP: 50,
+      bonusPP: 100
     }
   ]
 }
@@ -841,6 +960,14 @@ export function getLateGymLeaderCount(): number {
   return GYM_SYNERGIES.length
 }
 
+export function getGymLeaderBaseFormPokemon(synergy: Synergy): Pkm[] {
+  const roster = GYM_LEADER_POKEMON[synergy] ?? []
+  return roster.filter(pkm => {
+    const data = getPokemonData(pkm)
+    return data.stars === 1
+  })
+}
+
 export function getGymLeaderGem(synergy: Synergy): Item {
   const gemName = `${synergy}_GEM`
   if (gemName in Item) {
@@ -882,6 +1009,70 @@ function adjustEncounterItems(encounter: SpireEncounter, mode: DifficultyMode): 
   return adjusted
 }
 
+function generateLegendaryEliteEncounter(legendary: Pkm, act: number, floor: number): SpireEncounter {
+  const difficulty = getDifficultyConfig(act, floor)
+  difficulty.starBudget = [difficulty.starBudget[0] + 2, difficulty.starBudget[1] + 3]
+  const legendaryData = getPokemonData(legendary)
+  const synergies = (legendaryData.types ?? []) as Synergy[]
+
+  const candidatePool: Pkm[] = []
+  for (const syn of synergies) {
+    const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn] ?? []
+    for (const pkm of typed) {
+      if (pkm === legendary) continue
+      const data = getPokemonData(pkm)
+      if (
+        data.stars <= difficulty.maxStarsPerPokemon &&
+        data.rarity !== "LEGENDARY" && data.rarity !== "UNIQUE" &&
+        data.rarity !== "HATCH" && data.rarity !== "SPECIAL" &&
+        !candidatePool.includes(pkm)
+      ) {
+        candidatePool.push(pkm)
+      }
+    }
+  }
+
+  const targetCount = Math.max(3, difficulty.pokemonCount)
+  const remainingCount = targetCount - 1
+  const remainingDifficulty = {
+    ...difficulty,
+    pokemonCount: remainingCount,
+    starBudget: [
+      Math.max(remainingCount, difficulty.starBudget[0] - legendaryData.stars),
+      Math.max(remainingCount, difficulty.starBudget[1] - legendaryData.stars)
+    ] as [number, number]
+  }
+  const selected: Pkm[] = [legendary]
+  selected.push(...selectWithStarBudget(candidatePool, candidatePool, [], remainingDifficulty))
+
+  const frontRow: [number, number][] = [[2, 3], [3, 3], [4, 3], [5, 3], [6, 3]]
+  const midRow: [number, number][] = [[2, 2], [3, 2], [4, 2], [5, 2], [6, 2]]
+  const backRow: [number, number][] = [[2, 1], [3, 1], [4, 1], [5, 1], [6, 1]]
+  let fi = 0, mi = 0, bi = 0
+  const board: [Pkm, number, number][] = []
+  selected.forEach((pkm) => {
+    const range = getPokemonData(pkm).range
+    if (range <= 1 && fi < frontRow.length) {
+      board.push([pkm, frontRow[fi][0], frontRow[fi][1]]); fi++
+    } else if (range === 2 && mi < midRow.length) {
+      board.push([pkm, midRow[mi][0], midRow[mi][1]]); mi++
+    } else if (range >= 3 && bi < backRow.length) {
+      board.push([pkm, backRow[bi][0], backRow[bi][1]]); bi++
+    } else if (fi < frontRow.length) {
+      board.push([pkm, frontRow[fi][0], frontRow[fi][1]]); fi++
+    } else if (mi < midRow.length) {
+      board.push([pkm, midRow[mi][0], midRow[mi][1]]); mi++
+    } else if (bi < backRow.length) {
+      board.push([pkm, backRow[bi][0], backRow[bi][1]]); bi++
+    }
+  })
+
+  const items = generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
+  const name = legendaryData.name.replace(/_/g, " ")
+
+  return { name, avatar: legendary, board, items }
+}
+
 export function getEliteEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
   return addHardModeItems(adjustEncounterItems(getEliteEncounterBase(index, act, floor), mode), act, floor, mode)
 }
@@ -889,6 +1080,10 @@ export function getEliteEncounter(index: number, act: number, floor: number, mod
 function getEliteEncounterBase(index: number, act: number, floor: number): SpireEncounter {
   const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
   const template = encounters[index % encounters.length]
+
+  if (template.eliteType) {
+    return generateLegendaryEliteEncounter(template.avatar, act, floor)
+  }
 
   if (template.name === "Eeveelution Squad") {
     const count = floor <= 8 ? 3 : floor <= 14 ? 4 : 5
@@ -944,6 +1139,13 @@ function getEliteEncounterBase(index: number, act: number, floor: number): Spire
     return { name: template.name, avatar: template.avatar, board }
   }
 
+  if (template.name === "Bug Swarm") {
+    const board: [Pkm, number, number][] = floor >= 12
+      ? [[Pkm.METAPOD, 3, 2], [Pkm.KAKUNA, 5, 2], [Pkm.SCATTERBUG, 2, 1], [Pkm.GRUBBIN, 6, 1]]
+      : [[Pkm.CATERPIE, 3, 2], [Pkm.WEEDLE, 5, 2], [Pkm.SCATTERBUG, 2, 1], [Pkm.GRUBBIN, 6, 1]]
+    return { name: template.name, avatar: template.avatar, board }
+  }
+
   if (template.name === "Poltergeist") {
     const rotoms = pickNRandomIn(template.pokemon, 4)
     const positions: [number, number][] = [[3, 2], [5, 2], [2, 1], [6, 1]]
@@ -969,12 +1171,25 @@ function getEliteEncounterBase(index: number, act: number, floor: number): Spire
   }
 
   if (template.name === "Masquerade") {
-    const zoroarkItems = pickNRandomIn(CraftableItems, 3)
+    const critSet: Item[] = [Item.REAPER_CLOTH, Item.RAZOR_CLAW, Item.RAZOR_FANG]
     return {
       name: template.name,
       avatar: template.avatar,
       board: [...template.board],
-      items: [[], zoroarkItems, [], [], [], [], []]
+      items: [
+        critSet,                                          // Mimikyu
+        critSet,                                          // Zoroark
+        critSet,                                          // Meowscarada
+        critSet,                                          // Meowscarada
+        [Item.KINGS_ROCK, Item.ROCKY_HELMET],             // Ditto 1
+        [Item.KINGS_ROCK, Item.ASSAULT_VEST],             // Ditto 2
+        [Item.KINGS_ROCK, Item.ROCKY_HELMET],             // Ditto 3
+        [Item.KINGS_ROCK, Item.ASSAULT_VEST],             // Ditto 4
+        [Item.KINGS_ROCK, Item.ROCKY_HELMET],             // Ditto 5
+        [Item.KINGS_ROCK, Item.ASSAULT_VEST],             // Ditto 6
+        [Item.KINGS_ROCK, Item.ROCKY_HELMET],             // Ditto 7
+        [Item.KINGS_ROCK, Item.ASSAULT_VEST],             // Ditto 8
+      ]
     }
   }
 
@@ -1034,6 +1249,15 @@ function getEliteEncounterBase(index: number, act: number, floor: number): Spire
     }
   }
 
+  if (template.name === "Cursed Grotto") {
+    return {
+      name: template.name,
+      avatar: template.avatar,
+      board: [...template.board],
+      items: [[], [], [], [], [Item.WIDE_LENS], [Item.WIDE_LENS]]
+    }
+  }
+
   return {
     name: template.name,
     avatar: template.avatar,
@@ -1052,12 +1276,24 @@ export function getEliteEncounterCount(act: number): number {
 export function getEliteEncounterPokemon(index: number, act: number): Pkm[] {
   const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
   const template = encounters[index % encounters.length]
+  if (template.eliteType) return [template.avatar]
   return template.rewards
+}
+
+export function getEliteEncounterType(index: number, act: number): "legendary" | "unique" | undefined {
+  const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
+  const template = encounters[index % encounters.length]
+  return template.eliteType
 }
 
 export function getEliteEncounterName(index: number, act: number): string {
   const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
   return encounters[index % encounters.length]?.name ?? "Elite"
+}
+
+export function getEliteEncounterAvatar(index: number, act: number): Pkm {
+  const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
+  return encounters[index % encounters.length]?.avatar ?? Pkm.DEFAULT
 }
 
 export function getGymLeaderDisplayName(synergy: string): string {
@@ -1071,25 +1307,95 @@ export function getLegendaryBossEncounter(act: number, mode: DifficultyMode = 1)
   return adjustEncounterItems(pickRandomIn(bosses), mode)
 }
 
-export function getRegionalPokemonForReward(region: string, act: number): Pkm | null {
-  const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
-  if (synergies.length === 0) return null
+export function pickLegendaryBoss(act: number): { name: string; sprites: Pkm[] } {
+  const bosses = LEGENDARY_BOSSES[act] || LEGENDARY_BOSSES[1]
+  const boss = pickRandomIn(bosses)
+  const sprites = boss.board.map(([pkm]) => pkm)
+  return { name: boss.name, sprites }
+}
 
-  const candidates: Pkm[] = []
-  for (const syn of synergies) {
-    const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn]
-    if (typed) {
-      for (const pkm of typed) {
-        const data = getPokemonData(pkm)
-        const maxStars = act === 1 ? 1 : act === 2 ? 1 : 2
-        if (data.stars <= maxStars && data.rarity !== "HATCH" && !candidates.includes(pkm)) {
-          candidates.push(pkm)
-        }
-      }
+export function getLegendaryBossEncounterByName(act: number, name: string, mode: DifficultyMode = 1): SpireEncounter {
+  const bosses = LEGENDARY_BOSSES[act] || LEGENDARY_BOSSES[1]
+  const boss = bosses.find(b => b.name === name) ?? pickRandomIn(bosses)
+  return adjustEncounterItems(boss, mode)
+}
+
+export function getRegionalCandidates(region: string, act: number): Pkm[] {
+  const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
+  if (synergies.length === 0) return []
+
+  const maxStars = act === 1 ? 1 : act === 2 ? 1 : 2
+  const raw: Pkm[] = []
+  for (const pkm of PRECOMPUTED_REGIONAL_MONS) {
+    const data = getPokemonData(pkm)
+    if (data.stars > maxStars) continue
+    if (data.rarity === "HATCH" || data.rarity === "SPECIAL" || data.rarity === "UNIQUE" || data.rarity === "LEGENDARY") continue
+    if (raw.includes(pkm)) continue
+    const hasMatchingSynergy = data.types.some((t: string) => synergies.includes(t as any))
+    if (hasMatchingSynergy) {
+      raw.push(pkm)
     }
   }
 
+  // Dedup by family and exclude non-divergent evolutions (matches UI display filtering)
+  const seenFamilies = new Set<Pkm>()
+  return raw.filter((pkm) => {
+    const family = PkmFamily[pkm]
+    if (seenFamilies.has(family)) return false
+    seenFamilies.add(family)
+    const familyBase = getPokemonData(family)
+    const evo = familyBase.evolution
+    if (evo === pkm) return false
+    if (evo && getPokemonData(evo).evolution === pkm) return false
+    return true
+  })
+}
+
+export function getRegionalPokemonCandidates(region: string, act: number): { candidates: Pkm[], synergies: string[] } {
+  const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
+  return { candidates: getRegionalCandidates(region, act), synergies: synergies as string[] }
+}
+
+export function getRegionalPokemonForReward(region: string, act: number): Pkm | null {
+  const candidates = getRegionalCandidates(region, act)
   return candidates.length > 0 ? pickRandomIn(candidates) : null
+}
+
+export function generateWildRewardPokemon(region: string, act: number): Pkm[] {
+  const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
+  const maxStars = act === 1 ? 1 : act === 2 ? 1 : 2
+  const picks: Pkm[] = []
+
+  // Pick one Pokemon per synergy, in region synergy order
+  for (const syn of synergies) {
+    const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn] ?? []
+    const valid = typed.filter((pkm) => {
+      const data = getPokemonData(pkm)
+      return data.stars <= maxStars &&
+        data.rarity !== "HATCH" && data.rarity !== "SPECIAL" &&
+        data.rarity !== "UNIQUE" && data.rarity !== "LEGENDARY" &&
+        !picks.includes(pkm)
+    })
+    if (valid.length > 0) {
+      picks.push(pickRandomIn(valid))
+    }
+  }
+
+  // 50% chance to replace a pick with a regional Pokemon, preferring a matching synergy slot
+  if (Math.random() < 0.5 && picks.length > 0) {
+    const regionals = getRegionalCandidates(region, act)
+    if (regionals.length > 0) {
+      const replacement = pickRandomIn(regionals)
+      const replacementTypes = getPokemonData(replacement).types as string[]
+      const matchingIdx = synergies.findIndex((syn, i) =>
+        i < picks.length && replacementTypes.includes(syn as string)
+      )
+      const idx = matchingIdx >= 0 ? matchingIdx : randomBetween(0, picks.length - 1)
+      picks[idx] = replacement
+    }
+  }
+
+  return picks
 }
 
 const RARITY_WEIGHT: Record<string, number> = {
@@ -1211,12 +1517,10 @@ export function generateEliteFourEncounter(
 ): SpireEncounter {
   const floor = (e4Index + 1) * 2
   const difficulty = getDifficultyConfig(3, 18, mode)
-  difficulty.pokemonCount = Math.min(9, difficulty.pokemonCount + 1)
-  difficulty.starBudget = [difficulty.starBudget[0] + 2, difficulty.starBudget[1] + 4]
+  difficulty.pokemonCount = 9
+  difficulty.starBudget = [difficulty.starBudget[0] + 6, difficulty.starBudget[1] + 10]
   difficulty.maxStarsPerPokemon = 3
-  difficulty.allowedRarities = [...difficulty.allowedRarities]
-  if (!difficulty.allowedRarities.includes("LEGENDARY")) difficulty.allowedRarities.push("LEGENDARY")
-  if (!difficulty.allowedRarities.includes("UNIQUE")) difficulty.allowedRarities.push("UNIQUE")
+  difficulty.allowedRarities = ["COMMON", "UNCOMMON", "RARE", "EPIC", "ULTRA", "LEGENDARY", "UNIQUE"]
 
   const signaturePokemon = GYM_LEADER_POKEMON[synergy] ?? []
   const names = ELITE_FOUR_NAMES[synergy] ?? ["Elite Four"]
@@ -1268,7 +1572,7 @@ export function generateEliteFourEncounter(
     }
   }
 
-  const targetCount = Math.max(5, difficulty.pokemonCount)
+  const targetCount = 9
   const gymDifficulty = { ...difficulty, pokemonCount: targetCount }
   const selected: Pkm[] = []
 
@@ -1313,9 +1617,9 @@ export function generateEliteFourEncounter(
 
   const items = generateEncounterItems(selected.length, 1, 2, true)
 
-  const bonusHP = 50 + e4Index * 50
-  const bonusAtk = 3 + e4Index * 2
-  const bonusAP = 10 + e4Index * 10
+  const bonusHP = 200 + e4Index * 100
+  const bonusAtk = 10 + e4Index * 5
+  const bonusAP = 30 + e4Index * 20
 
   return addHardModeItems({
     name,
@@ -1336,105 +1640,123 @@ const CHAMPION_ENCOUNTERS: SpireEncounter[] = [
     name: "Blue",
     avatar: Pkm.PIDGEOT,
     board: [
-      [Pkm.PIDGEOT, 4, 1], [Pkm.ALAKAZAM, 3, 1],
-      [Pkm.RHYDON, 3, 3], [Pkm.EXEGGUTOR, 5, 2],
-      [Pkm.GYARADOS, 5, 3], [Pkm.ARCANINE, 2, 3]
+      [Pkm.PIDGEOT, 4, 1], [Pkm.ALAKAZAM, 3, 1], [Pkm.EXEGGUTOR, 5, 1],
+      [Pkm.MACHAMP, 2, 2], [Pkm.GYARADOS, 4, 2], [Pkm.GENGAR, 6, 2],
+      [Pkm.RHYDON, 2, 3], [Pkm.ARCANINE, 4, 3], [Pkm.MEWTWO, 5, 3], [Pkm.SNORLAX, 6, 3]
     ],
     items: [
-      [Item.RAZOR_FANG], [Item.CHOICE_SPECS],
-      [Item.ROCKY_HELMET, Item.ASSAULT_VEST], [Item.MIRACLE_SEED],
-      [Item.MYSTIC_WATER, Item.SCOPE_LENS], [Item.CHARCOAL, Item.RAZOR_FANG]
+      [Item.RAZOR_FANG, Item.RAZOR_CLAW], [Item.CHOICE_SPECS, Item.POWER_LENS], [Item.MIRACLE_SEED, Item.SHELL_BELL],
+      [Item.BLACK_BELT, Item.ASSAULT_VEST], [Item.MYSTIC_WATER, Item.SCOPE_LENS], [Item.SPELL_TAG, Item.CHOICE_SPECS],
+      [Item.ROCKY_HELMET, Item.ASSAULT_VEST], [Item.CHARCOAL, Item.RAZOR_FANG], [Item.CHOICE_SPECS, Item.SCOPE_LENS, Item.POWER_LENS], [Item.LEFTOVERS, Item.ASSAULT_VEST]
     ],
-    bonusHP: 500,
-    bonusAtk: 20,
-    bonusAP: 60
+    bonusHP: 800,
+    bonusAtk: 30,
+    bonusAP: 80
   },
   {
     name: "Lance",
     avatar: Pkm.DRAGONITE,
     board: [
-      [Pkm.DRAGONITE, 4, 3], [Pkm.DRAGONITE, 3, 3], [Pkm.DRAGONITE, 5, 3],
-      [Pkm.AERODACTYL, 2, 1], [Pkm.CHARIZARD, 6, 1], [Pkm.GYARADOS, 4, 2]
+      [Pkm.DRAGONITE, 3, 1], [Pkm.CHARIZARD, 5, 1], [Pkm.AERODACTYL, 2, 1],
+      [Pkm.GYARADOS, 2, 2], [Pkm.SALAMENCE, 4, 2], [Pkm.KINGDRA, 6, 2],
+      [Pkm.DRAGONITE, 3, 3], [Pkm.DRAGONITE, 4, 3], [Pkm.GARCHOMP, 5, 3], [Pkm.RAYQUAZA, 6, 3]
     ],
     items: [
-      [Item.DRAGON_SCALE, Item.SCOPE_LENS], [Item.DRAGON_SCALE, Item.RAZOR_CLAW], [Item.DRAGON_SCALE, Item.ASSAULT_VEST],
-      [Item.RAZOR_FANG, Item.RAZOR_FANG], [Item.CHARCOAL, Item.SHELL_BELL], [Item.MYSTIC_WATER, Item.WIDE_LENS]
+      [Item.DRAGON_SCALE, Item.SCOPE_LENS], [Item.CHARCOAL, Item.SHELL_BELL], [Item.RAZOR_FANG, Item.RAZOR_CLAW],
+      [Item.MYSTIC_WATER, Item.WIDE_LENS], [Item.DRAGON_SCALE, Item.ASSAULT_VEST], [Item.DRAGON_SCALE, Item.CHOICE_SPECS],
+      [Item.DRAGON_SCALE, Item.RAZOR_CLAW], [Item.DRAGON_SCALE, Item.ASSAULT_VEST, Item.SCOPE_LENS], [Item.DRAGON_SCALE, Item.RAZOR_FANG], [Item.DRAGON_SCALE, Item.CHOICE_SPECS, Item.POWER_LENS]
     ],
-    bonusHP: 500,
-    bonusAtk: 20,
-    bonusAP: 60
+    bonusHP: 800,
+    bonusAtk: 30,
+    bonusAP: 80
   },
   {
     name: "Steven",
     avatar: Pkm.METAGROSS,
     board: [
-      [Pkm.METAGROSS, 4, 3], [Pkm.AGGRON, 3, 3],
-      [Pkm.SKARMORY, 2, 2], [Pkm.CLAYDOL, 5, 1],
-      [Pkm.CRADILY, 6, 2], [Pkm.ARMALDO, 5, 3]
+      [Pkm.CLAYDOL, 3, 1], [Pkm.CRADILY, 5, 1], [Pkm.SKARMORY, 2, 1],
+      [Pkm.ARMALDO, 2, 2], [Pkm.METAGROSS, 4, 2], [Pkm.REGISTEEL, 6, 2],
+      [Pkm.AGGRON, 3, 3], [Pkm.STEELIX, 4, 3], [Pkm.DIALGA, 5, 3], [Pkm.JIRACHI, 6, 3]
     ],
     items: [
-      [Item.METAL_COAT, Item.ASSAULT_VEST, Item.SCOPE_LENS], [Item.METAL_COAT, Item.ROCKY_HELMET],
-      [Item.RAZOR_FANG, Item.RAZOR_CLAW], [Item.CHOICE_SPECS, Item.POWER_LENS],
-      [Item.MIRACLE_SEED, Item.SHELL_BELL], [Item.ROCKY_HELMET, Item.RAZOR_CLAW]
+      [Item.CHOICE_SPECS, Item.POWER_LENS], [Item.MIRACLE_SEED, Item.SHELL_BELL], [Item.RAZOR_FANG, Item.RAZOR_CLAW],
+      [Item.ROCKY_HELMET, Item.RAZOR_CLAW], [Item.METAL_COAT, Item.ASSAULT_VEST, Item.SCOPE_LENS], [Item.METAL_COAT, Item.ASSAULT_VEST],
+      [Item.METAL_COAT, Item.ROCKY_HELMET], [Item.METAL_COAT, Item.ASSAULT_VEST], [Item.METAL_COAT, Item.CHOICE_SPECS, Item.POWER_LENS], [Item.METAL_COAT, Item.SHELL_BELL]
     ],
-    bonusHP: 500,
-    bonusAtk: 20,
-    bonusAP: 60
+    bonusHP: 800,
+    bonusAtk: 30,
+    bonusAP: 80
   },
   {
     name: "Cynthia",
     avatar: Pkm.GARCHOMP,
     board: [
-      [Pkm.GARCHOMP, 4, 3], [Pkm.SPIRITOMB, 3, 2],
-      [Pkm.ROSERADE, 5, 1], [Pkm.TOGEKISS, 2, 1],
-      [Pkm.LUCARIO, 6, 3], [Pkm.MILOTIC, 2, 2]
+      [Pkm.ROSERADE, 3, 1], [Pkm.TOGEKISS, 5, 1], [Pkm.MILOTIC, 2, 1],
+      [Pkm.SPIRITOMB, 2, 2], [Pkm.LUCARIO, 4, 2], [Pkm.GLACEON, 6, 2],
+      [Pkm.GARCHOMP, 3, 3], [Pkm.SALAMENCE, 4, 3], [Pkm.GIRATINA, 5, 3], [Pkm.DIALGA, 6, 3]
     ],
     items: [
-      [Item.DRAGON_SCALE, Item.SCOPE_LENS, Item.RAZOR_CLAW], [Item.SPELL_TAG, Item.SHELL_BELL],
-      [Item.MIRACLE_SEED, Item.CHOICE_SPECS], [Item.RAZOR_FANG, Item.WIDE_LENS],
-      [Item.BLACK_BELT, Item.ASSAULT_VEST], [Item.MYSTIC_WATER, Item.POWER_LENS]
+      [Item.MIRACLE_SEED, Item.CHOICE_SPECS], [Item.RAZOR_FANG, Item.WIDE_LENS], [Item.MYSTIC_WATER, Item.POWER_LENS],
+      [Item.SPELL_TAG, Item.SHELL_BELL], [Item.BLACK_BELT, Item.ASSAULT_VEST, Item.SCOPE_LENS], [Item.ICY_ROCK, Item.CHOICE_SPECS],
+      [Item.DRAGON_SCALE, Item.SCOPE_LENS, Item.RAZOR_CLAW], [Item.DRAGON_SCALE, Item.ASSAULT_VEST], [Item.SPELL_TAG, Item.CHOICE_SPECS, Item.POWER_LENS], [Item.METAL_COAT, Item.ASSAULT_VEST]
     ],
-    bonusHP: 500,
-    bonusAtk: 20,
-    bonusAP: 60
+    bonusHP: 800,
+    bonusAtk: 30,
+    bonusAP: 80
   },
   {
     name: "Iris",
     avatar: Pkm.HYDREIGON,
     board: [
-      [Pkm.HYDREIGON, 4, 2], [Pkm.HAXORUS, 3, 3],
-      [Pkm.DRUDDIGON, 5, 3], [Pkm.LAPRAS, 2, 1],
-      [Pkm.AGGRON, 6, 3], [Pkm.SALAMENCE, 4, 1]
+      [Pkm.LAPRAS, 3, 1], [Pkm.SALAMENCE, 5, 1], [Pkm.ARCHEOPS, 2, 1],
+      [Pkm.HYDREIGON, 2, 2], [Pkm.DRAGONITE, 4, 2], [Pkm.HAXORUS, 6, 2],
+      [Pkm.DRUDDIGON, 3, 3], [Pkm.AGGRON, 4, 3], [Pkm.GARCHOMP, 5, 3], [Pkm.RESHIRAM, 6, 3]
     ],
     items: [
-      [Item.DRAGON_SCALE, Item.CHOICE_SPECS, Item.SCOPE_LENS], [Item.DRAGON_SCALE, Item.RAZOR_CLAW],
-      [Item.DRAGON_SCALE, Item.ASSAULT_VEST], [Item.MYSTIC_WATER, Item.SHELL_BELL],
-      [Item.METAL_COAT, Item.ROCKY_HELMET], [Item.DRAGON_SCALE, Item.RAZOR_FANG]
+      [Item.MYSTIC_WATER, Item.SHELL_BELL], [Item.DRAGON_SCALE, Item.RAZOR_FANG], [Item.RAZOR_FANG, Item.RAZOR_CLAW],
+      [Item.DRAGON_SCALE, Item.CHOICE_SPECS, Item.SCOPE_LENS], [Item.DRAGON_SCALE, Item.ASSAULT_VEST], [Item.DRAGON_SCALE, Item.RAZOR_CLAW, Item.SCOPE_LENS],
+      [Item.DRAGON_SCALE, Item.ASSAULT_VEST], [Item.METAL_COAT, Item.ROCKY_HELMET], [Item.DRAGON_SCALE, Item.RAZOR_FANG], [Item.CHARCOAL, Item.CHOICE_SPECS, Item.POWER_LENS]
     ],
-    bonusHP: 500,
-    bonusAtk: 20,
-    bonusAP: 60
+    bonusHP: 800,
+    bonusAtk: 30,
+    bonusAP: 80
   },
   {
     name: "Diantha",
     avatar: Pkm.GARDEVOIR,
     board: [
-      [Pkm.GARDEVOIR, 4, 1], [Pkm.HAWLUCHA, 3, 3],
-      [Pkm.TYRANTRUM, 5, 3], [Pkm.AURORUS, 2, 2],
-      [Pkm.GOODRA, 6, 2], [Pkm.GOURGEIST, 4, 2]
+      [Pkm.GARDEVOIR, 3, 1], [Pkm.AURORUS, 5, 1], [Pkm.GOURGEIST, 2, 1],
+      [Pkm.HAWLUCHA, 2, 2], [Pkm.GOODRA, 4, 2], [Pkm.TYRANTRUM, 6, 2],
+      [Pkm.SYLVEON, 3, 3], [Pkm.DIANCIE, 4, 3], [Pkm.XERNEAS, 5, 3], [Pkm.ZYGARDE_50, 6, 3]
     ],
     items: [
-      [Item.CHOICE_SPECS, Item.POWER_LENS, Item.SHELL_BELL], [Item.BLACK_BELT, Item.RAZOR_CLAW],
-      [Item.ROCKY_HELMET, Item.ASSAULT_VEST], [Item.ICY_ROCK, Item.WIDE_LENS],
-      [Item.DRAGON_SCALE, Item.ROCKY_HELMET], [Item.SPELL_TAG, Item.SCOPE_LENS]
+      [Item.CHOICE_SPECS, Item.POWER_LENS, Item.SHELL_BELL], [Item.ICY_ROCK, Item.WIDE_LENS], [Item.SPELL_TAG, Item.SCOPE_LENS],
+      [Item.BLACK_BELT, Item.RAZOR_CLAW], [Item.DRAGON_SCALE, Item.ROCKY_HELMET], [Item.ROCKY_HELMET, Item.ASSAULT_VEST],
+      [Item.RAZOR_FANG, Item.CHOICE_SPECS], [Item.CHOICE_SPECS, Item.POWER_LENS, Item.SCOPE_LENS], [Item.RAZOR_FANG, Item.WIDE_LENS, Item.SHELL_BELL], [Item.DRAGON_SCALE, Item.ASSAULT_VEST]
     ],
-    bonusHP: 500,
-    bonusAtk: 20,
-    bonusAP: 60
+    bonusHP: 800,
+    bonusAtk: 30,
+    bonusAP: 80
   }
 ]
 
 export function getChampionEncounter(mode: DifficultyMode = 1): SpireEncounter {
   const champion = pickRandomIn(CHAMPION_ENCOUNTERS)
   return adjustEncounterItems(champion, mode)
+}
+
+export function getArceusEncounter(): SpireEncounter {
+  return {
+    name: "Arceus",
+    avatar: Pkm.ARCEUS,
+    board: [
+      [Pkm.ARCEUS, 4, 2]
+    ],
+    items: [
+      [Item.CHOICE_SPECS, Item.SCOPE_LENS, Item.SHELL_BELL, Item.MUSCLE_BAND, Item.UPGRADE, Item.SOUL_DEW]
+    ],
+    bonusHP: 5000,
+    bonusAtk: 100,
+    bonusAP: 300
+  }
 }

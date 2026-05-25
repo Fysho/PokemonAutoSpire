@@ -713,9 +713,14 @@ export default class Player extends Schema implements IPlayer {
       return
     }
 
-    const newRegionalPokemons = PRECOMPUTED_REGIONAL_MONS.filter((p) =>
-      new PokemonClasses[p](p).isInRegion(this.map, state)
-    )
+    // Original PAC method — kept for reference, uses isInRegion() with variant/additional logic
+    // const newRegionalPokemons = PRECOMPUTED_REGIONAL_MONS.filter((p) =>
+    //   new PokemonClasses[p](p).isInRegion(this.map, state)
+    // )
+
+    // Spire method — uses same candidate list as reward generation (getRegionalCandidates)
+    const { getRegionalCandidates } = require("../spire-encounters")
+    const newRegionalPokemons: Pkm[] = getRegionalCandidates(this.map, state.currentAct)
 
     if (mapChanged) {
       state.shop.resetRegionalPool(this)
@@ -792,46 +797,23 @@ export default class Player extends Schema implements IPlayer {
       }
     }
 
+    // Spire: use getRegionalCandidates directly — it already handles rarity filtering,
+    // family dedup, and evolution exclusion. The original PAC filter below excluded
+    // additional-pick Pokemon not yet unlocked, which doesn't apply in spire mode.
+    // Original PAC display filter kept below for reference:
+    // newRegionalPokemons.filter((p, index, array) => {
+    //   const pkm = getPokemonData(PkmFamily[p])
+    //   const evolution = pkm.evolution
+    //   const baseVariant = PkmRegionalBaseVariants[p]
+    //   if (baseVariant) { ... additional pick filtering ... }
+    //   return pkm.rarity !== UNIQUE/LEGENDARY && family dedup && evolution exclusion
+    // })
+
     newRegionalPokemons.sort(
       (a, b) => getPokemonData(a).stars - getPokemonData(b).stars
     )
 
-    resetArraySchema(
-      this.regionalPokemons,
-      newRegionalPokemons.filter((p, index, array) => {
-        const pkm = getPokemonData(PkmFamily[p])
-        const evolution = pkm.evolution
-        const baseVariant = PkmRegionalBaseVariants[p]
-        if (baseVariant) {
-          const basePkm = getPokemonData(baseVariant)
-          if (basePkm.additional) {
-            const addpickStages = {
-              [Rarity.UNCOMMON]: AdditionalPicksStages[0],
-              [Rarity.RARE]: AdditionalPicksStages[1],
-              [Rarity.EPIC]: AdditionalPicksStages[2]
-            }
-            const addPickStage = addpickStages[basePkm.rarity]
-            if (
-              addPickStage > 0 &&
-              (state.stageLevel < addPickStage ||
-                state.additionalPokemons.includes(baseVariant) === false)
-            ) {
-              return false // do not show the regional variant if its base variant is not in additional picks
-            }
-          }
-        }
-
-        return (
-          pkm.rarity !== Rarity.UNIQUE && // do not show uniques in regional pokemons
-          pkm.rarity !== Rarity.LEGENDARY && // do not show legendaries in regional pokemons
-          array.findIndex((p2) => PkmFamily[p] === PkmFamily[p2]) === index && // dedup same family
-          !(
-            evolution === p ||
-            (evolution && getPokemonData(evolution).evolution === p)
-          )
-        ) // exclude non divergent evos
-      })
-    )
+    resetArraySchema(this.regionalPokemons, newRegionalPokemons)
   }
 
   onLightChange() {

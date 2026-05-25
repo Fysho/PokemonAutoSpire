@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { SynergyTriggers } from "../../../../../config"
 import { getPokemonData } from "../../../../../models/precomputed/precomputed-pokemon-data"
 import { GamePhaseState } from "../../../../../types/enum/Game"
+import { SynergyGem, SynergyGivenByGem } from "../../../../../types/enum/Item"
 import { Pkm, PkmFamily } from "../../../../../types/enum/Pokemon"
 import { Synergy } from "../../../../../types/enum/Synergy"
 import { useAppSelector } from "../../../hooks"
@@ -17,7 +18,8 @@ function computeOpponentSynergies(): [string, number][] {
 
   const typesPerFamily = new Map<string, Set<Synergy>>()
   board.forEach((entry: string) => {
-    const pkm = entry.split(",")[0] as Pkm
+    const [mainPart] = entry.split("|")
+    const pkm = mainPart.split(",")[0] as Pkm
     const data = getPokemonData(pkm)
     if (data && data.types) {
       const family = PkmFamily[pkm] ?? pkm
@@ -33,6 +35,16 @@ function computeOpponentSynergies(): [string, number][] {
       counts.set(type, (counts.get(type) ?? 0) + 1)
     })
   })
+
+  const inv = rooms.game?.state?.encounterInventory
+  if (inv && inv.length > 0) {
+    Array.from(inv).forEach((item: string) => {
+      const synType = SynergyGivenByGem[item as SynergyGem]
+      if (synType) {
+        counts.set(synType, (counts.get(synType) ?? 0) + 1)
+      }
+    })
+  }
 
   return Array.from(counts.entries())
     .filter(([, val]) => val > 0)

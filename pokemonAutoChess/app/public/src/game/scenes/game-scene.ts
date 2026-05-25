@@ -329,10 +329,12 @@ export default class GameScene extends Scene {
       this.board?.battleMode(true)
     } else if (newPhase === GamePhaseState.TOWN) {
       // TOWN phase disabled in PokemonAutoSpire
-    } else if (newPhase === GamePhaseState.MAP || newPhase === GamePhaseState.REST || newPhase === GamePhaseState.EVENT) {
+    } else if (newPhase === GamePhaseState.MAP || newPhase === GamePhaseState.EVENT) {
       if (this.board) {
         this.board.mode = BoardMode.MAP
       }
+    } else if (newPhase === GamePhaseState.REST) {
+      this.board?.pickMode(true)
     } else if (newPhase === GamePhaseState.SHOP) {
       this.board?.minigameMode()
     } else if (newPhase === GamePhaseState.REWARD) {
@@ -483,7 +485,8 @@ export default class GameScene extends Scene {
         (this.room?.state.phase === GamePhaseState.TOWN || this.room?.state.phase === GamePhaseState.SHOP) &&
         !this.spectate
       ) {
-        // compute actual x/y coordinates after taking into account camera scroll and zoom
+        const hitObjects = this.input.hitTestPointer(pointer)
+        if (hitObjects.some((obj) => obj instanceof Phaser.GameObjects.Container)) return
         const camera = this.cameras.main
         const x = camera.worldView.left + pointer.x / camera.zoom
         const y = camera.worldView.top + pointer.y / camera.zoom
@@ -867,10 +870,7 @@ export default class GameScene extends Scene {
       this.clearHovered(this.pokemonHovered.sprite)
     }
     this.pokemonHovered = pokemonSprite
-    const thickness = Math.round(
-      1 + Math.log(pokemonSprite.pokemon.def + pokemonSprite.pokemon.speDef)
-    )
-    this.setHovered(pokemonSprite.sprite, thickness)
+    this.setHovered(pokemonSprite.sprite)
   }
 
   setHovered(sprite: Phaser.GameObjects.Sprite, thickness = 2) {

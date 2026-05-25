@@ -9,7 +9,7 @@ import { CountEvolutionRule, ItemEvolutionRule } from "../core/evolution-rules"
 import { MiniGame } from "../core/mini-game"
 import { IGameUser } from "../models/colyseus-models/game-user"
 import Player from "../models/colyseus-models/player"
-import { Pokemon } from "../models/colyseus-models/pokemon"
+import { Egg, Pokemon } from "../models/colyseus-models/pokemon"
 import PokemonFactory from "../models/pokemon-factory"
 import {
   getPokemonData,
@@ -32,7 +32,7 @@ import {
 } from "../types"
 import { EloRank } from "../types/enum/EloRank"
 import { BattleResult, GameMode, GamePhaseState, PokemonActionState, Rarity } from "../types/enum/Game"
-import { Item, Wands } from "../types/enum/Item"
+import { Item, SynergyGem, SynergyGivenByGem, Wands } from "../types/enum/Item"
 import { Passive } from "../types/enum/Passive"
 import {
   Pkm,
@@ -348,6 +348,21 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
     })
 
+    this.onMessage(Transfer.PASS_REWARD, (client) => {
+      if (!this.state.gameFinished && client.auth) {
+        const player = this.state.players.get(client.auth.uid)
+        if (!player) return
+        const choiceIdx = player.choices.findIndex((c) => c.type === "gymReward" || c.type === "eliteReward")
+        if (choiceIdx < 0) return
+        player.choices.splice(choiceIdx, 1)
+        player.money += 5
+        if (this.state.phase === GamePhaseState.REWARD && player.choices.length === 0) {
+          this.state.updatePhaseNeeded = true
+          this.state.time = 0
+        }
+      }
+    })
+
     this.onMessage(Transfer.DRAG_DROP, (client, message: IDragDropMessage) => {
       if (!this.state.gameFinished) {
         try {
@@ -603,6 +618,12 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
     })
 
+    this.onMessage(Transfer.GAME_SPEED, (client, { speed }: { speed: number }) => {
+      if (client.auth && (speed === 1 || speed === 2 || speed === 3)) {
+        this.state.gameSpeed = speed
+      }
+    })
+
     this.onMessage(Transfer.ENTER_ELITE_FOUR, (client) => {
       if (client.auth && !this.state.gameFinished) {
         const { generateActMap } = require("../core/map-generator")
@@ -614,7 +635,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
         this.state.currentFloor = 0
         this.state.mapNodes.clear()
         this.state.mapEdges.clear()
-        generateActMap(4, this.state.mapNodes, this.state.mapEdges)
+        generateActMap(4, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2)
         this.state.players.forEach((p: Player) => {
           p.dojoFamilies.clear()
           if (!p.isBot) { p.alive = true }
@@ -623,6 +644,61 @@ export default class GameRoom extends Room<{ state: GameState }> {
         this.state.time = 999 * 1000
         this.state.roundTime = 999
       }
+    })
+
+    this.onMessage(Transfer.ENTER_ACT_5, (client) => {
+      if (client.auth && (!this.state.gameFinished || this.state.runComplete)) {
+        const { generateActMap } = require("../core/map-generator")
+        this.state.runComplete = false
+        this.state.runFailed = false
+        this.state.eliteFourAvailable = false
+        this.state.gameFinished = false
+        this.state.arceusDamageDealt = 0
+        this.state.currentAct = 5
+        this.state.currentFloor = 0
+        this.state.mapNodes.clear()
+        this.state.mapEdges.clear()
+        generateActMap(5, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2)
+        this.state.players.forEach((p: Player) => {
+          p.dojoFamilies.clear()
+          if (!p.isBot) { p.alive = true }
+        })
+        this.state.phase = GamePhaseState.MAP
+        this.state.time = 999 * 1000
+        this.state.roundTime = 999
+      }
+    })
+
+    this.onMessage(Transfer.RESET_CHAMPION, (client) => {
+      if (!client.auth) return
+      const { resetChampionData } = require("../services/champion-data")
+      resetChampionData()
+    })
+
+    this.onMessage(Transfer.SKIP_TO_ACT, (client, { act }: { act: number }) => {
+      if (!client.auth || this.state.gameFinished) return
+      const playerName = Array.from(this.state.players.values()).find(
+        (p: Player) => !p.isBot && p.id === client.auth.uid
+      )?.name
+      if (playerName !== "Fisho" && playerName !== "Fisho2") return
+      if (act < 1 || act > 3) return
+      const { generateActMap } = require("../core/map-generator")
+      this.state.runComplete = false
+      this.state.runFailed = false
+      this.state.eliteFourAvailable = false
+      this.state.gameFinished = false
+      this.state.currentAct = act
+      this.state.currentFloor = 0
+      this.state.mapNodes.clear()
+      this.state.mapEdges.clear()
+      generateActMap(act, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2)
+      this.state.players.forEach((p: Player) => {
+        p.dojoFamilies.clear()
+        if (!p.isBot) { p.alive = true }
+      })
+      this.state.phase = GamePhaseState.MAP
+      this.state.time = 999 * 1000
+      this.state.roundTime = 999
     })
   }
 
@@ -650,8 +726,30 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.state.phase = GamePhaseState.MAP
     this.state.time = 999 * 1000
     this.state.roundTime = 999
-    generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges)
+    generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2)
     logger.info(`Map generated: ${this.state.mapNodes.size} nodes, ${this.state.mapEdges.length} edges`)
+
+    const isFisho2 = Array.from(this.state.players.values()).some(
+      (p: Player) => !p.isBot && p.name === "Fisho2"
+    )
+    if (isFisho2 && this.state.currentAct <= 3) {
+      const { MapNodeType } = require("../models/colyseus-models/map-node")
+      const { getEliteEncounterCount, getEliteEncounterName } = require("../models/spire-encounters")
+      const eliteTotal = getEliteEncounterCount(this.state.currentAct)
+      let converted = 0
+      let eliteIdx = 0
+      this.state.mapNodes.forEach((node: any) => {
+        if (converted >= 10) return
+        if (node.nodeType === MapNodeType.WILD_BATTLE || node.nodeType === MapNodeType.GYM_LEADER || node.nodeType === MapNodeType.MYSTERY_ENCOUNTER || node.nodeType === MapNodeType.POKEMART) {
+          node.nodeType = MapNodeType.ELITE
+          node.eliteEncounterIndex = eliteIdx % eliteTotal
+          node.displayName = getEliteEncounterName(eliteIdx % eliteTotal, this.state.currentAct)
+          eliteIdx++
+          converted++
+        }
+      })
+      logger.info(`Fisho2 mode: converted ${converted} nodes to ELITE encounters`)
+    }
 
     this.state.players.forEach((player: Player) => {
       if (!player.isBot) {
@@ -674,9 +772,22 @@ export default class GameRoom extends Room<{ state: GameState }> {
           })
         )
 
-        // DEBUG: uncomment to start with Mewtwos
-        // this.spawnOnBench(player, Pkm.MEWTWO)
-        // this.spawnOnBench(player, Pkm.MEWTWO)
+        if (player.name === "Fisho" || player.name === "Fisho2") {
+          player.addMoney(995, true, null)
+          this.spawnOnBench(player, Pkm.MEWTWO)
+          this.spawnOnBench(player, Pkm.MEWTWO)
+          this.spawnOnBench(player, Pkm.MEW)
+          this.spawnOnBench(player, Pkm.MEW)
+          player.board.forEach((pokemon) => {
+            if (pokemon.name === Pkm.MEWTWO || pokemon.name === Pkm.MEW) {
+              pokemon.addMaxHP(500)
+              pokemon.addAttack(200)
+              pokemon.addAbilityPower(200)
+              pokemon.addDefense(100)
+              pokemon.addSpecialDefense(100)
+            }
+          })
+        }
       }
     })
   }
@@ -848,15 +959,35 @@ export default class GameRoom extends Room<{ state: GameState }> {
     )
       return
 
-    if (choice.type === "wildReward") {
+    if (choice.type === "wildReward" || choice.type === "gymReward" || choice.type === "eliteReward") {
       const pkm = choice.pokemons[choiceIndex]
       if (pkm && pkm !== Pkm.DEFAULT) {
         const freeSpace = getFreeSpaceOnBench(player.board)
         if (freeSpace < 1 && !bypassLackOfSpace) return false
-        this.spawnOnBench(player, pkm as Pkm)
+        if (pkm === Pkm.SCATTERBUG || pkm === Pkm.GRUBBIN) {
+          const egg = PokemonFactory.createPokemonFromName(Pkm.EGG, player) as Egg
+          egg.action = PokemonActionState.SLEEP
+          egg.evolution = pkm as Pkm
+          egg.stacksRequired = egg.evolutionRule.getHatchTime(egg, player)
+          const x = getFirstAvailablePositionInBench(player.board)
+          if (x !== null) {
+            egg.positionX = x
+            egg.positionY = 0
+            player.board.set(egg.id, egg)
+          }
+        } else {
+          this.spawnOnBench(player, pkm as Pkm)
+        }
       } else {
         const item = choice.items[choiceIndex]
-        if (item) player.items.push(item)
+        if (item) {
+          player.items.push(item)
+          const synType = SynergyGivenByGem[item as SynergyGem]
+          if (synType) {
+            player.bonusSynergies.set(synType, (player.bonusSynergies.get(synType) ?? 0) + 1)
+            player.updateSynergies()
+          }
+        }
       }
       const idx = player.choices.indexOf(choice)
       if (idx >= 0) player.choices.splice(idx, 1)
@@ -973,15 +1104,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
     opponentTeam: MapSchema<IPokemonEntity>,
     stageLevel: number
   ) {
-    let damage = Math.ceil(stageLevel / 2)
-    if (opponentTeam.size > 0) {
-      opponentTeam.forEach((pokemon) => {
-        if (!pokemon.isSpawn && pokemon.passive !== Passive.INANIMATE) {
-          damage += 1
-        }
-      })
-    }
-    return damage * 2
+    // Spire mode: damage is handled by stopSpireFightingPhase() using remainingEnemyStars * 2
+    return 0
   }
 
   rankPlayers() {

@@ -164,6 +164,7 @@ export enum Item {
   WILD_GEM = "WILD_GEM",
   AMORPHOUS_GEM = "AMORPHOUS_GEM",
   GOURMET_GEM = "GOURMET_GEM",
+  BABY_GEM = "BABY_GEM",
   FIRE_SHARD = "FIRE_SHARD",
   TEAL_MASK = "TEAL_MASK",
   WELLSPRING_MASK = "WELLSPRING_MASK",
@@ -745,7 +746,8 @@ export const SynergyGems = [
   Item.LIGHT_GEM,
   Item.WILD_GEM,
   Item.AMORPHOUS_GEM,
-  Item.GOURMET_GEM
+  Item.GOURMET_GEM,
+  Item.BABY_GEM
 ] satisfies Item[]
 
 export type SynergyGem = (typeof SynergyGems)[number]
@@ -904,7 +906,8 @@ export const SynergyGivenByGem: Record<(typeof SynergyGems)[number], Synergy> =
     [Item.LIGHT_GEM]: Synergy.LIGHT,
     [Item.WILD_GEM]: Synergy.WILD,
     [Item.AMORPHOUS_GEM]: Synergy.AMORPHOUS,
-    [Item.GOURMET_GEM]: Synergy.GOURMET
+    [Item.GOURMET_GEM]: Synergy.GOURMET,
+    [Item.BABY_GEM]: Synergy.BABY
   }
 
 export const CraftableNoStonesOrScarves: Item[] =

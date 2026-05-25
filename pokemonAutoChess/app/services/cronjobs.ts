@@ -25,50 +25,52 @@ import { notificationsService } from "./notifications"
 import { refreshSpriteGapData } from "./sprite-gap-scanner"
 
 export function initCronJobs() {
-  logger.debug("init cron jobs")
+  // All cron jobs disabled for single-player spire mode.
+  // Original jobs: deleteOldHistory, eloDecay, titleStats,
+  // notificationsService.cleanupOldNotifications, resetEventScores,
+  // refreshSpriteGapData. Re-enable by uncommenting below when
+  // online features are restored.
+  logger.debug("cron jobs skipped (spire mode)")
+  return
 
-  // CronJob.from({
-  //   cronTime: "0 8 * * *", // every day at 8am
-  //   timeZone: "Europe/Paris",
-  //   onTick: () => deleteOldAnonymousAccounts(),
-  //   start: true
-  // })
+  /* eslint-disable no-unreachable */
   CronJob.from({
-    cronTime: "15 8 * * *", // every day at 8:15am
+    cronTime: "15 8 * * *",
     timeZone: "Europe/Paris",
     onTick: () => deleteOldHistory(),
     start: true
   })
   CronJob.from({
-    cronTime: "30 8 * * *", // every day at 8:30am
+    cronTime: "30 8 * * *",
     timeZone: "Europe/Paris",
     onTick: () => eloDecay(),
     start: true
   })
   CronJob.from({
-    cronTime: "45 8 * * *", // every day at 8:45am
+    cronTime: "45 8 * * *",
     timeZone: "Europe/Paris",
     onTick: () => titleStats(),
     start: true
   })
   CronJob.from({
-    cronTime: "50 8 * * *", // every day at 8:50am
+    cronTime: "50 8 * * *",
     timeZone: "Europe/Paris",
     onTick: () => notificationsService.cleanupOldNotifications(),
     start: true
   })
   CronJob.from({
-    cronTime: "0 0 1 * *", // at midnight UTC on the first day of each month
+    cronTime: "0 0 1 * *",
     timeZone: "UTC",
     onTick: () => resetEventScores(),
     start: true
   })
   CronJob.from({
-    cronTime: "0 9 * * *", // every day at 9:00 AM UTC
+    cronTime: "0 9 * * *",
     timeZone: "UTC",
     onTick: () => refreshSpriteGapData(),
     start: true
   })
+  /* eslint-enable no-unreachable */
 }
 
 async function deleteOldAnonymousAccounts() {

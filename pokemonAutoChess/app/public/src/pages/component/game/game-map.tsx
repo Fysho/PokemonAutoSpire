@@ -15,13 +15,14 @@ const NODE_COLORS: Record<string, string> = {
   [MapNodeType.MYSTERY_ENCOUNTER]: "#9b59b6",
   [MapNodeType.LEGENDARY_BOSS]: "#e67e22",
   [MapNodeType.ELITE_FOUR]: "#8e44ad",
-  [MapNodeType.CHAMPION]: "#f1c40f"
+  [MapNodeType.CHAMPION]: "#f1c40f",
+  [MapNodeType.ARCEUS_BOSS]: "#f1c40f"
 }
 
 const NODE_ICONS: Record<string, string> = {
-  [MapNodeType.POKEMART]: "/assets/ui/pokeball.svg",
+  [MapNodeType.POKEMART]: "/assets/ui/pokemart-sprite.png",
   [MapNodeType.MYSTERY_ENCOUNTER]: "/assets/unown/unown-qm.png",
-  [MapNodeType.POKEMON_CENTER]: "/assets/ui/chansey-sprite.png"
+  [MapNodeType.POKEMON_CENTER]: "/assets/ui/pokecenter-sprite.png"
 }
 
 const NODE_LABELS: Record<string, string> = {
@@ -29,7 +30,8 @@ const NODE_LABELS: Record<string, string> = {
   [MapNodeType.ELITE]: "⚔️",
   [MapNodeType.LEGENDARY_BOSS]: "👑",
   [MapNodeType.ELITE_FOUR]: "🏆",
-  [MapNodeType.CHAMPION]: "👑"
+  [MapNodeType.CHAMPION]: "👑",
+  [MapNodeType.ARCEUS_BOSS]: "✦"
 }
 
 const NODE_NAMES: Record<string, string> = {
@@ -41,7 +43,8 @@ const NODE_NAMES: Record<string, string> = {
   [MapNodeType.MYSTERY_ENCOUNTER]: "Mystery",
   [MapNodeType.LEGENDARY_BOSS]: "BOSS",
   [MapNodeType.ELITE_FOUR]: "Elite Four",
-  [MapNodeType.CHAMPION]: "CHAMPION"
+  [MapNodeType.CHAMPION]: "CHAMPION",
+  [MapNodeType.ARCEUS_BOSS]: "ARCEUS"
 }
 
 function getRegionSynergies(region: string): Synergy[] {
@@ -107,7 +110,7 @@ export default function GameMap({
   const maxFloor = Math.max(...nodes.map((n) => n.floor), 1)
   const svgWidth = 1000
   const floorHeight = 100
-  const svgHeight = maxFloor * floorHeight + 80
+  const svgHeight = maxFloor * floorHeight + 200
   const nodeSpread = svgWidth * 0.6
   const nodeOffset = svgWidth * 0.2
 
@@ -186,6 +189,26 @@ export default function GameMap({
         }}
       >
         <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} width="100%" height={svgHeight}>
+          <defs>
+            <filter id="white-outline" x="-10%" y="-10%" width="120%" height="120%">
+              <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded" />
+              <feFlood floodColor="white" floodOpacity="1" result="white" />
+              <feComposite in="white" in2="expanded" operator="in" result="outline" />
+              <feMerge>
+                <feMergeNode in="outline" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="white-outline-hover" x="-15%" y="-15%" width="130%" height="130%">
+              <feMorphology in="SourceAlpha" operator="dilate" radius="4" result="expanded" />
+              <feFlood floodColor="white" floodOpacity="1" result="white" />
+              <feComposite in="white" in2="expanded" operator="in" result="outline" />
+              <feMerge>
+                <feMergeNode in="outline" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
           {mapEdges.map((edge, i) => {
             const fromNode = mapNodes.get(edge.from)
             const toNode = mapNodes.get(edge.to)
@@ -220,8 +243,11 @@ export default function GameMap({
             const isWild = node.nodeType === MapNodeType.WILD_BATTLE
             const isGym = node.nodeType === MapNodeType.GYM_LEADER
             const isE4 = node.nodeType === MapNodeType.ELITE_FOUR
-            const hasSynergyIcon = (isWild && synergies.length > 0) || ((isGym || isE4) && node.gymLeaderSynergy)
-            const nodeRadius = hasSynergyIcon ? 28 : (isAvailable ? 24 : 20)
+            const isChampion = node.nodeType === MapNodeType.CHAMPION
+            const hasAvatar = (node.nodeType === MapNodeType.ELITE || isE4 || isChampion) && !!node.eliteAvatar
+            const isBoss = (node.nodeType === MapNodeType.LEGENDARY_BOSS || node.nodeType === MapNodeType.ARCEUS_BOSS) && !!node.bossSprites
+            const hasSynergyIcon = (isWild && synergies.length > 0) || ((isGym || isE4) && node.gymLeaderSynergy) || hasAvatar || isBoss
+            const nodeRadius = isBoss ? 48 : hasSynergyIcon ? 28 : (isAvailable ? 24 : 20)
             const nodeOpacity = isMissed ? 0.25 : isVisited ? 0.4 : isAvailable ? 1 : 0.6
 
             const isHovered = hoveredNode === node.id
@@ -239,28 +265,90 @@ export default function GameMap({
                 onMouseLeave={() => setHoveredNode(null)}
                 style={{ cursor: isAvailable && !readOnly ? "pointer" : "default" }}
               >
-                {(isAvailable || isHovered) && (
-                  <circle
-                    cx={pos.cx}
-                    cy={pos.cy}
-                    r={nodeRadius + 4}
-                    fill="none"
-                    stroke={isAvailable ? "#fff" : "#aaa"}
-                    strokeWidth={isHovered ? 3 : 2}
-                    opacity={isHovered ? 0.9 : 0.6}
-                  />
-                )}
-                {(isGym || isE4) && node.gymLeaderSynergy ? (
+                <g filter={isHovered ? "url(#white-outline-hover)" : isAvailable ? "url(#white-outline)" : undefined}>
+                {isBoss ? (() => {
+                  const sprites = node.bossSprites.split(",").filter(Boolean)
+                  const isArceus = node.nodeType === MapNodeType.ARCEUS_BOSS
+                  const spriteSize = isArceus ? 192 : 144
+                  if (sprites.length === 1) {
+                    return (
+                      <image
+                        href={`/assets/ui/elite-sprites-v2/${sprites[0]}.png`}
+                        x={pos.cx - spriteSize / 2}
+                        y={pos.cy - spriteSize / 2}
+                        width={spriteSize}
+                        height={spriteSize}
+                        opacity={nodeOpacity}
+                        style={{ imageRendering: "pixelated" as const, ...(isMissed ? { filter: "grayscale(1)" } : {}) }}
+                      />
+                    )
+                  }
+                  const totalWidth = sprites.length * spriteSize * 0.6
+                  return (
+                    <g opacity={nodeOpacity}>
+                      {sprites.map((s, i) => {
+                        const ox = (i - (sprites.length - 1) / 2) * spriteSize * 0.6
+                        return (
+                          <image
+                            key={`boss-${node.id}-${i}`}
+                            href={`/assets/ui/elite-sprites-v2/${s}.png`}
+                            x={pos.cx + ox - spriteSize / 2}
+                            y={pos.cy - spriteSize / 2}
+                            width={spriteSize}
+                            height={spriteSize}
+                            style={{ imageRendering: "pixelated" as const, ...(isMissed ? { filter: "grayscale(1)" } : {}) }}
+                          />
+                        )
+                      })}
+                    </g>
+                  )
+                })()
+                : (isGym || isE4) && node.gymLeaderSynergy ? (
                   <image
                     href={`/assets/item/${node.gymLeaderSynergy}_GEM.png`}
-                    x={pos.cx - 18}
-                    y={pos.cy - 18}
-                    width={36}
-                    height={36}
+                    x={pos.cx - 27}
+                    y={pos.cy - 27}
+                    width={54}
+                    height={54}
                     opacity={nodeOpacity}
                     style={isMissed ? { filter: "grayscale(1)" } : undefined}
                   />
-                ) : isWild && synergies.length > 0 ? (
+                ) : hasAvatar ? (() => {
+                  const spriteSize = isChampion ? 216 : 108
+                  return (
+                  <foreignObject
+                    x={pos.cx - spriteSize / 2}
+                    y={pos.cy - spriteSize / 2}
+                    width={spriteSize}
+                    height={spriteSize}
+                    opacity={nodeOpacity}
+                  >
+                    <img
+                      src={`/assets/ui/elite-sprites-v2/${node.eliteAvatar}.png`}
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement
+                        img.style.display = "none"
+                        const fallback = img.nextElementSibling as HTMLElement
+                        if (fallback) fallback.style.display = "flex"
+                      }}
+                      style={{
+                        width: "100%", height: "100%",
+                        objectFit: "contain",
+                        imageRendering: "pixelated" as const,
+                        ...(isMissed ? { filter: "grayscale(1)" } : {})
+                      }}
+                    />
+                    <div style={{
+                      display: "none",
+                      width: spriteSize, height: spriteSize,
+                      alignItems: "center", justifyContent: "center",
+                      fontSize: "48px", fontWeight: "bold", color: "#fff",
+                      textShadow: "2px 2px 4px #000", pointerEvents: "none"
+                    }}>?</div>
+                  </foreignObject>
+                  )
+                })()
+                : isWild && synergies.length > 0 ? (
                   synergies.map((syn, si) => {
                     const iconSize = 40
                     let ix = pos.cx
@@ -288,14 +376,12 @@ export default function GameMap({
                 ) : NODE_ICONS[node.nodeType] ? (
                   <image
                     href={NODE_ICONS[node.nodeType]}
-                    x={pos.cx - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 48 : node.nodeType === MapNodeType.POKEMON_CENTER ? 27 : 24)}
-                    y={pos.cy - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 48 : node.nodeType === MapNodeType.POKEMON_CENTER ? 45 : 24)}
-                    width={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 96 : node.nodeType === MapNodeType.POKEMON_CENTER ? 54 : 48}
-                    height={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 96 : node.nodeType === MapNodeType.POKEMON_CENTER ? 90 : 48}
+                    x={pos.cx - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 48 : 36)}
+                    y={pos.cy - (node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 48 : 36)}
+                    width={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 96 : 72}
+                    height={node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ? 96 : 72}
                     opacity={nodeOpacity}
-                    style={isMissed
-                      ? { filter: "grayscale(1)", ...(node.nodeType === MapNodeType.POKEMON_CENTER ? { imageRendering: "pixelated" as const } : {}) }
-                      : node.nodeType === MapNodeType.POKEMON_CENTER ? { imageRendering: "pixelated" as const } : undefined}
+                    style={{ imageRendering: "pixelated" as const, ...(isMissed ? { filter: "grayscale(1)" } : {}) }}
                   />
                 ) : (
                   <text
@@ -309,6 +395,7 @@ export default function GameMap({
                     {NODE_LABELS[node.nodeType]}
                   </text>
                 )}
+                </g>
                 {(isAvailable || isHovered) && (
                   <text
                     x={pos.cx}

@@ -23,16 +23,7 @@ export function Expeditions() {
   )
 
   useEffect(() => {
-    function fetchEventLeaderboard() {
-      fetch("/leaderboards/event")
-        .then((res) => res.json())
-        .then((data) => {
-          setEventLeaderboard(data)
-        })
-    }
-    fetchEventLeaderboard()
-    const interval = setInterval(fetchEventLeaderboard, 60 * 1000 * 10)
-    return () => clearInterval(interval)
+    // Leaderboard polling disabled for single-player spire mode
   }, [])
 
   const [showLeaderboard, setShowLeaderboard] = useState(false)

@@ -9,6 +9,20 @@
   gap: 5px;
 }
 
+.game-shop-left-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px;
+}
+
+.game-shop-left-buttons .bubbly {
+  font-size: 1em;
+  white-space: nowrap;
+  padding: 0.25em 0.5em;
+  min-width: 36px;
+}
+
 .game-shop-actions {
   display: grid;
   grid-template: 1fr 1fr / 3vw 1fr;

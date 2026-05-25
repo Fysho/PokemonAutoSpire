@@ -59,6 +59,9 @@ export interface GameStateStore {
   encounterPokemonCount: number
   encounterTotalStars: number
   encounterTotalItems: number
+  encounterInventory: string[]
+  gameSpeed: number
+  arceusDamageDealt: number
 }
 
 const initialState: GameStateStore = {
@@ -99,7 +102,10 @@ const initialState: GameStateStore = {
   encounterDifficulty: 0,
   encounterPokemonCount: 0,
   encounterTotalStars: 0,
-  encounterTotalItems: 0
+  encounterTotalItems: 0,
+  encounterInventory: [],
+  gameSpeed: 1,
+  arceusDamageDealt: 0
 }
 
 export const gameSlice: Slice<GameStateStore> = createSlice({
@@ -142,6 +148,15 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
     },
     setEncounterTotalItems: (state, action: PayloadAction<number>) => {
       state.encounterTotalItems = action.payload
+    },
+    setEncounterInventory: (state, action: PayloadAction<string[]>) => {
+      state.encounterInventory = action.payload
+    },
+    setGameSpeed: (state, action: PayloadAction<number>) => {
+      state.gameSpeed = action.payload
+    },
+    setArceusDamageDealt: (state, action: PayloadAction<number>) => {
+      state.arceusDamageDealt = action.payload
     },
     setNoELO: (state, action: PayloadAction<boolean>) => {
       state.noElo = action.payload
@@ -376,6 +391,7 @@ export const {
   setEncounterPokemonCount,
   setEncounterTotalStars,
   setEncounterTotalItems,
+  setEncounterInventory,
   setWeather,
   setNoELO,
   setSpecialGameRule,
@@ -392,7 +408,9 @@ export const {
   changeShop,
   refreshShopUI,
   setItemsProposition,
-  setPodium
+  setPodium,
+  setGameSpeed,
+  setArceusDamageDealt
 } = gameSlice.actions
 
 export default gameSlice.reducer

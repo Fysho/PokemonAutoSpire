@@ -31,29 +31,8 @@ export function EventsMenu() {
     Number(showTwitchTab)
 
   useEffect(() => {
-    let isMounted = true
-
-    async function fetchTwitchStreams() {
-      try {
-        const response = await fetch("/twitch/streams")
-        const data = (await response.json()) as { streams: unknown[] }
-        if (isMounted) {
-          setShowTwitchTab((data.streams?.length ?? 0) > 0)
-        }
-      } catch {
-        if (isMounted) {
-          setShowTwitchTab(false)
-        }
-      }
-    }
-
-    fetchTwitchStreams()
-    const interval = setInterval(fetchTwitchStreams, 1000 * 60 * 2)
-
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
+    // Twitch stream polling disabled for single-player spire mode
+    setShowTwitchTab(false)
   }, [])
 
   useEffect(() => {

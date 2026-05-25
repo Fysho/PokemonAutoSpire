@@ -98,6 +98,35 @@ export const SPIRE_EVENTS: SpireEvent[] = [
       { label: "Trash", description: "Receive a Trash item" },
       { label: "Skip", description: "Nothing happens" }
     ]
+  },
+  {
+    name: "Fisherman",
+    description: "A fisherman casts his line into a quiet pond. \"I've got a few catches if you're interested!\"",
+    choices: [
+      { label: "Take a Carp", description: "Receive a Magikarp (free)" },
+      { label: "Buy a Feebas (10 gold)", description: "Receive a Feebas" },
+      { label: "Buy a Wishiwashi (20 gold)", description: "Receive a Wishiwashi" },
+      { label: "Skip", description: "Nothing happens" }
+    ]
+  },
+  {
+    name: "Nurse Joy",
+    description: "Nurse Joy is set up at a roadside aid station. \"Let me take care of your team!\"",
+    choices: [
+      { label: "Potion", description: "Restore 20 HP (free)" },
+      { label: "Rest (10 gold)", description: "Restore 50 HP" },
+      { label: "Berries for the road (3 gold)", description: "Receive 3 Oran Berries" },
+      { label: "Skip", description: "Nothing happens" }
+    ]
+  },
+  {
+    name: "Shady Gambler",
+    description: "A gambler shuffles cards at a makeshift table. \"Feeling lucky? Double or nothing!\"",
+    choices: [
+      { label: "Gamble 10 gold", description: "50% chance: win 20 gold or lose your bet" },
+      { label: "Gamble 5 gold", description: "50% chance: win 10 gold or lose your bet" },
+      { label: "Skip", description: "Nothing happens" }
+    ]
   }
 ]
 

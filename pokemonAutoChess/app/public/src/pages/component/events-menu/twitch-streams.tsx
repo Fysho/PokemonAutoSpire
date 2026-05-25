@@ -71,22 +71,7 @@ export function TwitchStreams() {
   }, [t])
 
   useEffect(() => {
-    let isMounted = true
-
-    fetchStreams().catch(() => undefined)
-    const interval = setInterval(
-      () => {
-        if (isMounted) {
-          fetchStreams().catch(() => undefined)
-        }
-      },
-      1000 * 60 * 2
-    )
-
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
+    // Twitch stream polling disabled for single-player spire mode
   }, [fetchStreams])
 
   async function handleConfirmDelete() {

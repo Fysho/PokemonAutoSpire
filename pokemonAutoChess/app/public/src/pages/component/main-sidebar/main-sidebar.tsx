@@ -147,7 +147,7 @@ export function MainSidebar(props: MainSidebarProps) {
     >
       <Menu>
         <div className="sidebar-logo" onClick={() => setCollapsed(!collapsed)}>
-          <img src={`assets/ui/colyseus-icon.png`} />
+          <img src={`assets/ui/AutoSpire.png`} />
           <div>
             <h1>Pokemon Auto Spire</h1>
             <small>v{version}</small>
