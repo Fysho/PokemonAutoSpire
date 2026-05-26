@@ -2,7 +2,6 @@ import firebase from "firebase/compat/app"
 import React, { useCallback, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Tab, TabList, TabPanel, Tabs } from "react-tabs"
-import { IGameRecord } from "../../../../../models/colyseus-models/game-record"
 import { ISuggestionUser, Role, Title } from "../../../../../types"
 import { debounce } from "../../../../../utils/function"
 import { keys } from "../../../../../utils/object"
@@ -37,7 +36,7 @@ export default function Profile() {
   const searchedUser = useAppSelector((state) => state.lobby.searchedUser)
 
   const profile = searchedUser ?? user
-  const [gameHistory, setGameHistory] = useState<IGameRecord[]>([])
+  const [gameHistory, setGameHistory] = useState<{ pokemons: { name: string }[] }[]>([])
   const [rightPanel, setRightPanel] = useState<"chat" | "game">("game")
 
   const [loading, setLoading] = useState<boolean>(false)

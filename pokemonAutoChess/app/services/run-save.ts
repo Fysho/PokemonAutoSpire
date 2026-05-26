@@ -3,14 +3,17 @@ import Player from "../models/colyseus-models/player"
 import { Pokemon } from "../models/colyseus-models/pokemon"
 import { MapNode, MapEdge } from "../models/colyseus-models/map-node"
 import { SavedRun, ISavedRun } from "../models/mongo-models/saved-run"
+import { RunHistory } from "../models/mongo-models/run-history"
+import UserMetadata from "../models/mongo-models/user-metadata"
 import PokemonFactory from "../models/pokemon-factory"
 import GameState from "../rooms/states/game-state"
 import { snapshotPlayerTeam, SnapshotPokemon, TeamSnapshot } from "./team-snapshot"
 import { Emotion } from "../types"
 import { Ability } from "../types/enum/Ability"
 import { Item } from "../types/enum/Item"
-import { Pkm } from "../types/enum/Pokemon"
+import { Pkm, PkmIndex } from "../types/enum/Pokemon"
 import { Synergy } from "../types/enum/Synergy"
+import { getAvatarString } from "../utils/avatar"
 import { logger } from "../utils/logger"
 
 interface SerializedMapNode {
@@ -216,9 +219,8 @@ export async function saveRun(odToken: string, state: GameState, player: Player)
         teamPreview,
         data
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     )
-    logger.info(`Run saved for ${odToken} (Act ${state.currentAct}, Floor ${state.currentFloor})`)
   } catch (e) {
     logger.error("Failed to save run:", e)
   }
@@ -450,4 +452,86 @@ export function restoreRunToState(
 
   // Recompute synergies from restored board
   player.updateSynergies()
+}
+
+export async function saveRunHistory(
+  odToken: string,
+  state: GameState,
+  player: Player,
+  victory: boolean
+): Promise<void> {
+  if (odToken === "local-player") return
+  try {
+    const pokemons: { name: string; avatar: string; items: string[] }[] = []
+    player.board.forEach((pokemon) => {
+      if (pokemon.positionY !== 0) {
+        pokemons.push({
+          name: pokemon.name,
+          avatar: getAvatarString(PkmIndex[pokemon.name], pokemon.shiny, pokemon.emotion),
+          items: Array.from(pokemon.items.values())
+        })
+      }
+    })
+    await RunHistory.create({
+      odToken,
+      time: Date.now(),
+      currentAct: state.currentAct,
+      currentFloor: state.currentFloor,
+      difficultyMode: state.difficultyMode,
+      runHP: state.runHP,
+      arceusDamageDealt: state.arceusDamageDealt,
+      victory,
+      pokemons
+    })
+    const result = victory ? "victory" : "defeat"
+    const arceus = state.arceusDamageDealt > 0 ? ` | arceus dmg: ${state.arceusDamageDealt}` : ""
+    logger.info(`Run saved | ${player.name} | ${result} | act ${state.currentAct} floor ${state.currentFloor}${arceus}`)
+  } catch (e) {
+    logger.error("Failed to save run history:", e)
+  }
+}
+
+export async function getRunHistory(odToken: string, page: number = 1, pageSize: number = 10) {
+  return RunHistory.find({ odToken })
+    .sort({ time: -1 })
+    .skip((page - 1) * pageSize)
+    .limit(pageSize)
+    .lean()
+}
+
+const DIFF_KEY: Record<number, string> = { 0: "easy", 1: "normal", 2: "hard" }
+
+export async function incrementRunStarted(uid: string, difficultyMode: number): Promise<void> {
+  if (uid === "local-player") return
+  const key = DIFF_KEY[difficultyMode] ?? "normal"
+  try {
+    await UserMetadata.updateOne(
+      { uid },
+      { $inc: { [`spireStats.${key}.runsStarted`]: 1 } },
+      { upsert: false }
+    )
+  } catch (e) {
+    logger.error("Failed to increment runsStarted:", e)
+  }
+}
+
+export async function incrementRunEnd(
+  uid: string,
+  difficultyMode: number,
+  victory: boolean,
+  champion: boolean,
+  arceusDamage: number
+): Promise<void> {
+  if (uid === "local-player") return
+  const key = DIFF_KEY[difficultyMode] ?? "normal"
+  const inc: Record<string, number> = {}
+  if (victory) inc[`spireStats.${key}.wins`] = 1
+  if (champion) inc[`spireStats.${key}.champion`] = 1
+  if (arceusDamage > 0) inc[`spireStats.${key}.arceusDamage`] = arceusDamage
+  if (Object.keys(inc).length === 0) return
+  try {
+    await UserMetadata.updateOne({ uid }, { $inc: inc }, { upsert: false })
+  } catch (e) {
+    logger.error("Failed to increment run end stats:", e)
+  }
 }

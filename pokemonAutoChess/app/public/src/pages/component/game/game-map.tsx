@@ -180,15 +180,28 @@ export default function GameMap({
           overflowX: "hidden",
           maxHeight: "80vh",
           width: "min(95vw, 1020px)",
-          border: "2px solid #444",
+          border: "2px solid #999",
           borderRadius: "8px",
           background: "#1a1a2e",
           padding: "10px",
           cursor: "grab",
-          userSelect: "none"
+          userSelect: "none",
+          position: "relative"
         }}
       >
-        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} width="100%" height={svgHeight}>
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: svgHeight + 20,
+          backgroundImage: "url('assets/posters/hd/6.6.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          opacity: 0.2,
+          pointerEvents: "none"
+        }} />
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} width="100%" height={svgHeight} style={{ position: "relative" }}>
           <defs>
             <filter id="white-outline" x="-10%" y="-10%" width="120%" height="120%">
               <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded" />
@@ -225,7 +238,7 @@ export default function GameMap({
                 y1={from.cy}
                 x2={to.cx}
                 y2={to.cy}
-                stroke={bothVisited ? "#666" : eitherMissed ? "#222" : "#333"}
+                stroke={bothVisited ? "#aaa" : eitherMissed ? "#444" : "#999"}
                 strokeWidth={2}
                 strokeDasharray="6 4"
                 opacity={eitherMissed ? 0.4 : 1}

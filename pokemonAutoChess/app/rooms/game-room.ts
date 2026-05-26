@@ -769,6 +769,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     this.state.players.forEach((player: Player) => {
       if (!player.isBot) {
+        const { incrementRunStarted } = require("../services/run-save")
+        incrementRunStarted(player.id, this.state.difficultyMode)
         const { pickRandomIn: pickRandom } = require("../utils/random")
         const { ItemComponentsNoFossilOrScarf } = require("../types/enum/Item")
         const { getPokemonData } = require("../models/precomputed/precomputed-pokemon-data")
@@ -858,6 +860,12 @@ export default class GameRoom extends Room<{ state: GameState }> {
     if (options.idToken) {
       const token = await admin.auth().verifyIdToken(options.idToken)
       const user = await admin.auth().getUser(token.uid)
+      const UserMetadata = require("../models/mongo-models/user-metadata").default
+      await UserMetadata.updateOne(
+        { uid: user.uid },
+        { $setOnInsert: { uid: user.uid, displayName: user.displayName || options.displayName || "Player" } },
+        { upsert: true }
+      )
       return {
         uid: user.uid,
         displayName: user.displayName || options.displayName || "Player"

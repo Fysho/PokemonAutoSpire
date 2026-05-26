@@ -3,10 +3,15 @@ import { useNavigate } from "react-router"
 import { useTranslation } from "react-i18next"
 import { client, getIdToken, joinGame } from "../network"
 import { useAppSelector } from "../hooks"
+import { SynergyTriggers } from "../../../config"
+import { computeSynergies } from "../../../models/colyseus-models/synergies"
+import PokemonFactory from "../../../models/pokemon-factory"
 import { EloRank } from "../../../types/enum/EloRank"
 import { Pkm, PkmIndex } from "../../../types/enum/Pokemon"
-import { getPortraitSrc } from "../../../utils/avatar"
+import { Synergy } from "../../../types/enum/Synergy"
+import { getPortraitSrc, getAvatarSrc } from "../../../utils/avatar"
 import { MainSidebar } from "./component/main-sidebar/main-sidebar"
+import SynergyIcon from "./component/icons/synergy-icon"
 import { cc } from "./utils/jsx"
 import { LocalStoreKeys, localStore } from "./utils/store"
 import "./lobby.css"
@@ -47,6 +52,7 @@ export default function SpireLobby() {
   const uid = useAppSelector((state) => state.network.uid)
   const displayName = useAppSelector((state) => state.network.displayName)
   const [starting, setStarting] = useState(false)
+  const [serverStatus, setServerStatus] = useState<{ ccu: number; totalAccounts: number } | null>(null)
   const [playerName, setPlayerName] = useState(() => localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) ?? "Username")
   const [avatarPkm, setAvatarPkm] = useState<Pkm>(() => (localStore.get(LocalStoreKeys.SPIRE_PLAYER_AVATAR) as Pkm) || Pkm.RATTATA)
   const [savedRun, setSavedRun] = useState<SavedRunSummary | null>(null)
@@ -64,6 +70,13 @@ export default function SpireLobby() {
       setPlayerName(displayName)
     }
   }, [displayName])
+
+  useEffect(() => {
+    fetch("/status")
+      .then((r) => r.json())
+      .then((data) => setServerStatus(data))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     localStore.set(LocalStoreKeys.SPIRE_PLAYER_NAME, playerName)
@@ -171,6 +184,33 @@ export default function SpireLobby() {
         leave={() => {}}
         leaveLabel="Exit"
       />
+      <div style={{
+        position: "fixed", bottom: "16px", right: "16px", zIndex: 100,
+        display: "flex", alignItems: "center", gap: "8px"
+      }}>
+        {serverStatus && (
+          <span style={{
+            fontSize: "12px", color: "#aaa",
+            background: "rgba(0,0,0,0.5)", padding: "6px 10px", borderRadius: "6px"
+          }}>
+            {serverStatus.ccu} in game &middot; {serverStatus.totalAccounts} accounts
+          </span>
+        )}
+        <a
+          href="https://discord.gg/cfytB2kA"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: "6px",
+            padding: "8px 16px", borderRadius: "6px",
+            background: "#5865F2", color: "white", textDecoration: "none",
+            fontWeight: "bold", fontSize: "14px"
+          }}
+        >
+          <img src="assets/ui/discord.svg" alt="" style={{ width: 20, height: 20 }} />
+          Discord
+        </a>
+      </div>
       <div className="lobby-container">
         <SpireLobbyContent
           startRun={startRun}
@@ -385,7 +425,7 @@ function SpireLobbyContent({
                     disabled={starting}
                     onClick={() => startRun(1)}
                   >
-                    {starting ? t("loading") : "Start Run"}
+                    {starting ? t("loading") : "Start Normal"}
                   </button>
                   <button
                     className={cc("bubbly red", { loading: starting })}
@@ -488,6 +528,7 @@ function SpireLobbyContent({
                 ))}
             </select>
           </div>
+          <ChampionDisplay />
         </div>
       </section>
 
@@ -503,7 +544,8 @@ function SpireLobbyContent({
             <li>Made by fish in the PAC Discord. Message him in the PAC roguelike mod channel in the community section for feedback.</li>
             <li>Poorly hosted on a server in Sydney.</li>
             <li>Still lots of balancing to do.</li>
-            <li>I have not decided how Pokemon rarity should be distributed throughout.</li>
+            <li>Please know that this is an early alpha.</li>
+            <li>Your data may be wiped at any time.</li>
           </ul>
         </div>
       </section>
@@ -557,6 +599,153 @@ function SpireLobbyContent({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+interface ChampionSlot {
+  name: string
+  avatar: string
+  pokemon: { name: string; items: string[] }[]
+}
+
+interface ChampionData {
+  champion: ChampionSlot
+  eliteFour: ChampionSlot[]
+}
+
+const DIFF_ORDER: { mode: number; label: string; color: string }[] = [
+  { mode: 2, label: "Hard", color: "#e74c3c" },
+  { mode: 1, label: "Normal", color: "#f39c12" },
+  { mode: 0, label: "Easy", color: "#27ae60" }
+]
+
+function ChampionDisplay() {
+  const [data, setData] = useState<Record<number, ChampionData>>({})
+  const [expanded, setExpanded] = useState<number | null>(null)
+  const { t } = useTranslation()
+
+  useEffect(() => {
+    DIFF_ORDER.forEach(({ mode }) => {
+      fetch(`/api/champion-data/${mode}`)
+        .then((r) => r.json())
+        .then((d) => setData((prev) => ({ ...prev, [mode]: d })))
+        .catch(() => {})
+    })
+  }, [])
+
+  return (
+    <div style={{ marginTop: "12px" }}>
+      <h2 style={{ textAlign: "center", margin: "0 0 10px 0" }}>
+        Elite Four & Champion
+      </h2>
+      {DIFF_ORDER.map(({ mode, label, color }) => {
+        const d = data[mode]
+        const isOpen = expanded === mode
+        return (
+          <div key={mode} className="my-box" style={{ marginBottom: "6px", padding: "0" }}>
+            <div
+              onClick={() => setExpanded(isOpen ? null : mode)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "8px 12px", cursor: "pointer", userSelect: "none"
+              }}
+            >
+              <span style={{ fontWeight: "bold", color, flex: 1, textAlign: "center" }}>{label}</span>
+              <span style={{ fontSize: "12px", opacity: 0.6 }}>{isOpen ? "▲" : "▼"}</span>
+            </div>
+            {isOpen && d && (
+              <div style={{ padding: "0 12px 10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                <ChampionSlotRow slot={d.champion} title="Champion" highlight />
+                {d.eliteFour.map((e4, i) => (
+                  <ChampionSlotRow key={i} slot={e4} title={`Elite Four ${i + 1}`} />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function getTopSynergiesFromSlot(pokemon: { name: string; items: string[] }[]): [Synergy, number][] {
+  const synergies = computeSynergies(
+    pokemon.filter(p => p.name).map((p) => {
+      const pkm = PokemonFactory.createPokemonFromName(p.name as Pkm)
+      pkm.positionY = 1
+      p.items.forEach((item) => pkm.items.add(item as any))
+      return pkm
+    })
+  )
+  return [...synergies.entries()]
+    .sort((a, b) => {
+      const aTrigger = SynergyTriggers[a[0]]?.filter((n) => a[1] >= n).length ?? 0
+      const bTrigger = SynergyTriggers[b[0]]?.filter((n) => b[1] >= n).length ?? 0
+      return aTrigger !== bTrigger ? bTrigger - aTrigger : b[1] - a[1]
+    })
+    .filter(([, v]) => v > 0)
+    .slice(0, 3)
+}
+
+function ChampionSlotRow({ slot, title, highlight }: { slot: ChampionSlot; title: string; highlight?: boolean }) {
+  const { t } = useTranslation()
+  const topSynergies = getTopSynergiesFromSlot(slot.pokemon)
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: "8px", padding: "4px 0",
+      borderTop: "1px solid rgba(255,255,255,0.1)"
+    }}>
+      <span style={{
+        fontSize: "14px", opacity: 0.7, minWidth: "80px", flexShrink: 0, fontWeight: "bold"
+      }}>{title}</span>
+      <img
+        src={getAvatarSrc(slot.avatar)}
+        alt={slot.name}
+        style={{ width: 50, height: 50, imageRendering: "pixelated", flexShrink: 0 }}
+      />
+      <span style={{
+        fontSize: "15px", fontWeight: highlight ? "bold" : "600",
+        color: highlight ? "#f1c40f" : "inherit",
+        minWidth: "90px", flexShrink: 0,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+      }}>{slot.name}</span>
+      <div style={{ display: "flex", gap: "2px", alignItems: "center", flexShrink: 0 }}>
+        {topSynergies.map(([type, value]) => (
+          <div key={type} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <SynergyIcon type={type} size="32px" />
+            <span style={{ fontSize: "11px", opacity: 0.7 }}>{value}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", flex: 1, alignItems: "center" }}>
+        {slot.pokemon.map((p, i) => {
+          const idx = PkmIndex[p.name as Pkm]
+          return idx ? (
+            <div key={i} style={{ position: "relative" }}>
+              <img
+                src={getPortraitSrc(idx)}
+                alt={p.name}
+                title={t(`pkm.${p.name}`)}
+                style={{ width: 50, height: 50, imageRendering: "pixelated" }}
+              />
+              {p.items.length > 0 && (
+                <div style={{ position: "absolute", bottom: 0, left: 0, display: "flex", gap: "1px" }}>
+                  {p.items.map((item, j) => (
+                    <img
+                      key={j}
+                      src={`/assets/item/${item}.png`}
+                      alt={item}
+                      title={t(`item.${item}`)}
+                      style={{ width: 15, height: 15 }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null
+        })}
+      </div>
     </div>
   )
 }

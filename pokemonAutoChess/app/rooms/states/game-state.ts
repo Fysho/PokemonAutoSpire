@@ -74,6 +74,8 @@ export default class GameState extends Schema {
   @type(["string"]) encounterInventory = new ArraySchema<string>()
   @type("uint16") encounterBonusHP: number = 0
   @type("uint8") encounterBonusAtk: number = 0
+  @type("uint8") encounterBonusDef: number = 0
+  @type("uint8") encounterBonusSpeDef: number = 0
   @type("uint8") encounterBonusAP: number = 0
   @type("uint8") encounterBonusPP: number = 0
   challengeItem: string = ""

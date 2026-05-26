@@ -170,9 +170,18 @@ export const server = defineServer({
       }
     })
 
-    app.get("/status", (req, res) => {
-      const version = pkg.version
-      res.send({ ccu: 1, maxCcu: 1, version })
+    app.get("/status", async (req, res) => {
+      try {
+        const { matchMaker } = await import("colyseus")
+        const rooms = await matchMaker.query({})
+        const ccu = rooms.reduce((sum, r) => sum + (r.clients ?? 0), 0)
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const totalAccounts = await UserMetadata.countDocuments()
+        const version = pkg.version
+        res.send({ ccu, totalAccounts, version })
+      } catch (error) {
+        res.send({ ccu: 0, totalAccounts: 0, version: pkg.version })
+      }
     })
 
     app.get("/api/saved-run/:uid", async (req, res) => {
@@ -182,6 +191,59 @@ export const server = defineServer({
         res.json(summary ?? null)
       } catch (error) {
         logger.error("Error fetching saved run:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    app.get("/api/spire-stats/:uid", async (req, res) => {
+      try {
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const user = await UserMetadata.findOne({ uid: req.params.uid }, { spireStats: 1 }).lean()
+        res.json(user?.spireStats ?? {
+          easy: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
+          normal: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
+          hard: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 }
+        })
+      } catch (error) {
+        logger.error("Error fetching spire stats:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    app.get("/api/champion-data/:difficulty", async (req, res) => {
+      try {
+        const { loadChampionData } = await import("./services/champion-data")
+        const mode = parseInt(req.params.difficulty) as 0 | 1 | 2
+        if (mode !== 0 && mode !== 1 && mode !== 2) {
+          return res.status(400).json({ error: "Invalid difficulty" })
+        }
+        const data = loadChampionData(mode)
+        const simplify = (snap: any) => ({
+          name: snap.name,
+          avatar: snap.avatar,
+          pokemon: snap.pokemon.filter((p: any) => p.y > 0).map((p: any) => ({
+            name: p.name,
+            items: p.items || []
+          }))
+        })
+        res.json({
+          champion: simplify(data.champion),
+          eliteFour: data.eliteFour.map(simplify)
+        })
+      } catch (error) {
+        logger.error("Error fetching champion data:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    app.get("/api/run-history/:uid", async (req, res) => {
+      try {
+        const { getRunHistory } = await import("./services/run-save")
+        const page = parseInt(req.query.page as string) || 1
+        const history = await getRunHistory(req.params.uid, page)
+        res.json(history)
+      } catch (error) {
+        logger.error("Error fetching run history:", error)
         res.status(500).json({ error: "Internal server error" })
       }
     })

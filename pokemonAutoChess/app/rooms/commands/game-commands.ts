@@ -1116,7 +1116,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           } else if (!this.state.runFailed) {
             this.state.runFailed = true
             this.state.players.forEach((p: Player) => {
-              if (!p.isBot) { p.life = 0; p.alive = false }
+              if (!p.isBot) {
+                p.life = 0
+                p.alive = false
+                const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+                deleteSavedRun(p.id)
+                saveRunHistory(p.id, this.state, p, false)
+                incrementRunEnd(p.id, this.state.difficultyMode, true, false, 0)
+              }
             })
             this.syncRunHPToPlayers()
           }
@@ -1234,6 +1241,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     resetArraySchema(this.state.encounterSynergies, [])
     this.state.encounterSnapshot = null
     this.state.encounterBonusHP = 0
+    this.state.encounterBonusDef = 0
+    this.state.encounterBonusSpeDef = 0
 
     // Clean up any lingering minigame state
     this.state.avatars.forEach((a, key) => this.state.avatars.delete(key))
@@ -1381,6 +1390,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         this.state.encounterName = encounter.name
         this.state.encounterBonusHP = encounter.bonusHP ?? 0
         this.state.encounterBonusAtk = encounter.bonusAtk ?? 0
+        this.state.encounterBonusDef = encounter.bonusDef ?? 0
+        this.state.encounterBonusSpeDef = encounter.bonusSpeDef ?? 0
         this.state.encounterBonusAP = encounter.bonusAP ?? 0
         this.state.encounterBonusPP = encounter.bonusPP ?? 0
         this.initializePickingPhase()
@@ -1421,11 +1432,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.time = 999 * 1000
     this.state.roundTime = 999
 
-    const dojoTicket = this.state.currentAct === 1
-      ? Item.BRONZE_DOJO_TICKET
-      : this.state.currentAct === 2
-        ? Item.SILVER_DOJO_TICKET
-        : Item.GOLD_DOJO_TICKET
+    const dojoTicket = this.getDojoTicket()
 
     const randomComponent = pickRandomIn(ItemComponentsNoFossilOrScarf)
 
@@ -1453,12 +1460,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     } else if (choiceIndex === 1) {
       this.room.spawnOnBench(player, Pkm.DITTO)
     } else if (choiceIndex === 2) {
-      const dojoTicket = this.state.currentAct === 1
-        ? Item.BRONZE_DOJO_TICKET
-        : this.state.currentAct === 2
-          ? Item.SILVER_DOJO_TICKET
-          : Item.GOLD_DOJO_TICKET
-      player.items.push(dojoTicket)
+      player.items.push(this.getDojoTicket())
+    }
+  }
+
+  getDojoTicket(): Item {
+    const act = this.state.currentAct
+    const mode = this.state.difficultyMode
+    if (act === 1) {
+      return mode === 0 ? Item.SILVER_DOJO_TICKET : Item.BRONZE_DOJO_TICKET
+    } else if (act === 2) {
+      return Item.SILVER_DOJO_TICKET
+    } else {
+      return mode === 2 ? Item.SILVER_DOJO_TICKET : Item.GOLD_DOJO_TICKET
     }
   }
 
@@ -1627,7 +1641,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.gameFinished = true
     this.state.runFailed = true
     this.state.players.forEach((p: Player) => {
-      if (!p.isBot) { p.life = 0; p.alive = false }
+      if (!p.isBot) {
+        p.life = 0
+        p.alive = false
+        const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+        deleteSavedRun(p.id)
+        saveRunHistory(p.id, this.state, p, false)
+        incrementRunEnd(p.id, this.state.difficultyMode, true, true, this.state.arceusDamageDealt)
+      }
     })
     this.syncRunHPToPlayers()
   }
@@ -1651,11 +1672,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       })
       this.syncRunHPToPlayers()
     }
-    // Delete saved run on completion
+    // Delete saved run and record history
     this.state.players.forEach((p: Player) => {
       if (!p.isBot) {
-        const { deleteSavedRun } = require("../../services/run-save")
+        const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
         deleteSavedRun(p.id)
+        saveRunHistory(p.id, this.state, p, !!winner)
+        incrementRunEnd(p.id, this.state.difficultyMode, true, !!winner, 0)
       }
     })
   }
@@ -1668,8 +1691,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       player.life = 0
       player.alive = false
       this.syncRunHPToPlayers()
-      const { deleteSavedRun } = require("../../services/run-save")
+      const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
       deleteSavedRun(player.id)
+      saveRunHistory(player.id, this.state, player, false)
+      incrementRunEnd(player.id, this.state.difficultyMode, false, false, 0)
     }
   }
 
@@ -1927,6 +1952,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           if (!p.isBot) {
             p.life = 0
             p.alive = false
+            const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+            deleteSavedRun(p.id)
+            saveRunHistory(p.id, this.state, p, false)
+            incrementRunEnd(p.id, this.state.difficultyMode, false, false, 0)
           }
         })
         this.syncRunHPToPlayers()
@@ -1973,6 +2002,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.state.gameFinished = true
             player.life = 0
             player.alive = false
+            const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+            deleteSavedRun(player.id)
+            saveRunHistory(player.id, this.state, player, false)
+            incrementRunEnd(player.id, this.state.difficultyMode, false, false, 0)
             this.syncRunHPToPlayers()
           }
         }
@@ -2659,6 +2692,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         items: encounterItems,
         bonusHP: this.state.encounterBonusHP || undefined,
         bonusAtk: this.state.encounterBonusAtk || undefined,
+        bonusDef: this.state.encounterBonusDef || undefined,
+        bonusSpeDef: this.state.encounterBonusSpeDef || undefined,
         bonusAP: this.state.encounterBonusAP || undefined
       }
 
@@ -2689,10 +2724,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               }
             })
           }
-          if (encounter.bonusHP || encounter.bonusAtk || encounter.bonusAP || this.state.encounterBonusPP) {
+          if (encounter.bonusHP || encounter.bonusAtk || encounter.bonusDef || encounter.bonusSpeDef || encounter.bonusAP || this.state.encounterBonusPP) {
             pvePokemons.forEach((pkm) => {
               if (encounter.bonusHP) pkm.addMaxHP(encounter.bonusHP)
               if (encounter.bonusAtk) pkm.addAttack(encounter.bonusAtk)
+              if (encounter.bonusDef) pkm.addDefense(encounter.bonusDef)
+              if (encounter.bonusSpeDef) pkm.addSpecialDefense(encounter.bonusSpeDef)
               if (encounter.bonusAP) pkm.addAbilityPower(encounter.bonusAP)
               if (this.state.encounterBonusPP) pkm.maxPP += this.state.encounterBonusPP
             })

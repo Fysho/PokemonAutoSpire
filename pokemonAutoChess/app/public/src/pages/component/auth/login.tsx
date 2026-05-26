@@ -4,7 +4,8 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
 import { firebase } from "../../../network"
 import { useAppDispatch, useAppSelector } from "../../../hooks"
-import { logIn, logOut } from "../../../stores/NetworkStore"
+import { logIn, logOut, setProfile } from "../../../stores/NetworkStore"
+import { Role } from "../../../../../types"
 import { StyledFirebaseAuth } from "./styled-firebase-auth"
 
 import "firebaseui/dist/firebaseui.css"
@@ -37,6 +38,15 @@ export default function Login() {
     const unsubscribe = firebase.auth().onAuthStateChanged((u) => {
       if (u) {
         dispatch(logIn(u))
+        dispatch(setProfile({
+          uid: u.uid,
+          displayName: u.displayName || "Player",
+          avatar: "0019/Normal",
+          elo: 1000, maxElo: 1000, games: 0, wins: 0, exp: 0, level: 1,
+          donor: false, titles: [], title: "", role: Role.BASIC,
+          pokemonCollection: {}, booster: 0, eventPoints: 0, maxEventPoints: 0,
+          eventFinishTime: null, language: "en", twitchInfo: null
+        } as any))
       }
     })
     return () => unsubscribe()

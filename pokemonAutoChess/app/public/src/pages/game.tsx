@@ -1024,7 +1024,7 @@ export default function Game() {
                   setRunFailed(false)
                   setMapHidden(false)
                 } : undefined}
-                onBackToLobby={() => { window.location.href = "/lobby" }}
+                onBackToLobby={leave}
               />
             )
           })()}

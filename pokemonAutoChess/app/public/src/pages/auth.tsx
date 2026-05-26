@@ -59,6 +59,20 @@ export default function Auth() {
           <br />
           Built on Pokemon Auto Chess v6.9 (master@01c2ebe)
         </p>
+        <a
+          href="https://discord.gg/cfytB2kA"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: "6px",
+            padding: "8px 16px", borderRadius: "6px",
+            background: "#5865F2", color: "white", textDecoration: "none",
+            fontWeight: "bold", fontSize: "14px"
+          }}
+        >
+          <img src="assets/ui/discord.svg" alt="" style={{ width: 20, height: 20 }} />
+          Discord
+        </a>
       </div>
       <Modal
         show={networkError != null}

@@ -17106,7 +17106,7 @@ export class Timburr extends Pokemon {
   afterSell(player) {
     player.updatePillars()
   }
-  afterEvolve(player) {
+  afterEvolve({ player }) {
     player.updatePillars()
   }
 }
@@ -17132,7 +17132,7 @@ export class Gurdurr extends Pokemon {
   afterSell(player) {
     player.updatePillars()
   }
-  afterEvolve(player) {
+  afterEvolve({ player }) {
     player.updatePillars()
   }
 }

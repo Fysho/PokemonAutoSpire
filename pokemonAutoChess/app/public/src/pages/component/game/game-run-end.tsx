@@ -46,7 +46,7 @@ export default function GameRunEnd({
   const isArceusEnd = currentAct === 5 && arceusDamageDealt > 0
 
   const getTitle = () => {
-    if (isArceusEnd) return "You Tried"
+    if (isArceusEnd) return "Game Over"
     if (!victory) return "Defeated"
     if (currentAct === 4) return "Champion!"
     if (eliteFourAvailable) return "Victory!"
@@ -54,6 +54,7 @@ export default function GameRunEnd({
   }
 
   const getSubtitle = () => {
+    if (isArceusEnd) return "Your score is the damage dealt to Arceus."
     if (!victory) return null
     if (currentAct === 4) return "You are the new Champion!"
     if (eliteFourAvailable) return "The Elite Four awaits..."

@@ -16,6 +16,8 @@ export type SpireEncounter = {
   synergy?: Synergy
   bonusHP?: number
   bonusAtk?: number
+  bonusDef?: number
+  bonusSpeDef?: number
   bonusAP?: number
   bonusPP?: number
 }
@@ -983,8 +985,8 @@ function addHardModeItems(encounter: SpireEncounter, act: number, floor: number,
 
   let extraComponents: number
   if (act === 1) extraComponents = Math.round(encounter.board.length * 0.5)
-  else if (act === 2) extraComponents = encounter.board.length
-  else extraComponents = Math.round(encounter.board.length * 1.5)
+  else if (act === 2) extraComponents = Math.round(encounter.board.length * 1.25)
+  else extraComponents = Math.round(encounter.board.length * 1.75)
 
   const adjusted = { ...encounter, items: encounter.items ? encounter.items.map(list => [...list]) : encounter.board.map(() => [] as Item[]) }
   for (let i = 0; i < extraComponents; i++) {
@@ -1302,9 +1304,27 @@ export function getGymLeaderDisplayName(synergy: string): string {
   return synergy.replace(/_/g, " ")
 }
 
+function applyHardBossBoost(encounter: SpireEncounter, act: number, mode: DifficultyMode): SpireEncounter {
+  if (mode !== 2 || act < 3) return encounter
+  const extraLegendaries: Pkm[] = [Pkm.CELEBI, Pkm.JIRACHI, Pkm.VICTINI, Pkm.MANAPHY, Pkm.SHAYMIN, Pkm.PHIONE]
+  const existing = new Set(encounter.board.map(([pkm]) => pkm))
+  const candidates = extraLegendaries.filter(p => !existing.has(p))
+  if (candidates.length === 0) return encounter
+  const extra = pickRandomIn(candidates)
+  const freeX = [0, 1, 2, 3, 4, 5, 6, 7].find(x => !encounter.board.some(([, bx, by]) => bx === x && by === 1)) ?? 1
+  const adjusted = {
+    ...encounter,
+    board: [...encounter.board, [extra, freeX, 1] as [Pkm, number, number]],
+    items: [...(encounter.items || encounter.board.map(() => [])), [Item.SOUL_DEW]],
+    bonusHP: (encounter.bonusHP ?? 0) + 200,
+    bonusAtk: (encounter.bonusAtk ?? 0) + 5
+  }
+  return adjusted
+}
+
 export function getLegendaryBossEncounter(act: number, mode: DifficultyMode = 1): SpireEncounter {
   const bosses = LEGENDARY_BOSSES[act] || LEGENDARY_BOSSES[1]
-  return adjustEncounterItems(pickRandomIn(bosses), mode)
+  return adjustEncounterItems(applyHardBossBoost(pickRandomIn(bosses), act, mode), mode)
 }
 
 export function pickLegendaryBoss(act: number): { name: string; sprites: Pkm[] } {
@@ -1317,7 +1337,7 @@ export function pickLegendaryBoss(act: number): { name: string; sprites: Pkm[] }
 export function getLegendaryBossEncounterByName(act: number, name: string, mode: DifficultyMode = 1): SpireEncounter {
   const bosses = LEGENDARY_BOSSES[act] || LEGENDARY_BOSSES[1]
   const boss = bosses.find(b => b.name === name) ?? pickRandomIn(bosses)
-  return adjustEncounterItems(boss, mode)
+  return adjustEncounterItems(applyHardBossBoost(boss, act, mode), mode)
 }
 
 export function getRegionalCandidates(region: string, act: number): Pkm[] {
@@ -1753,10 +1773,13 @@ export function getArceusEncounter(): SpireEncounter {
       [Pkm.ARCEUS, 4, 2]
     ],
     items: [
-      [Item.CHOICE_SPECS, Item.SCOPE_LENS, Item.SHELL_BELL, Item.MUSCLE_BAND, Item.UPGRADE, Item.SOUL_DEW]
+      [Item.CHOICE_SPECS, Item.SCOPE_LENS, Item.SHELL_BELL, Item.MUSCLE_BAND, Item.UPGRADE, Item.SOUL_DEW,
+       Item.ROCKY_HELMET, Item.SAFETY_GOGGLES, Item.GREEN_ORB, Item.BLUE_ORB, Item.RED_ORB, Item.MAX_REVIVE, Item.STICKY_BARB, Item.POWER_LENS]
     ],
     bonusHP: 5000,
     bonusAtk: 100,
+    bonusDef: 40,
+    bonusSpeDef: 40,
     bonusAP: 300
   }
 }

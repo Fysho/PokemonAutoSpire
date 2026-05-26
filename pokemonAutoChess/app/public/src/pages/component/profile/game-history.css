@@ -19,9 +19,9 @@
   align-items: center;
   gap: 0 0.5em;
   grid-template-areas:
-    "top elo syn team"
-    "date date syn team";
-  grid-template-columns: 8ch 7ch 160px 1fr;
+    "top syn team"
+    "date syn team";
+  grid-template-columns: 16ch 160px 1fr;
   background-color: var(--color-bg-secondary);
   margin: 0 0 0.5em 0;
   padding: 0.25em;
@@ -49,10 +49,6 @@
   align-items: center;
   gap: 0.25em;
 }
-.game-history .elo {
-  grid-area: elo;
-}
-
 .game-history .date {
   grid-area: date;
   color: var(--color-fg-secondary);
@@ -85,9 +81,9 @@
 @media (width <= 640px) {
   .game-history.my-box {
     grid-template-areas:
-      "top elo date"
-      "syn syn syn"
-      "team team team";
-    grid-template-columns: 5ch 7ch 1fr;
+      "top date"
+      "syn syn"
+      "team team";
+    grid-template-columns: 1fr 1fr;
   }
 }

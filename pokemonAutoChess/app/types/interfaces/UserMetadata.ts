@@ -1,6 +1,19 @@
 import { Emotion, Role, Title } from ".."
 import { Language } from "../enum/Language"
 
+export interface ISpireDiffStats {
+  runsStarted: number
+  wins: number
+  champion: number
+  arceusDamage: number
+}
+
+export interface ISpireStats {
+  easy: ISpireDiffStats
+  normal: ISpireDiffStats
+  hard: ISpireDiffStats
+}
+
 interface IUserMetadata {
   uid: string
   displayName: string
@@ -26,6 +39,7 @@ interface IUserMetadata {
   role: Role
   banned?: boolean
   pokemonCollection: Map<string, IPokemonCollectionItem>
+  spireStats?: ISpireStats
 }
 
 interface IPokemonCollectionItem {

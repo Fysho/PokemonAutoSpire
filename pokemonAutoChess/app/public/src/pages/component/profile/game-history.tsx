@@ -5,7 +5,6 @@ import { AutoSizer } from "react-virtualized-auto-sizer"
 import { List, useDynamicRowHeight } from "react-window"
 import { SynergyTriggers } from "../../../../../config"
 import {
-  IGameRecord,
   IPokemonRecord
 } from "../../../../../models/colyseus-models/game-record"
 import { computeSynergies } from "../../../../../models/colyseus-models/synergies"
@@ -13,51 +12,59 @@ import PokemonFactory from "../../../../../models/pokemon-factory"
 import { Synergy } from "../../../../../types/enum/Synergy"
 import { formatDate } from "../../utils/date"
 import Team from "../after/team"
-import { GameModeIcon } from "../icons/game-mode-icon"
 import SynergyIcon from "../icons/synergy-icon"
-import { EloBadge } from "./elo-badge"
 import "./game-history.css"
 
 const ROW_HEIGHT = 72
 
+interface IRunHistoryRecord {
+  time: number
+  currentAct: number
+  currentFloor: number
+  difficultyMode: number
+  runHP: number
+  arceusDamageDealt: number
+  victory: boolean
+  pokemons: { name: string; avatar: string; items: string[] }[]
+}
+
 export default function GameHistory(props: {
   uid: string
-  onUpdate?: (history: IGameRecord[]) => void
+  onUpdate?: (history: IRunHistoryRecord[]) => void
 }) {
   const { t } = useTranslation()
-  const [gameHistory, setGameHistory] = useState<IGameRecord[]>([])
+  const [runHistory, setRunHistory] = useState<IRunHistoryRecord[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [hasMore, setHasMore] = useState<boolean>(true)
 
   useEffect(() => {
     if (props.onUpdate) {
-      props.onUpdate(gameHistory)
+      props.onUpdate(runHistory)
     }
-  }, [gameHistory, props.onUpdate])
+  }, [runHistory, props.onUpdate])
 
   const pageSize = 10
   const loadHistory = async (uid: string, page: number) => {
     try {
       setLoading(true)
-
       const response = await fetch(
-        `/game-history/${uid}?page=${page}&t=${Date.now()}`
+        `/api/run-history/${uid}?page=${page}&t=${Date.now()}`
       )
-      const data: IGameRecord[] = await response.json()
-      if (props.uid !== uid) return // ignore response if uid changed in the meantime
+      const data: IRunHistoryRecord[] = await response.json()
+      if (props.uid !== uid) return
 
       if (data.length < pageSize) {
-        setHasMore(false) // No more data to load
+        setHasMore(false)
       }
 
-      setGameHistory((prevHistory) => [
-        ...prevHistory,
+      setRunHistory((prev) => [
+        ...prev,
         ...data.filter(
-          (h) => prevHistory.some((p) => p.time == h.time) == false
+          (h) => prev.some((p) => p.time == h.time) == false
         )
       ])
     } catch (error) {
-      console.error("Failed to load history:", error)
+      console.error("Failed to load run history:", error)
     } finally {
       setLoading(false)
     }
@@ -65,55 +72,53 @@ export default function GameHistory(props: {
 
   const loadMore = async () => {
     if (loading || !hasMore) return
-    const skip = gameHistory.length
+    const skip = runHistory.length
     const page = Math.floor(skip / pageSize + 1)
     loadHistory(props.uid, page)
   }
 
   useEffect(() => {
-    // reset history on uid change
-    setGameHistory([])
+    setRunHistory([])
     setHasMore(true)
-    loadHistory(props.uid, 1) // load last 10 games history
+    loadHistory(props.uid, 1)
   }, [props.uid])
 
   const dynamicRowHeight = useDynamicRowHeight({
     defaultRowHeight: ROW_HEIGHT,
-    key: gameHistory.length
+    key: runHistory.length
   })
 
-  // Trigger loadMore when user scrolls near the end
   const handleRowsRendered = useCallback(
     (
       _visibleRows: { startIndex: number; stopIndex: number },
       allRows: { startIndex: number; stopIndex: number }
     ) => {
-      if (hasMore && !loading && allRows.stopIndex >= gameHistory.length - 3) {
+      if (hasMore && !loading && allRows.stopIndex >= runHistory.length - 3) {
         loadMore()
       }
     },
-    [hasMore, loading, gameHistory.length]
+    [hasMore, loading, runHistory.length]
   )
 
   return (
     <article className="game-history-list">
-      <h2>{t("game_history")}</h2>
+      <h2>Run History</h2>
       <div style={{ flex: 1, minHeight: 0 }}>
-        {(!gameHistory || gameHistory.length === 0) && (
+        {(!runHistory || runHistory.length === 0) && (
           <p>{t("no_history_found")}</p>
         )}
-        {gameHistory && gameHistory.length > 0 && (
+        {runHistory && runHistory.length > 0 && (
           <AutoSizer
             renderProp={({ height, width }) => {
               if (height === undefined || width === undefined) return null
               return (
-                <List<HistoryRowData>
+                <List<RunHistoryRowData>
                   style={{ height, width }}
-                  rowCount={gameHistory.length}
+                  rowCount={runHistory.length}
                   rowHeight={dynamicRowHeight}
-                  rowComponent={GameHistoryRow}
+                  rowComponent={RunHistoryRow}
                   rowProps={{
-                    gameHistory
+                    runHistory
                   }}
                   onRowsRendered={handleRowsRendered}
                 />
@@ -126,32 +131,49 @@ export default function GameHistory(props: {
   )
 }
 
-type HistoryRowData = {
-  gameHistory: IGameRecord[]
+type RunHistoryRowData = {
+  runHistory: IRunHistoryRecord[]
 }
 
-function GameHistoryRow({
+const DIFFICULTY_LABELS: Record<number, string> = {
+  0: "Easy",
+  1: "Normal",
+  2: "Hard"
+}
+
+function RunHistoryRow({
   index,
   style,
-  gameHistory
+  runHistory
 }: {
   ariaAttributes: object
   index: number
   style: React.CSSProperties
-} & HistoryRowData): React.ReactElement | null {
-  const r = gameHistory[index]
-  const { t } = useTranslation()
+} & RunHistoryRowData): React.ReactElement | null {
+  const r = runHistory[index]
+
+  const diffLabel = DIFFICULTY_LABELS[r.difficultyMode] ?? "Normal"
+  const progressLabel = r.victory
+    ? `${diffLabel} Champion!`
+    : `${diffLabel} Act ${r.currentAct} Floor ${r.currentFloor}`
+
+  const pokemons: IPokemonRecord[] = r.pokemons.map((p) => ({
+    name: p.name as any,
+    avatar: p.avatar,
+    items: p.items as any
+  }))
 
   return (
     <div style={style}>
       <div className="my-box game-history">
-        <span className="top">
-          <GameModeIcon gameMode={r.gameMode} />
-          {t("top")} {r.rank}
+        <span className="top" style={{ color: r.victory ? "#f1c40f" : undefined }}>
+          {progressLabel}
+          <span style={{ fontSize: "11px", color: "#f1c40f", marginLeft: "4px" }}>
+            {r.arceusDamageDealt.toLocaleString()} arceus damage
+          </span>
         </span>
-        <EloBadge elo={r.elo} />
         <ul className="synergies">
-          {getTopSynergies(r.pokemons).map(([type, value]) => (
+          {getTopSynergies(pokemons).map(([type, value]) => (
             <li key={r.time + type}>
               <SynergyIcon type={type} />
               <span>{value}</span>
@@ -159,7 +181,7 @@ function GameHistoryRow({
           ))}
         </ul>
         <p className="date">{formatDate(r.time)}</p>
-        <Team team={r.pokemons}></Team>
+        <Team team={pokemons}></Team>
       </div>
     </div>
   )
@@ -171,7 +193,7 @@ function getTopSynergies(
   const synergies = computeSynergies(
     team.map((pkmRecord) => {
       const pkm = PokemonFactory.createPokemonFromName(pkmRecord.name)
-      pkm.positionY = 1 // just to not be counted on bench
+      pkm.positionY = 1
       pkmRecord.items.forEach((item) => {
         pkm.items.add(item)
       })

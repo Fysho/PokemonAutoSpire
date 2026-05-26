@@ -34,6 +34,30 @@ export function authenticateUser() {
   const user = firebase.auth().currentUser
   if (user) {
     store.dispatch(logIn(user as any))
+    store.dispatch(
+      setProfile({
+        uid: user.uid,
+        displayName: user.displayName || "Player",
+        avatar: "0019/Normal",
+        elo: 1000,
+        maxElo: 1000,
+        games: 0,
+        wins: 0,
+        exp: 0,
+        level: 1,
+        donor: false,
+        titles: [],
+        title: "",
+        role: Role.BASIC,
+        pokemonCollection: {},
+        booster: 0,
+        eventPoints: 0,
+        maxEventPoints: 0,
+        eventFinishTime: null,
+        language: "en",
+        twitchInfo: null
+      } as any)
+    )
     return Promise.resolve(user)
   }
   const mockUser = {
