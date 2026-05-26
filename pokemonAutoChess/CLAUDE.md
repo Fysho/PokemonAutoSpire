@@ -6,6 +6,18 @@ PokemonAutoSpire is a single-player roguelike mod of [Pokemon Auto Chess](https:
 
 The original PAC codebase is in `pokemonAutoChess/`. All modifications live within that directory. Colyseus runs as the game server with Firebase for authentication and MongoDB for persistent data storage.
 
+## Upstream PAC Reference (`pac-upstream/`)
+
+An unmodified copy of the original Pokemon Auto Chess source code is available at `pac-upstream/` (gitignored). Use this to understand how the original PAC implements features like authentication, lobby rooms, database models, and game logic before adapting them for Auto Spire.
+
+**IMPORTANT: Never edit files in `pac-upstream/`. It is a read-only reference.**
+
+Useful for:
+- Seeing how PAC originally handles auth (`pac-upstream/app/rooms/custom-lobby-room.ts`, `preparation-room.ts`)
+- Understanding original MongoDB models (`pac-upstream/app/models/mongo-models/`)
+- Comparing modified files against their originals
+- Finding PAC features to restore or adapt
+
 ## How to Run
 
 ```bash

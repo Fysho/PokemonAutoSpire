@@ -93,6 +93,7 @@ export default class BoardManager {
   mulchAmountText: Phaser.GameObjects.Text | null = null
   mulchIcon: Phaser.GameObjects.Image | null = null
   groundHoles: Phaser.GameObjects.Sprite[]
+  opponentGroundHoles: Phaser.GameObjects.Sprite[] = []
   trainingBag: Phaser.GameObjects.Sprite | null = null
   trainingRack: Phaser.GameObjects.Sprite | null = null
   portal: Portal | undefined
@@ -132,6 +133,7 @@ export default class BoardManager {
       this.battleMode(false)
     } else if (state.phase === GamePhaseState.MAP || state.phase === GamePhaseState.EVENT) {
       this.mode = BoardMode.MAP
+      this.renderBoard(false)
     } else if (state.phase === GamePhaseState.REST) {
       this.pickMode(false)
     } else if (state.phase === GamePhaseState.SHOP) {
@@ -251,7 +253,7 @@ export default class BoardManager {
     }
 
     this.player.board.forEach((pokemon) => {
-      if (this.mode === BoardMode.PICK || isOnBench(pokemon)) {
+      if (this.mode === BoardMode.PICK || this.mode === BoardMode.MAP || isOnBench(pokemon)) {
         this.addPokemonSprite(pokemon)
       }
     })
@@ -287,6 +289,9 @@ export default class BoardManager {
         this.state.encounterBonusHP,
         perPokemonBoosts
       )
+      if (this.state.encounterGroundHoles?.length > 0) {
+        this.renderOpponentGroundHoles(Array.from(this.state.encounterGroundHoles))
+      }
     }
   }
 
@@ -506,6 +511,54 @@ export default class BoardManager {
   hideGroundHoles() {
     this.groundHoles.forEach((hole) => hole.destroy())
     this.groundHoles = []
+    this.opponentGroundHoles.forEach((h) => h.destroy())
+    this.opponentGroundHoles = []
+  }
+
+  renderOpponentGroundHoles(holes: number[]) {
+    this.opponentGroundHoles.forEach((h) => h.destroy())
+    this.opponentGroundHoles = []
+    if (!holes || holes.length === 0) return
+
+    for (let row = 0; row < BOARD_HEIGHT / 2; row++) {
+      for (let col = 0; col < BOARD_WIDTH; col++) {
+        const index = col + row * BOARD_WIDTH
+        let trenchWidth = 0
+        while (
+          col + trenchWidth < BOARD_WIDTH &&
+          holes[index + trenchWidth] === 5
+        ) {
+          trenchWidth++
+        }
+        if (trenchWidth >= 2) {
+          const [x, y] = transformEntityCoordinates(col, row, true)
+          const trench = this.scene.add
+            .sprite(x - 44, y + 10, "ground_holes", `trench${trenchWidth}.png`)
+            .setOrigin(0, 0.5)
+            .setScale(2)
+            .setAlpha(0.9)
+            .setDepth(DEPTH.BOARD_EFFECT_GROUND_LEVEL)
+            .setTint(
+              getRegionTint(this.scene.mapName, preference("colorblindMode"))
+            )
+          this.opponentGroundHoles.push(trench)
+          col += trenchWidth - 1
+        } else {
+          const hole = holes[index]
+          if (hole > 0) {
+            const [x, y] = transformEntityCoordinates(col, row, true)
+            const groundHole = this.scene.add
+              .sprite(x, y + 10, "ground_holes", `hole${hole}.png`)
+              .setScale(2)
+              .setDepth(DEPTH.BOARD_EFFECT_GROUND_LEVEL)
+              .setTint(
+                getRegionTint(this.scene.mapName, preference("colorblindMode"))
+              )
+            this.opponentGroundHoles.push(groundHole)
+          }
+        }
+      }
+    }
   }
 
   hideTrainingBag() {

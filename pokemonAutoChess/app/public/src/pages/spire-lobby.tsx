@@ -74,15 +74,17 @@ export default function SpireLobby() {
   }, [avatarPkm])
 
   useEffect(() => {
-    if (uid && uid !== "local-player") {
-      fetch(`/api/saved-run/${uid}`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => setSavedRun(data))
-        .catch(() => setSavedRun(null))
-        .finally(() => setLoadingSave(false))
-    } else {
+    if (!uid || uid === "local-player") {
       setLoadingSave(false)
+      return
     }
+    const controller = new AbortController()
+    fetch(`/api/saved-run/${uid}`, { signal: controller.signal })
+      .then((res) => res.json())
+      .then((data) => { if (!controller.signal.aborted) setSavedRun(data) })
+      .catch(() => { if (!controller.signal.aborted) setSavedRun(null) })
+      .finally(() => { if (!controller.signal.aborted) setLoadingSave(false) })
+    return () => controller.abort()
   }, [uid])
 
   const avatarIndex = PkmIndex[avatarPkm] ?? PkmIndex[Pkm.RATTATA]

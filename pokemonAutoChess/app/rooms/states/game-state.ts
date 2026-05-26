@@ -64,7 +64,7 @@ export default class GameState extends Schema {
   @type("boolean") runComplete: boolean = false
   @type("boolean") runFailed: boolean = false
   @type("boolean") eliteFourAvailable: boolean = false
-  @type("uint8") gameSpeed: number = 1
+  @type("float32") gameSpeed: number = 1
   @type(["string"]) spireEncounterBoard = new ArraySchema<string>()
   @type("uint16") encounterDifficulty: number = 0
   @type("uint8") encounterPokemonCount: number = 0
@@ -78,6 +78,8 @@ export default class GameState extends Schema {
   @type("uint8") encounterBonusPP: number = 0
   challengeItem: string = ""
   encounterSnapshot: TeamSnapshot | null = null
+  @type(["uint8"]) encounterGroundHoles = new ArraySchema<number>()
+  @type(["string"]) encounterSynergies = new ArraySchema<string>()
   @type("uint32") arceusDamageDealt: number = 0
   @type("string") spireEventName: string = ""
   @type("string") spireEventDescription: string = ""

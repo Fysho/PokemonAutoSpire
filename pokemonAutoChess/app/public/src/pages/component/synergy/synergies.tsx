@@ -7,6 +7,7 @@ import "./synergies.css"
 export default function Synergies(props: {
   synergies: [string, number][]
   tooltipPortal: boolean
+  isEnemy?: boolean
 }) {
   const synergies = Object.keys(Synergy)
     .sort((a, b) => {
@@ -40,6 +41,7 @@ export default function Synergies(props: {
             value={s[1]}
             index={index}
             tooltipPortal={props.tooltipPortal}
+            isEnemy={props.isEnemy}
           />
         )
       })}

@@ -120,8 +120,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
     difficultyMode?: number
     resume?: boolean
   }) {
-    logger.info("Create Game ", this.roomId)
-    logger.info("onCreate options:", JSON.stringify({ name, ownerName, gameMode, users: Object.keys(users || {}) }))
+    const diffLabel = difficultyMode === 0 ? "Easy" : difficultyMode === 2 ? "Hard" : "Normal"
+    const playerName = ownerName || Object.values(users || {})[0]?.name || "Unknown"
+    logger.info(`Create Game ${this.roomId} | player: ${playerName} | difficulty: ${diffLabel}`)
 
     this.setMetadata(<IGameMetadata>{
       name,
@@ -625,14 +626,16 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.SKIP_REWARD, (client) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth &&
+        this.state.phase !== GamePhaseState.FIGHT &&
+        this.state.phase !== GamePhaseState.MAP) {
         this.state.updatePhaseNeeded = true
         this.state.time = 0
       }
     })
 
     this.onMessage(Transfer.GAME_SPEED, (client, { speed }: { speed: number }) => {
-      if (client.auth && (speed === 1 || speed === 2 || speed === 3)) {
+      if (client.auth && (speed === 0.5 || speed === 1 || speed === 2 || speed === 3)) {
         this.state.gameSpeed = speed
       }
     })
@@ -791,6 +794,10 @@ export default class GameRoom extends Room<{ state: GameState }> {
           this.spawnOnBench(player, Pkm.MEWTWO)
           this.spawnOnBench(player, Pkm.MEW)
           this.spawnOnBench(player, Pkm.MEW)
+          this.spawnOnBench(player, Pkm.GIBLE)
+          this.spawnOnBench(player, Pkm.ONIX)
+          this.spawnOnBench(player, Pkm.DRATINI)
+          this.spawnOnBench(player, Pkm.CHARMANDER)
           player.board.forEach((pokemon) => {
             if (pokemon.name === Pkm.MEWTWO || pokemon.name === Pkm.MEW) {
               pokemon.addMaxHP(500)
@@ -867,11 +874,20 @@ export default class GameRoom extends Room<{ state: GameState }> {
   }
 
   async onLeave(client: Client, code: number) {
-    logger.info("Player left game")
+    const player = this.state.players.get(client.auth?.uid)
+    const name = player?.name || client.auth?.uid || "Unknown"
+    let reason = "disconnected"
+    if (this.state.runComplete) reason = "won"
+    else if (this.state.runFailed) reason = "dead"
+    else if (this.state.gameFinished) reason = "game finished"
+    else reason = "abandoned"
+    logger.info(`Player left game | name: ${name} | reason: ${reason} | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
   }
 
   async onDispose() {
-    logger.info("Dispose Game ", this.roomId)
+    const humanPlayer = Array.from(this.state.players.values()).find(p => !p.isBot)
+    const name = humanPlayer?.name || "Unknown"
+    logger.info(`Dispose Game ${this.roomId} | player: ${name}`)
     this.dispatcher.stop()
   }
 

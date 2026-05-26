@@ -16,7 +16,9 @@ export default function GameShop({ onShowMap }: { onShowMap?: () => void }) {
   const gameSpeed = useAppSelector((state) => state.game.gameSpeed)
 
   function cycleSpeed() {
-    const next = gameSpeed >= 3 ? 1 : gameSpeed + 1
+    const speeds = [0.5, 1, 2, 3]
+    const idx = speeds.indexOf(gameSpeed)
+    const next = speeds[(idx + 1) % speeds.length]
     localStore.set(LocalStoreKeys.SPIRE_GAME_SPEED, next)
     rooms.game?.send(Transfer.GAME_SPEED, { speed: next })
   }

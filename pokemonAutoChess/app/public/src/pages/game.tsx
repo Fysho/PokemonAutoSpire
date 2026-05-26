@@ -77,6 +77,7 @@ import {
   setEncounterTotalStars,
   setEncounterTotalItems,
   setEncounterInventory,
+  setEncounterGroundHoles,
   setGameSpeed,
   setArceusDamageDealt,
   setRoundTime,
@@ -240,7 +241,7 @@ export default function Game() {
     if (room?.connection.isOpen) {
       room.leave()
     }
-    navigate("/")
+    navigate("/lobby")
   }, [client, dispatch, room])
 
   const spectateTillTheEnd = () => {
@@ -612,9 +613,19 @@ export default function Game() {
         dispatch(setEncounterTotalItems(value))
       })
 
-      $state.encounterInventory.onChange(() => {
+      const syncEncounterInventory = () => {
         dispatch(setEncounterInventory(Array.from(room.state.encounterInventory)))
-      })
+      }
+      $state.encounterInventory.onChange(syncEncounterInventory)
+      $state.encounterInventory.onAdd(syncEncounterInventory)
+      $state.encounterInventory.onRemove(syncEncounterInventory)
+
+      const syncEncounterGroundHoles = () => {
+        dispatch(setEncounterGroundHoles(Array.from(room.state.encounterGroundHoles)))
+      }
+      $state.encounterGroundHoles.onChange(syncEncounterGroundHoles)
+      $state.encounterGroundHoles.onAdd(syncEncounterGroundHoles)
+      $state.encounterGroundHoles.onRemove(syncEncounterGroundHoles)
 
       $state.listen("runComplete", (value) => {
         setRunComplete(value)
@@ -1013,7 +1024,7 @@ export default function Game() {
                   setRunFailed(false)
                   setMapHidden(false)
                 } : undefined}
-                onBackToLobby={() => { window.location.href = "/" }}
+                onBackToLobby={() => { window.location.href = "/lobby" }}
               />
             )
           })()}

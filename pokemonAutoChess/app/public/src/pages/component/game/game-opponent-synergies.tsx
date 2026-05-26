@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { SynergyTriggers } from "../../../../../config"
 import { getPokemonData } from "../../../../../models/precomputed/precomputed-pokemon-data"
 import { GamePhaseState } from "../../../../../types/enum/Game"
 import { Item, SynergyGem, SynergyGivenByGem, SynergyGivenByItem } from "../../../../../types/enum/Item"
@@ -13,6 +12,18 @@ import DraggableWindow from "../modal/draggable-window"
 import Synergies from "../synergy/synergies"
 
 function computeOpponentSynergies(): [string, number][] {
+  // Use server-computed synergies if available (includes Dragon double-types etc.)
+  const serverSynergies = rooms.game?.state?.encounterSynergies
+  if (serverSynergies && serverSynergies.length > 0) {
+    const serverMap = new Map<string, number>()
+    Array.from(serverSynergies).forEach((entry: string) => {
+      const [key, val] = entry.split(":")
+      serverMap.set(key, parseInt(val))
+    })
+    return Object.keys(Synergy).map((key) => [key, serverMap.get(key) ?? 0] as [string, number])
+  }
+
+  // Fallback: compute client-side from encoded board (non-snapshot encounters)
   const board = rooms.game?.state?.spireEncounterBoard
   if (!board || board.length === 0) return []
 
@@ -35,10 +46,11 @@ function computeOpponentSynergies(): [string, number][] {
     }
   })
 
-  const counts = new Map<string, number>()
+  const synergies: [string, number][] = Object.keys(Synergy).map((key) => [key, 0])
   typesPerFamily.forEach((types) => {
     types.forEach((type) => {
-      counts.set(type, (counts.get(type) ?? 0) + 1)
+      const entry = synergies.find(([k]) => k === type)
+      if (entry) entry[1] += 1
     })
   })
 
@@ -47,26 +59,21 @@ function computeOpponentSynergies(): [string, number][] {
     Array.from(inv).forEach((item: string) => {
       const synType = SynergyGivenByGem[item as SynergyGem]
       if (synType) {
-        counts.set(synType, (counts.get(synType) ?? 0) + 1)
+        const entry = synergies.find(([k]) => k === synType)
+        if (entry) entry[1] += 1
       }
     })
   }
 
-  return Array.from(counts.entries())
-    .filter(([, val]) => val > 0)
-    .sort(([s1, v1], [s2, v2]) => {
-      if (v2 !== v1) return v2 - v1
-      const tiers1 = SynergyTriggers[s1 as Synergy]?.filter((n) => n <= v1).length ?? 0
-      const tiers2 = SynergyTriggers[s2 as Synergy]?.filter((n) => n <= v2).length ?? 0
-      return tiers2 - tiers1
-    })
+  return synergies
 }
 
 export default function GameOpponentSynergies() {
   const phase = useAppSelector((state) => state.game.phase)
   const stageLevel = useAppSelector((state) => state.game.stageLevel)
   const { t } = useTranslation()
-  const [position, setPosition] = usePreference("synergiesPosition")
+  const [playerPosition] = usePreference("synergiesPosition")
+  const [savedPosition, setSavedPosition] = usePreference("opponentSynergiesPosition")
   const [synergies, setSynergies] = useState<[string, number][]>([])
 
   useEffect(() => {
@@ -82,20 +89,20 @@ export default function GameOpponentSynergies() {
 
   if (phase !== GamePhaseState.PICK && phase !== GamePhaseState.FIGHT) return null
 
-  const offsetPosition = position
-    ? { x: position.x + 220, y: position.y }
-    : { x: 220, y: 60 }
+  const initialPosition = savedPosition
+    ?? { x: (playerPosition?.x ?? 0) + 220, y: playerPosition?.y ?? 60 }
 
   return (
     <DraggableWindow
       title="Enemy"
       className="my-container synergies-container"
-      initialPosition={offsetPosition}
-      onMove={() => {}}
+      initialPosition={initialPosition}
+      onMove={setSavedPosition}
     >
       <Synergies
         synergies={synergies}
         tooltipPortal={true}
+        isEnemy={true}
       />
     </DraggableWindow>
   )

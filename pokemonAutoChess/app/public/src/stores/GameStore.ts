@@ -60,6 +60,7 @@ export interface GameStateStore {
   encounterTotalStars: number
   encounterTotalItems: number
   encounterInventory: string[]
+  encounterGroundHoles: number[]
   gameSpeed: number
   arceusDamageDealt: number
 }
@@ -104,6 +105,7 @@ const initialState: GameStateStore = {
   encounterTotalStars: 0,
   encounterTotalItems: 0,
   encounterInventory: [],
+  encounterGroundHoles: [],
   gameSpeed: 1,
   arceusDamageDealt: 0
 }
@@ -151,6 +153,9 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
     },
     setEncounterInventory: (state, action: PayloadAction<string[]>) => {
       state.encounterInventory = action.payload
+    },
+    setEncounterGroundHoles: (state, action: PayloadAction<number[]>) => {
+      state.encounterGroundHoles = action.payload
     },
     setGameSpeed: (state, action: PayloadAction<number>) => {
       state.gameSpeed = action.payload
@@ -392,6 +397,7 @@ export const {
   setEncounterTotalStars,
   setEncounterTotalItems,
   setEncounterInventory,
+  setEncounterGroundHoles,
   setWeather,
   setNoELO,
   setSpecialGameRule,

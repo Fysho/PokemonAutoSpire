@@ -179,11 +179,7 @@ export const server = defineServer({
       try {
         const { getSavedRunSummary } = await import("./services/run-save")
         const summary = await getSavedRunSummary(req.params.uid)
-        if (summary) {
-          res.json(summary)
-        } else {
-          res.status(404).json({ error: "No saved run found" })
-        }
+        res.json(summary ?? null)
       } catch (error) {
         logger.error("Error fetching saved run:", error)
         res.status(500).json({ error: "Internal server error" })

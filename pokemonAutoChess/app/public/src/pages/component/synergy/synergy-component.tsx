@@ -13,6 +13,7 @@ export default function SynergyComponent(props: {
   value: number
   index: number
   tooltipPortal: boolean
+  isEnemy?: boolean
 }) {
   const { t } = useTranslation()
   const levelReached = SynergyTriggers[props.type]
@@ -23,28 +24,44 @@ export default function SynergyComponent(props: {
   const highlightSynergy = (type: Synergy) => {
     const scene = getGameScene()
     if (!scene) return
-    if (!spectatedPlayer?.board) return
-    spectatedPlayer.board.forEach((p) => {
-      if (p.types.has(type)) {
-        const sprite = scene.board?.pokemons.get(p.id)?.sprite
-        if (sprite) {
-          scene.setHovered(sprite, 4)
+    if (props.isEnemy) {
+      scene.board?.pokemons.forEach((pkmSprite, id) => {
+        if (id.startsWith("pve_") && pkmSprite.pokemon.types.has(type)) {
+          if (pkmSprite.sprite) scene.setHovered(pkmSprite.sprite, 4)
         }
-      }
-    })
+      })
+    } else {
+      if (!spectatedPlayer?.board) return
+      spectatedPlayer.board.forEach((p) => {
+        if (p.types.has(type)) {
+          const sprite = scene.board?.pokemons.get(p.id)?.sprite
+          if (sprite) {
+            scene.setHovered(sprite, 4)
+          }
+        }
+      })
+    }
   }
 
   const removeHighlightSynergy = (type: Synergy) => {
     const scene = getGameScene()
     if (!scene) return
-    spectatedPlayer?.board.forEach((p) => {
-      if (p.types.has(type)) {
-        const sprite = scene.board?.pokemons.get(p.id)?.sprite
-        if (sprite) {
-          scene.clearHovered(sprite)
+    if (props.isEnemy) {
+      scene.board?.pokemons.forEach((pkmSprite, id) => {
+        if (id.startsWith("pve_") && pkmSprite.pokemon.types.has(type)) {
+          if (pkmSprite.sprite) scene.clearHovered(pkmSprite.sprite)
         }
-      }
-    })
+      })
+    } else {
+      spectatedPlayer?.board.forEach((p) => {
+        if (p.types.has(type)) {
+          const sprite = scene.board?.pokemons.get(p.id)?.sprite
+          if (sprite) {
+            scene.clearHovered(sprite)
+          }
+        }
+      })
+    }
   }
 
   const tooltip = (

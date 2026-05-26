@@ -61,7 +61,7 @@ import {
   SpireEncounter
 } from "../../models/spire-encounters"
 import { loadChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, type DifficultyMode } from "../../services/champion-data"
-import { snapshotPlayerTeam, reconstructTeamAsBoard, encodeSnapshotForClient } from "../../services/team-snapshot"
+import { snapshotPlayerTeam, reconstructTeamAsPlayer, encodeSnapshotForClient } from "../../services/team-snapshot"
 import { getEventBerries, getEventItems, getRandomEvent } from "../../models/spire-events"
 import { generateShopItems } from "../../models/spire-shops"
 import {
@@ -1230,6 +1230,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.syncRunHPToPlayers()
     resetArraySchema(this.state.spireEncounterBoard, [])
     resetArraySchema(this.state.encounterInventory, [])
+    resetArraySchema(this.state.encounterGroundHoles, [])
+    resetArraySchema(this.state.encounterSynergies, [])
     this.state.encounterSnapshot = null
     this.state.encounterBonusHP = 0
 
@@ -1329,6 +1331,27 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           if (snap.inventory?.length) {
             resetArraySchema(this.state.encounterInventory, snap.inventory)
           }
+          if (snap.groundHoles?.length) {
+            resetArraySchema(this.state.encounterGroundHoles, snap.groundHoles)
+          }
+          // Compute server-side synergies (includes Dragon double-types etc.)
+          const snapBoard = snap.pokemon.filter((p) => p.y > 0)
+          const tempPokemon = snapBoard.map((p) => {
+            const pkm = PokemonFactory.createPokemonFromName(p.name as Pkm)
+            pkm.positionY = p.y
+            if (p.items) p.items.forEach((item) => { if (!pkm.items.has(item as Item)) pkm.items.add(item as Item) })
+            return pkm
+          })
+          const snapBonusSynergies = new Map<Synergy, number>()
+          for (const item of snap.inventory ?? []) {
+            const synType = SynergyGivenByGem[item as SynergyGem]
+            if (synType) snapBonusSynergies.set(synType, (snapBonusSynergies.get(synType) ?? 0) + 1)
+          }
+          const snapSynergies = computeSynergies(tempPokemon, snapBonusSynergies.size > 0 ? snapBonusSynergies : undefined)
+          resetArraySchema(
+            this.state.encounterSynergies,
+            Array.from(snapSynergies.entries()).filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v}`)
+          )
           // Build a SpireEncounter from snapshot for stats calculation
           const snapEncounter: SpireEncounter = {
             name: encounter.name,
@@ -1607,10 +1630,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       if (!p.isBot) { p.life = 0; p.alive = false }
     })
     this.syncRunHPToPlayers()
-    this.clock.setTimeout(() => {
-      this.room.broadcast(Transfer.GAME_END)
-      this.room.disconnect()
-    }, 60 * 1000)
   }
 
   endChampionFight() {
@@ -1621,7 +1640,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     if (winner) {
       this.state.runComplete = true
 
-      const snapshot = snapshotPlayerTeam(winner)
+      const snapshot = snapshotPlayerTeam(winner, { includeBench: true })
       if (snapshot.pokemon.length > 0) {
         promoteNewChampion(snapshot, this.state.difficultyMode as DifficultyMode)
       }
@@ -1639,12 +1658,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         deleteSavedRun(p.id)
       }
     })
-    this.clock.setTimeout(() => {
-      try {
-        this.room.broadcast(Transfer.GAME_END)
-        this.room.disconnect()
-      } catch (e) {}
-    }, 30 * 1000)
   }
 
   checkRunDeath(player: Player) {
@@ -1657,10 +1670,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       this.syncRunHPToPlayers()
       const { deleteSavedRun } = require("../../services/run-save")
       deleteSavedRun(player.id)
-      this.clock.setTimeout(() => {
-        this.room.broadcast(Transfer.GAME_END)
-        this.room.disconnect()
-      }, 10 * 1000)
     }
   }
 
@@ -1921,10 +1930,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           }
         })
         this.syncRunHPToPlayers()
-        this.clock.setTimeout(() => {
-          this.room.broadcast(Transfer.GAME_END)
-          this.room.disconnect()
-        }, 10 * 1000)
       }
     }
   }
@@ -1965,18 +1970,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           if (this.state.runHP <= 0) {
             this.state.runHP = 0
             this.state.runFailed = true
+            this.state.gameFinished = true
             player.life = 0
             player.alive = false
-            if (this.state.currentAct < 4) {
-              this.state.gameFinished = true
-              this.syncRunHPToPlayers()
-              this.clock.setTimeout(() => {
-                this.room.broadcast(Transfer.GAME_END)
-                this.room.disconnect()
-              }, 10 * 1000)
-            } else {
-              this.syncRunHPToPlayers()
-            }
+            this.syncRunHPToPlayers()
           }
         }
 
@@ -2022,12 +2019,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           client.send(Transfer.FINAL_RANK, 1)
         }
       }
-      this.clock.setTimeout(() => {
-        // dispose the room automatically after 30 seconds
-        this.room.broadcast(Transfer.GAME_END)
-        this.room.disconnect()
-      }, 30 * 1000)
-
       return true
     }
 
@@ -2619,15 +2610,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     const snapshot = this.state.encounterSnapshot
 
     if (snapshot) {
-      // Snapshot-based encounter (champion/E4/saved teams): full bot-style reconstruction
-      const { board: pveBoard, effects: pveEffectsSet } = reconstructTeamAsBoard(snapshot)
+      // Snapshot-based encounter (champion/E4/saved teams): full Player reconstruction
+      const opponentPlayer = reconstructTeamAsPlayer(snapshot, this.state)
 
       this.state.players.forEach((player: Player) => {
         if (player.alive) {
-          player.opponentId = "pve"
+          player.opponentId = opponentPlayer.id
           player.opponentName = this.state.encounterName || snapshot.name
           player.opponentAvatar = getAvatarString(
-            PkmIndex[snapshot.pokemon[0]?.name as Pkm ?? "MAGIKARP" as Pkm],
+            PkmIndex[snapshot.pokemon.find((p) => p.y > 0)?.name as Pkm ?? "MAGIKARP" as Pkm],
             false
           )
           player.opponentTitle = (node?.nodeType === MapNodeType.ELITE_FOUR ? "ELITE FOUR"
@@ -2635,16 +2626,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             : "TRAINER") as any
           player.team = Team.BLUE_TEAM
 
-          const weather = getWeather(player, null, pveBoard)
+          const weather = getWeather(player, opponentPlayer, opponentPlayer.board)
           const simulation = new Simulation(
             crypto.randomUUID(),
             this.room,
             player,
-            { id: "pve", board: pveBoard },
+            opponentPlayer,
             this.state.stageLevel,
             weather,
-            false,
-            pveEffectsSet
+            false
           )
           player.simulationId = simulation.id
           this.state.simulations.set(simulation.id, simulation)

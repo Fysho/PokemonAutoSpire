@@ -56,6 +56,8 @@ export default function Auth() {
           {t("auth.copyright")}
           <br />
           A mod of Pokemon Auto Chess — all credit to the original developers
+          <br />
+          Built on Pokemon Auto Chess v6.9 (master@01c2ebe)
         </p>
       </div>
       <Modal

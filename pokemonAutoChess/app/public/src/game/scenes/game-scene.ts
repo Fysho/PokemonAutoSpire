@@ -81,11 +81,11 @@ export default class GameScene extends Scene {
     })
   }
 
-  init(data: { room: Room<GameState>; spectate: boolean }) {
+  init(data: { room: Room<GameState>; spectate: boolean; uid?: string }) {
     this.tilemaps = new Map()
     this.room = data.room
     this.spectate = data.spectate
-    this.uid = "local-player"
+    this.uid = data.uid ?? "local-player"
     this.started = false
   }
 

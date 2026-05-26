@@ -309,7 +309,8 @@ class GameContainer {
     this.game.domContainer.style.zIndex = DEPTH.PHASER_DOM_CONTAINER.toString()
     this.game.scene.start("gameScene", {
       room: this.room,
-      spectate: this.spectate
+      spectate: this.spectate,
+      uid: this.uid
     })
     this.game.scale.on("resize", this.resize, this)
     if (this.game.renderer.type === Phaser.WEBGL) {
@@ -748,7 +749,7 @@ class GameContainer {
     if (
       board &&
       player.id === this.playerIdSpectated &&
-      (board.mode === BoardMode.PICK || pokemon.positionY === 0)
+      (board.mode === BoardMode.PICK || board.mode === BoardMode.MAP || pokemon.positionY === 0)
     ) {
       const pokemonUI = this.gameScene?.board?.addPokemonSprite(pokemon)
       if (!pokemonUI) return
