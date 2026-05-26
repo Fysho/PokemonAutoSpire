@@ -18,6 +18,8 @@ admin.initializeApp({
   })
 })
 
+mongoose.set("returnDocument", "after")
+
 async function main() {
   const mongoUri = process.env.MONGO_URI
   if (mongoUri) {

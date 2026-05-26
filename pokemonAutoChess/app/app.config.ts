@@ -170,6 +170,10 @@ export const server = defineServer({
       }
     })
 
+    app.get("/titles", (req, res) => {
+      res.json([])
+    })
+
     app.get("/status", async (req, res) => {
       try {
         const { matchMaker } = await import("colyseus")
