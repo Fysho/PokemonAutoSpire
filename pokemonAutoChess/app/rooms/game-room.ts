@@ -881,7 +881,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     else if (this.state.runFailed) reason = "dead"
     else if (this.state.gameFinished) reason = "game finished"
     else reason = "abandoned"
-    logger.info(`Player left game | name: ${name} | reason: ${reason} | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
+    logger.info(`${name} left game | reason: ${reason} | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
   }
 
   async onDispose() {
