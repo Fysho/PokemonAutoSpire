@@ -1,7 +1,7 @@
 {
   "name": "pokemon-auto-chess",
   "version": "6.9.0",
-  "assetsVersion": "6.9.0.2026-05-19.0",
+  "assetsVersion": "6.9.0.2026-05-26.0",
   "translationsVersion": "6.9.0-2026-03-29",
   "description": "",
   "keywords": [],
@@ -33,7 +33,7 @@
     "check": "npx @biomejs/biome check app/ --write",
     "check:unsafe": "npx @biomejs/biome check app/ --write --unsafe",
     "build-client": "node esbuild.js --build",
-    "build-server": "tsc",
+    "build-server": "esbuild app/index.ts --bundle --platform=node --outdir=app/public/dist/server/app --format=cjs --packages=external --define:import.meta.url=import_meta_url --banner:js='const import_meta_url = require(\"url\").pathToFileURL(__filename).href;'",
     "download-music": "degit --force https://github.com/keldaanCommunity/pokemonAutoChessMusic ./app/public/src/assets/musics",
     "build": "npm run build-client && npm run build-server",
     "start": "node ./app/public/dist/server/app/index.js",
