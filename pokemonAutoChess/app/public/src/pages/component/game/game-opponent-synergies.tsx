@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { SynergyTriggers } from "../../../../../config"
 import { getPokemonData } from "../../../../../models/precomputed/precomputed-pokemon-data"
 import { GamePhaseState } from "../../../../../types/enum/Game"
-import { SynergyGem, SynergyGivenByGem } from "../../../../../types/enum/Item"
+import { Item, SynergyGem, SynergyGivenByGem, SynergyGivenByItem } from "../../../../../types/enum/Item"
 import { Pkm, PkmFamily } from "../../../../../types/enum/Pokemon"
 import { Synergy } from "../../../../../types/enum/Synergy"
 import { useAppSelector } from "../../../hooks"
@@ -19,13 +19,19 @@ function computeOpponentSynergies(): [string, number][] {
   const typesPerFamily = new Map<string, Set<Synergy>>()
   board.forEach((entry: string) => {
     const [mainPart] = entry.split("|")
-    const pkm = mainPart.split(",")[0] as Pkm
+    const parts = mainPart.split(",")
+    const pkm = parts[0] as Pkm
+    const items = parts.slice(3) as Item[]
     const data = getPokemonData(pkm)
     if (data && data.types) {
       const family = PkmFamily[pkm] ?? pkm
       if (!typesPerFamily.has(family)) typesPerFamily.set(family, new Set())
       const familyTypes = typesPerFamily.get(family)!
       data.types.forEach((t: Synergy) => familyTypes.add(t))
+      items.forEach((item) => {
+        const synergy = SynergyGivenByItem[item as keyof typeof SynergyGivenByItem]
+        if (synergy) familyTypes.add(synergy)
+      })
     }
   })
 

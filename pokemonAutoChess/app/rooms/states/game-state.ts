@@ -27,6 +27,7 @@ import { Pkm } from "../../types/enum/Pokemon"
 import { SpecialGameRule } from "../../types/enum/SpecialGameRule"
 import { TownEncounter } from "../../types/enum/TownEncounter"
 import { Weather } from "../../types/enum/Weather"
+import { TeamSnapshot } from "../../services/team-snapshot"
 import { pickRandomIn, randomBetween } from "../../utils/random"
 
 export default class GameState extends Schema {
@@ -76,6 +77,7 @@ export default class GameState extends Schema {
   @type("uint8") encounterBonusAP: number = 0
   @type("uint8") encounterBonusPP: number = 0
   challengeItem: string = ""
+  encounterSnapshot: TeamSnapshot | null = null
   @type("uint32") arceusDamageDealt: number = 0
   @type("string") spireEventName: string = ""
   @type("string") spireEventDescription: string = ""

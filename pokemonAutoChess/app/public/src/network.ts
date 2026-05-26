@@ -1,5 +1,8 @@
 import { Client, Room } from "@colyseus/sdk"
+import firebase from "firebase/compat/app"
+import "firebase/compat/auth"
 import type { server } from "../../app.config.ts"
+import { FIREBASE_CONFIG } from "../../config"
 import GameState from "../../rooms/states/game-state"
 import { Role, Transfer } from "../../types"
 import { logger } from "../../utils/logger"
@@ -13,7 +16,26 @@ logger.info(`Colyseus endpoint: ${endpoint}`)
 
 export const client = new Client<typeof server>(endpoint)
 
+if (!firebase.apps.length) {
+  firebase.initializeApp(FIREBASE_CONFIG)
+}
+
+export { firebase }
+
+export async function getIdToken(): Promise<string | undefined> {
+  const user = firebase.auth().currentUser
+  if (user) {
+    return user.getIdToken()
+  }
+  return undefined
+}
+
 export function authenticateUser() {
+  const user = firebase.auth().currentUser
+  if (user) {
+    store.dispatch(logIn(user as any))
+    return Promise.resolve(user)
+  }
   const mockUser = {
     uid: "local-player",
     displayName: "Player",

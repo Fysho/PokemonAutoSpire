@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 import { Provider } from "react-redux"
 import { BrowserRouter, Route, Routes } from "react-router"
 import i18n from "./i18n"
+import Auth from "./pages/auth"
 import Game from "./pages/game"
 import SpireLobby from "./pages/spire-lobby"
 import store from "./stores/index"
@@ -27,7 +28,8 @@ i18n.on("initialized", () => {
         <Suspense fallback="loading">
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<SpireLobby />} />
+              <Route path="/" element={<Auth />} />
+              <Route path="/lobby" element={<SpireLobby />} />
               <Route path="/game" element={<Game />} />
             </Routes>
           </BrowserRouter>

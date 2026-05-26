@@ -4,7 +4,7 @@
 
 PokemonAutoSpire is a single-player roguelike mod of [Pokemon Auto Chess](https://github.com/keldaanCommunity/pokemonAutoChess). It combines PAC's auto-battler mechanics (synergies, items, abilities, board placement) with Slay the Spire-style roguelike progression (branching map, permadeath, act-based progression).
 
-The original PAC codebase is in `pokemonAutoChess/`. All modifications live within that directory. Colyseus runs locally as an embedded server — Firebase auth and MongoDB are stripped.
+The original PAC codebase is in `pokemonAutoChess/`. All modifications live within that directory. Colyseus runs as the game server with Firebase for authentication and MongoDB for persistent data storage.
 
 ## How to Run
 
@@ -209,14 +209,121 @@ Added `price` (uint8) and `pokemonName` (string) for shop carousel
 - **Pokemon sprites**: All animation and rendering
 - **Level-up**: Gold → XP → team size
 
+## Database & Authentication
+
+### Overview
+
+- **Firebase Auth**: Handles user accounts (Google sign-in, email/password). Each user gets a unique Firebase `uid`.
+- **MongoDB Atlas**: Stores persistent data (run history, user profiles, Elite 4 teams). Free tier on AWS `us-east-1`.
+- **Guest mode**: Players can skip sign-in and play as `"local-player"` — no data is saved.
+
+### Credentials
+
+All credentials live in `pokemonAutoChess/.env` (gitignored). See `.env-example` for the template.
+
+| Variable | Source |
+|---|---|
+| `MONGO_URI` | MongoDB Atlas → Connect → Drivers. Must end with `/dev` database name. |
+| `FIREBASE_API_KEY` through `FIREBASE_APP_ID` | Firebase Console → Project Settings → Web app config |
+| `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` | Firebase Console → Project Settings → Service accounts → Generate private key JSON |
+
+### Server Initialization (`app/index.ts`)
+
+Startup order:
+1. `dotenv.config()` loads `.env`
+2. `firebase-admin` initializes with service account credentials
+3. `mongoose.connect(MONGO_URI)` connects to MongoDB
+4. Colyseus server starts on port 9000
+
+### Authentication Flow
+
+```
+Browser                          Server
+  │                                │
+  ├─ / (Auth page)                 │
+  │  ├─ Firebase login UI          │
+  │  │  (Google or Email)          │
+  │  └─ "Play as Guest" button     │
+  │                                │
+  ├─ /lobby (SpireLobby)           │
+  │  └─ "Start Run" →             │
+  │     client.create("game", {    │
+  │       idToken,  ◄── Firebase token (or undefined for guests)
+  │       odToken,  ◄── Firebase uid (or "local-player")
+  │       ...                      │
+  │     })                         │
+  │                                │
+  │                          ┌─────┤
+  │                          │ game-room.ts onAuth()
+  │                          │  if idToken:
+  │                          │    admin.auth().verifyIdToken(idToken)
+  │                          │    admin.auth().getUser(uid)
+  │                          │  else:
+  │                          │    accept as guest
+  │                          └─────┤
+  │                                │
+  ├─ /game                         │
+```
+
+### Key Files
+
+| File | Role |
+|---|---|
+| `.env` | All credentials (gitignored) |
+| `app/index.ts` | dotenv, mongoose connect, firebase-admin init |
+| `app/config/server/firebase.ts` | `FIREBASE_CONFIG` object (client-side, from env vars) |
+| `app/rooms/game-room.ts` → `onAuth()` | Verifies Firebase ID tokens, falls back to guest |
+| `app/public/src/network.ts` | Firebase client SDK init, `getIdToken()`, `authenticateUser()` guest fallback |
+| `app/public/src/pages/auth.tsx` | Login page with StyledFirebaseAuth + "Play as Guest" |
+| `app/public/src/pages/component/auth/login.tsx` | Firebase login UI (Google + Email providers) |
+| `app/public/src/pages/component/auth/styled-firebase-auth.tsx` | FirebaseUI wrapper component |
+| `app/public/src/pages/component/profile/account-tab.tsx` | Account tab: shows signed-in status, sign out button |
+| `app/models/mongo-models/user-metadata.ts` | Mongoose schema for user profiles (PAC original, available for use) |
+
+### Client Routing
+
+| Route | Page | Auth Required |
+|---|---|---|
+| `/` | Auth (login page) | No |
+| `/lobby` | SpireLobby (difficulty select, start run) | Redirects to `/` if no uid |
+| `/game` | Game (active run) | Joined via room creation |
+
+### esbuild & Environment Variables
+
+`esbuild.js` loads `.env` via dotenv and injects Firebase config as `process.env.*` defines into the client bundle. The client never sees `MONGO_URI`, `FIREBASE_PRIVATE_KEY`, or other server-only secrets — only the 6 public Firebase config values are injected.
+
+### MongoDB Collections
+
+| Collection | Model | Purpose |
+|---|---|---|
+| `botv2` | `app/models/mongo-models/bot-v2.ts` | Bot team data (PAC original) |
+| `usermetadatas` | `app/models/mongo-models/user-metadata.ts` | User profiles keyed by Firebase uid |
+
+### Adding New Persistent Data
+
+To store new data in MongoDB:
+1. Create a Mongoose schema in `app/models/mongo-models/`
+2. Import and use it in server-side code (rooms, commands)
+3. No client-side changes needed — the client talks to the server via Colyseus messages, not directly to MongoDB
+
+### Guest vs Signed-In Behavior
+
+| Feature | Guest | Signed In |
+|---|---|---|
+| Play runs | Yes | Yes |
+| uid | `"local-player"` | Firebase uid |
+| Save run history | No | Yes (when implemented) |
+| Account tab | Shows "Sign In" button | Shows name, email, sign out |
+
 ## Known Issues / Incomplete Features
 
-1. **Save/Load**: Not implemented. Runs must be completed in one session.
-2. **Battle stat passive items**: Muscle Band (+ATK), Charcoal (+AP), etc. are defined but not applied during battle initialization. Only gold/heal/XP/damage-reduction passives work.
-3. **Balance**: Gold, encounter difficulty, HP damage need playtesting.
-4. **Act transition UI**: No "Act Complete" overlay — map regenerates silently.
-5. **Meta-progression**: No unlocks between runs.
-6. **Difficulty modes**: No ascension system.
+1. **Run history**: MongoDB is connected but run results are not yet saved. Needs a new Mongoose model and save logic in `game-room.ts` on run end.
+2. **Elite 4 teams by difficulty**: Not yet implemented. Needs a collection to store winning teams and a UI to display them.
+3. **Battle stat passive items**: Muscle Band (+ATK), Charcoal (+AP), etc. are defined but not applied during battle initialization. Only gold/heal/XP/damage-reduction passives work.
+4. **Balance**: Gold, encounter difficulty, HP damage need playtesting.
+5. **Act transition UI**: No "Act Complete" overlay — map regenerates silently.
+6. **Meta-progression**: No unlocks between runs.
+7. **Difficulty modes**: No ascension system.
 
 ## How Colyseus State Sync Works
 

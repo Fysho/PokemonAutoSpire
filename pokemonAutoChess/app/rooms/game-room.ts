@@ -1,5 +1,6 @@
 import { Dispatcher } from "@colyseus/command"
 import { MapSchema } from "@colyseus/schema"
+import admin from "firebase-admin"
 import { Client, Room } from "colyseus"
 import {
   MAX_LOADING_TIME,
@@ -79,6 +80,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
   additionalRarePool: Array<Pkm>
   additionalEpicPool: Array<Pkm>
   miniGame: MiniGame
+  isResume: boolean = false
   constructor() {
     super()
     this.dispatcher = new Dispatcher(this)
@@ -101,7 +103,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
     maxRank,
     tournamentId,
     bracketId,
-    difficultyMode
+    difficultyMode,
+    resume
   }: {
     users: Record<string, IGameUser>
     preparationId: string
@@ -115,6 +118,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     tournamentId: string | null
     bracketId: string | null
     difficultyMode?: number
+    resume?: boolean
   }) {
     logger.info("Create Game ", this.roomId)
     logger.info("onCreate options:", JSON.stringify({ name, ownerName, gameMode, users: Object.keys(users || {}) }))
@@ -145,6 +149,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     if (difficultyMode === 0 || difficultyMode === 2) {
       this.state.difficultyMode = difficultyMode
     }
+    this.isResume = !!resume
     this.miniGame.create(
       this.state.avatars,
       this.state.floatingItems,
@@ -263,7 +268,11 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.clock.setTimeout(() => {
       if (this.state.gameLoaded) return
       this.broadcast(Transfer.LOADING_COMPLETE)
-      this.startGame()
+      if (this.isResume) {
+        this.resumeGame()
+      } else {
+        this.startGame()
+      }
     }, MAX_LOADING_TIME)
 
     this.onMessage(Transfer.SHOP, (client, message) => {
@@ -572,7 +581,11 @@ export default class GameRoom extends Room<{ state: GameState }> {
           )
         ) {
           this.broadcast(Transfer.LOADING_COMPLETE)
-          this.startGame()
+          if (this.isResume) {
+            this.resumeGame()
+          } else {
+            this.startGame()
+          }
         }
       }
     })
@@ -792,7 +805,57 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
   }
 
+  async resumeGame() {
+    if (this.state.gameLoaded) return
+    this.state.gameLoaded = true
+
+    const { loadRun, restoreRunToState } = require("../services/run-save")
+
+    const player = schemaValues(this.state.players).find((p: Player) => !p.isBot)
+    if (!player) {
+      logger.error("resumeGame: no human player found, falling back to new game")
+      this.startGame()
+      return
+    }
+
+    const savedRun = await loadRun(player.id)
+    if (!savedRun?.data) {
+      logger.error("resumeGame: no saved run found for " + player.id + ", falling back to new game")
+      this.startGame()
+      return
+    }
+
+    this.setSimulationInterval((deltaTime: number) => {
+      deltaTime = Math.min(MAX_SIMULATION_DELTA_TIME, deltaTime)
+      if (!this.state.gameFinished && !this.state.simulationPaused) {
+        try {
+          this.dispatcher.dispatch(new OnUpdateCommand(), { deltaTime })
+        } catch (error) {
+          logger.error("update error", error)
+        }
+      }
+    })
+
+    restoreRunToState(this.state, player, savedRun.data)
+
+    this.state.phase = GamePhaseState.MAP
+    this.state.time = 999 * 1000
+    this.state.roundTime = 999
+    player.alive = true
+    player.loadingProgress = 100
+
+    logger.info(`Run resumed for ${player.name} (Act ${this.state.currentAct}, Floor ${this.state.currentFloor})`)
+  }
+
   async onAuth(client: Client, options, context) {
+    if (options.idToken) {
+      const token = await admin.auth().verifyIdToken(options.idToken)
+      const user = await admin.auth().getUser(token.uid)
+      return {
+        uid: user.uid,
+        displayName: user.displayName || options.displayName || "Player"
+      }
+    }
     return {
       uid: options.odToken || "local-player",
       displayName: options.displayName || "Player"

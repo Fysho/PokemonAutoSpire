@@ -1,32 +1,30 @@
 import * as fs from "fs"
 import * as path from "path"
+import { Emotion } from "../types"
 import { Item } from "../types/enum/Item"
 import { Pkm } from "../types/enum/Pokemon"
+import {
+  TeamSnapshot,
+  SnapshotPokemon,
+  encodeSnapshotForClient
+} from "./team-snapshot"
 
-export interface PokemonStatBoosts {
-  hp: number
-  atk: number
-  def: number
-  speDef: number
-  ap: number
-  speed: number
+export interface ChampionFileData {
+  champion: TeamSnapshot
+  eliteFour: [TeamSnapshot, TeamSnapshot, TeamSnapshot, TeamSnapshot]
 }
 
-export interface ChampionSlotData {
+// Legacy format for migration
+interface LegacyChampionSlotData {
   name: string
   avatar: string
   board: [pkm: string, x: number, y: number][]
   items: string[][]
-  statBoosts: PokemonStatBoosts[]
+  statBoosts: { hp: number; atk: number; def: number; speDef: number; ap: number; speed: number }[]
   inventory: string[]
   bonusHP: number
   bonusAtk: number
   bonusAP: number
-}
-
-export interface ChampionFileData {
-  champion: ChampionSlotData
-  eliteFour: [ChampionSlotData, ChampionSlotData, ChampionSlotData, ChampionSlotData]
 }
 
 export type DifficultyMode = 0 | 1 | 2
@@ -44,28 +42,60 @@ function getDataFile(mode: DifficultyMode): string {
   return path.join(DATA_DIR, `champion-data${suffix}.json`)
 }
 
-const DEFAULT_SLOT: ChampionSlotData = {
+const DEFAULT_SNAPSHOT: TeamSnapshot = {
   name: "Fish",
   avatar: "0129/Normal",
-  board: [["MAGIKARP", 4, 2]],
-  items: [[]],
-  statBoosts: [{ hp: 0, atk: 0, def: 0, speDef: 0, ap: 0, speed: 0 }],
+  pokemon: [
+    { name: "MAGIKARP" as Pkm, x: 4, y: 2, items: [] }
+  ],
   inventory: [],
-  bonusHP: 0,
-  bonusAtk: 0,
-  bonusAP: 0
+  groundHoles: [],
+  lightX: 3,
+  lightY: 2
 }
 
 function getDefaultData(): ChampionFileData {
   return {
-    champion: { ...DEFAULT_SLOT },
+    champion: { ...DEFAULT_SNAPSHOT, pokemon: [...DEFAULT_SNAPSHOT.pokemon] },
     eliteFour: [
-      { ...DEFAULT_SLOT },
-      { ...DEFAULT_SLOT },
-      { ...DEFAULT_SLOT },
-      { ...DEFAULT_SLOT }
+      { ...DEFAULT_SNAPSHOT, pokemon: [...DEFAULT_SNAPSHOT.pokemon] },
+      { ...DEFAULT_SNAPSHOT, pokemon: [...DEFAULT_SNAPSHOT.pokemon] },
+      { ...DEFAULT_SNAPSHOT, pokemon: [...DEFAULT_SNAPSHOT.pokemon] },
+      { ...DEFAULT_SNAPSHOT, pokemon: [...DEFAULT_SNAPSHOT.pokemon] }
     ]
   }
+}
+
+function migrateLegacySlot(slot: LegacyChampionSlotData): TeamSnapshot {
+  const pokemon: SnapshotPokemon[] = slot.board.map(([pkm, x, y], i) => {
+    const snap: SnapshotPokemon = {
+      name: pkm as Pkm,
+      x,
+      y,
+      items: (slot.items[i] || []) as Item[]
+    }
+    const b = slot.statBoosts?.[i]
+    if (b && (b.hp || b.atk || b.def || b.speDef || b.ap || b.speed)) {
+      snap.statBoosts = b
+    }
+    return snap
+  })
+
+  return {
+    name: slot.name,
+    avatar: slot.avatar,
+    pokemon,
+    inventory: (slot.inventory || []) as Item[],
+    groundHoles: [],
+    lightX: 3,
+    lightY: 2
+  }
+}
+
+function isLegacyFormat(data: any): boolean {
+  const slot = data?.champion
+  if (!slot) return false
+  return Array.isArray(slot.board) && slot.board.length > 0 && Array.isArray(slot.board[0])
 }
 
 export function resetChampionData(mode?: DifficultyMode): void {
@@ -91,7 +121,23 @@ export function loadChampionData(mode: DifficultyMode = 1): ChampionFileData {
     const file = getDataFile(mode)
     if (fs.existsSync(file)) {
       const raw = fs.readFileSync(file, "utf-8")
-      return JSON.parse(raw) as ChampionFileData
+      const data = JSON.parse(raw)
+
+      if (isLegacyFormat(data)) {
+        const migrated: ChampionFileData = {
+          champion: migrateLegacySlot(data.champion),
+          eliteFour: [
+            migrateLegacySlot(data.eliteFour[0]),
+            migrateLegacySlot(data.eliteFour[1]),
+            migrateLegacySlot(data.eliteFour[2]),
+            migrateLegacySlot(data.eliteFour[3])
+          ]
+        }
+        saveChampionData(migrated, mode)
+        return migrated
+      }
+
+      return data as ChampionFileData
     }
   } catch (e) {
     console.error("Failed to load champion data, using defaults:", e)
@@ -108,64 +154,38 @@ export function saveChampionData(data: ChampionFileData, mode: DifficultyMode = 
 }
 
 export function promoteNewChampion(
-  winnerName: string,
-  winnerAvatar: string,
-  winnerBoard: [pkm: string, x: number, y: number][],
-  winnerItems: string[][],
-  winnerStatBoosts: PokemonStatBoosts[],
-  winnerInventory: string[],
+  winnerSnapshot: TeamSnapshot,
   mode: DifficultyMode = 1
 ): void {
   const data = loadChampionData(mode)
   const previousChampion = data.champion.name
-  const e4Names = [data.eliteFour[0].name, data.eliteFour[1].name, data.eliteFour[2].name, data.eliteFour[3].name]
+  const e4Names = data.eliteFour.map((e) => e.name)
   const diffLabel = DIFFICULTY_LABELS[mode]
 
-  // Cascade: E4[0] → gone, E4[1] → E4[0], E4[2] → E4[1], E4[3] → E4[2], champion → E4[3]
   data.eliteFour[0] = { ...data.eliteFour[1] }
   data.eliteFour[1] = { ...data.eliteFour[2] }
   data.eliteFour[2] = { ...data.eliteFour[3] }
-  data.eliteFour[3] = {
-    name: data.champion.name,
-    avatar: data.champion.avatar,
-    board: data.champion.board,
-    items: data.champion.items,
-    statBoosts: data.champion.statBoosts,
-    inventory: data.champion.inventory,
-    bonusHP: 0,
-    bonusAtk: 0,
-    bonusAP: 0
-  }
-
-  data.champion = {
-    name: winnerName,
-    avatar: winnerAvatar,
-    board: winnerBoard,
-    items: winnerItems,
-    statBoosts: winnerStatBoosts,
-    inventory: winnerInventory,
-    bonusHP: 0,
-    bonusAtk: 0,
-    bonusAP: 0
-  }
+  data.eliteFour[3] = { ...data.champion }
+  data.champion = winnerSnapshot
 
   saveChampionData(data, mode)
 
-  const teamList = winnerBoard.map(([pkm], i) => {
-    const items = winnerItems[i] && winnerItems[i].length > 0
-      ? ` [${winnerItems[i].join(", ")}]`
-      : ""
-    return `    ${pkm}${items}`
-  }).join("\n")
+  const teamList = winnerSnapshot.pokemon
+    .filter((p) => p.y > 0)
+    .map((p) => {
+      const items = p.items.length > 0 ? ` [${p.items.join(", ")}]` : ""
+      return `    ${p.name}${items}`
+    })
+    .join("\n")
 
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║              ★ NEW CHAMPION CROWNED (${diffLabel}) ★
 ╠══════════════════════════════════════════════════════════════╣
 ║                                                              ║
-║  ${winnerName} defeated Champion ${previousChampion}!
+║  ${winnerSnapshot.name} defeated Champion ${previousChampion}!
 ║                                                              ║
-║  ── Champion ${winnerName}'s Team ──
+║  ── Champion ${winnerSnapshot.name}'s Team ──
 ${teamList}
 ║                                                              ║
 ║  ── League Shuffle (${diffLabel}) ──
@@ -179,26 +199,20 @@ ${teamList}
 `)
 }
 
-export function getChampionSlotAsEncounter(slot: ChampionSlotData) {
+export function getChampionSlotForEncounter(slot: TeamSnapshot) {
   return {
     name: `Champion ${slot.name}`,
-    avatar: (slot.board[0]?.[0] ?? "MAGIKARP") as Pkm,
-    board: slot.board.map(([pkm, x, y]) => [pkm as Pkm, x, y] as [Pkm, number, number]),
-    items: slot.items.map(itemList => itemList.map(i => i as Item)),
-    bonusHP: slot.bonusHP,
-    bonusAtk: slot.bonusAtk,
-    bonusAP: slot.bonusAP
+    avatar: (slot.pokemon[0]?.name ?? "MAGIKARP") as Pkm,
+    encodedBoard: encodeSnapshotForClient(slot),
+    snapshot: slot
   }
 }
 
-export function getEliteFourSlotAsEncounter(slot: ChampionSlotData, e4Index: number) {
+export function getEliteFourSlotForEncounter(slot: TeamSnapshot, e4Index: number) {
   return {
     name: `E4 ${slot.name}`,
-    avatar: (slot.board[0]?.[0] ?? "MAGIKARP") as Pkm,
-    board: slot.board.map(([pkm, x, y]) => [pkm as Pkm, x, y] as [Pkm, number, number]),
-    items: slot.items.map(itemList => itemList.map(i => i as Item)),
-    bonusHP: slot.bonusHP,
-    bonusAtk: slot.bonusAtk,
-    bonusAP: slot.bonusAP
+    avatar: (slot.pokemon[0]?.name ?? "MAGIKARP") as Pkm,
+    encodedBoard: encodeSnapshotForClient(slot),
+    snapshot: slot
   }
 }

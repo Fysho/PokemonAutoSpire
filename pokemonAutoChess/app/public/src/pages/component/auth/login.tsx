@@ -1,14 +1,10 @@
-import firebase from "firebase/compat/app"
 import "firebase/compat/auth"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
-import { FIREBASE_CONFIG } from "../../../../../config"
-import { throttle } from "../../../../../utils/function"
-import { joinLobbyRoom } from "../../../game/lobby-logic"
+import { firebase } from "../../../network"
 import { useAppDispatch, useAppSelector } from "../../../hooks"
 import { logIn, logOut } from "../../../stores/NetworkStore"
-//import AnonymousButton from "./anonymous-button"
 import { StyledFirebaseAuth } from "./styled-firebase-auth"
 
 import "firebaseui/dist/firebaseui.css"
@@ -21,47 +17,30 @@ export default function Login() {
   const uid = useAppSelector((state) => state.network.uid)
   const displayName = useAppSelector((state) => state.network.displayName)
   const email = useAppSelector((state) => state.network.email)
-  const [prejoining, setPrejoining] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
 
-  const preJoinLobby = throttle(async function prejoin() {
-    setPrejoining(true)
-    return joinLobbyRoom(dispatch, navigate)
-      .then(() => navigate("/lobby"))
-      .catch(() => setPrejoining(false))
-  }, 1000)
-
   const uiConfig = {
-    // Popup signin flow rather than Navigate flow.
     signInFlow: "popup",
-    // We will display Google and Facebook as auth providers.
-    signInSuccessUrl: window.location.href + "lobby",
     signInOptions: [
       firebase.auth.GoogleAuthProvider.PROVIDER_ID,
       {
         provider: firebase.auth.EmailAuthProvider.PROVIDER_ID,
         requireDisplayName: true
-      },
-      firebase.auth.TwitterAuthProvider.PROVIDER_ID
+      }
     ],
     callbacks: {
-      // Avoid Navigates after sign-in.
-      signInSuccessWithAuthResult: () => true
+      signInSuccessWithAuthResult: () => false
     }
   }
 
-  // Initialize Firebase
-  if (!firebase.apps.length) {
-    firebase.initializeApp(FIREBASE_CONFIG)
-  }
-
   useEffect(() => {
-    firebase.auth().onAuthStateChanged((u) => {
+    const unsubscribe = firebase.auth().onAuthStateChanged((u) => {
       if (u) {
         dispatch(logIn(u))
       }
     })
-  })
+    return () => unsubscribe()
+  }, [])
 
   if (!uid) {
     return (
@@ -70,7 +49,6 @@ export default function Login() {
           uiConfig={uiConfig}
           firebaseAuth={firebase.auth()}
         />
-        {/* <AnonymousButton /> */}
       </div>
     )
   } else {
@@ -86,16 +64,15 @@ export default function Login() {
           <li>
             <button
               className="bubbly green"
-              onClick={preJoinLobby}
-              disabled={prejoining}
+              onClick={() => navigate("/lobby")}
             >
-              {prejoining ? t("auth.connecting") : t("auth.join_lobby")}
+              Play
             </button>
           </li>
           <li>
             <button
               className="bubbly red"
-              disabled={prejoining || loggingOut}
+              disabled={loggingOut}
               onClick={async () => {
                 setLoggingOut(true)
                 try {

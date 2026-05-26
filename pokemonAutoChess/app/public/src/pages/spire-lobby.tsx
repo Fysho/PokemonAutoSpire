@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router"
 import { useTranslation } from "react-i18next"
-import { authenticateUser, client, joinGame } from "../network"
+import { client, getIdToken, joinGame } from "../network"
+import { useAppSelector } from "../hooks"
 import { EloRank } from "../../../types/enum/EloRank"
 import { Pkm, PkmIndex } from "../../../types/enum/Pokemon"
 import { getPortraitSrc } from "../../../utils/avatar"
@@ -10,10 +11,26 @@ import { cc } from "./utils/jsx"
 import { LocalStoreKeys, localStore } from "./utils/store"
 import "./lobby.css"
 
+interface SavedRunSummary {
+  odToken: string
+  savedAt: string
+  currentAct: number
+  currentFloor: number
+  difficultyMode: number
+  runHP: number
+  teamPreview: string[]
+}
+
+const DIFFICULTY_LABELS: Record<number, string> = {
+  0: "Easy",
+  1: "Normal",
+  2: "Hard"
+}
+
 const ASCENSION_RANKS: { rank: EloRank; name: string; description: string }[] = [
-  { rank: EloRank.LEVEL_BALL, name: "Level Ball", description: "No modifiers. The standard ascension experience." },
-  { rank: EloRank.NET_BALL, name: "Net Ball", description: "Starter Pokemon cannot be Epic or Ultra rarity." },
-  { rank: EloRank.SAFARI_BALL, name: "Safari Ball", description: "More Elite encounters appear on the map." },
+  { rank: EloRank.LEVEL_BALL, name: "Level Ball", description: "Coming soon." },
+  { rank: EloRank.NET_BALL, name: "Net Ball", description: "Coming soon." },
+  { rank: EloRank.SAFARI_BALL, name: "Safari Ball", description: "Coming soon." },
   { rank: EloRank.LOVE_BALL, name: "Love Ball", description: "Coming soon." },
   { rank: EloRank.PREMIER_BALL, name: "Premier Ball", description: "Coming soon." },
   { rank: EloRank.QUICK_BALL, name: "Quick Ball", description: "Coming soon." },
@@ -27,13 +44,26 @@ const ASCENSION_RANKS: { rank: EloRank; name: string; description: string }[] = 
 export default function SpireLobby() {
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const uid = useAppSelector((state) => state.network.uid)
+  const displayName = useAppSelector((state) => state.network.displayName)
   const [starting, setStarting] = useState(false)
   const [playerName, setPlayerName] = useState(() => localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) ?? "Username")
   const [avatarPkm, setAvatarPkm] = useState<Pkm>(() => (localStore.get(LocalStoreKeys.SPIRE_PLAYER_AVATAR) as Pkm) || Pkm.RATTATA)
+  const [savedRun, setSavedRun] = useState<SavedRunSummary | null>(null)
+  const [loadingSave, setLoadingSave] = useState(true)
+  const [confirmOverwrite, setConfirmOverwrite] = useState<number | null>(null)
 
   useEffect(() => {
-    authenticateUser()
-  }, [])
+    if (!uid) {
+      navigate("/")
+    }
+  }, [uid])
+
+  useEffect(() => {
+    if (displayName && playerName === "Username") {
+      setPlayerName(displayName)
+    }
+  }, [displayName])
 
   useEffect(() => {
     localStore.set(LocalStoreKeys.SPIRE_PLAYER_NAME, playerName)
@@ -43,21 +73,35 @@ export default function SpireLobby() {
     localStore.set(LocalStoreKeys.SPIRE_PLAYER_AVATAR, avatarPkm)
   }, [avatarPkm])
 
+  useEffect(() => {
+    if (uid && uid !== "local-player") {
+      fetch(`/api/saved-run/${uid}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => setSavedRun(data))
+        .catch(() => setSavedRun(null))
+        .finally(() => setLoadingSave(false))
+    } else {
+      setLoadingSave(false)
+    }
+  }, [uid])
+
   const avatarIndex = PkmIndex[avatarPkm] ?? PkmIndex[Pkm.RATTATA]
   const avatarString = `${avatarIndex.replace("-", "/")}/Normal`
 
-  async function startRun(difficultyMode: number = 1, ascensionRank?: EloRank) {
+  async function createRoom(difficultyMode: number, resume: boolean) {
     if (starting) return
     setStarting(true)
     const name = playerName.trim() || "Username"
+    const idToken = await getIdToken()
+    const odToken = uid || "local-player"
     try {
-      await authenticateUser()
       const room = await client.create("game", {
-        odToken: "local-player",
+        idToken,
+        odToken,
         displayName: name,
         users: {
-          "local-player": {
-            uid: "local-player",
+          [odToken]: {
+            uid: odToken,
             name,
             elo: 1000,
             games: 0,
@@ -76,14 +120,46 @@ export default function SpireLobby() {
         tournamentId: null,
         bracketId: null,
         difficultyMode,
-        ascensionRank: ascensionRank ?? null
+        resume
       })
-      joinGame(room)
+      joinGame(room as any)
       navigate("/game")
     } catch (err) {
       console.error("Failed to start game:", err)
       setStarting(false)
     }
+  }
+
+  function startRun(difficultyMode: number) {
+    if (savedRun) {
+      setConfirmOverwrite(difficultyMode)
+    } else {
+      createRoom(difficultyMode, false)
+    }
+  }
+
+  function confirmNewRun() {
+    if (confirmOverwrite === null) return
+    const diff = confirmOverwrite
+    setConfirmOverwrite(null)
+    fetch(`/api/saved-run/${uid}`, { method: "DELETE" })
+      .then(() => {
+        setSavedRun(null)
+        createRoom(diff, false)
+      })
+      .catch(() => createRoom(diff, false))
+  }
+
+  function resumeRun() {
+    if (!savedRun) return
+    createRoom(savedRun.difficultyMode, true)
+  }
+
+  function abandonRun() {
+    if (!uid) return
+    fetch(`/api/saved-run/${uid}`, { method: "DELETE" })
+      .then(() => setSavedRun(null))
+      .catch(() => {})
   }
 
   return (
@@ -96,12 +172,19 @@ export default function SpireLobby() {
       <div className="lobby-container">
         <SpireLobbyContent
           startRun={startRun}
+          resumeRun={resumeRun}
+          abandonRun={abandonRun}
           starting={starting}
           playerName={playerName}
           setPlayerName={setPlayerName}
           avatarPkm={avatarPkm}
           setAvatarPkm={setAvatarPkm}
           avatarIndex={avatarIndex}
+          savedRun={savedRun}
+          loadingSave={loadingSave}
+          confirmOverwrite={confirmOverwrite}
+          setConfirmOverwrite={setConfirmOverwrite}
+          confirmNewRun={confirmNewRun}
         />
       </div>
     </main>
@@ -110,20 +193,34 @@ export default function SpireLobby() {
 
 function SpireLobbyContent({
   startRun,
+  resumeRun,
+  abandonRun,
   starting,
   playerName,
   setPlayerName,
   avatarPkm,
   setAvatarPkm,
-  avatarIndex
+  avatarIndex,
+  savedRun,
+  loadingSave,
+  confirmOverwrite,
+  setConfirmOverwrite,
+  confirmNewRun
 }: {
-  startRun: (difficultyMode: number, ascensionRank?: EloRank) => void
+  startRun: (difficultyMode: number) => void
+  resumeRun: () => void
+  abandonRun: () => void
   starting: boolean
   playerName: string
   setPlayerName: (name: string) => void
   avatarPkm: Pkm
   setAvatarPkm: (pkm: Pkm) => void
   avatarIndex: string
+  savedRun: SavedRunSummary | null
+  loadingSave: boolean
+  confirmOverwrite: number | null
+  setConfirmOverwrite: (v: number | null) => void
+  confirmNewRun: () => void
 }) {
   const [activeSection, setActive] = useState<string>("rooms")
   const [ascensionIndex, setAscensionIndex] = useState(0)
@@ -220,6 +317,55 @@ function SpireLobbyContent({
         <div className="my-container room-menu custom-bg hidden-scrollable">
           <h2>Play</h2>
           <ul className="room-list" style={{ padding: 0 }}>
+            {/* Resume Run Panel */}
+            {!loadingSave && savedRun && (
+              <li style={{ listStyle: "none" }}>
+                <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", border: "2px solid #f39c12" }}>
+                  <span className="room-name" style={{ color: "#f39c12" }}>Saved Run</span>
+                  <div style={{ display: "flex", gap: "16px", alignItems: "center", fontSize: "13px", opacity: 0.9 }}>
+                    <span>Act {savedRun.currentAct} &middot; Floor {savedRun.currentFloor}</span>
+                    <span>{DIFFICULTY_LABELS[savedRun.difficultyMode] ?? "Normal"}</span>
+                    <span style={{ color: savedRun.runHP <= 30 ? "#e74c3c" : "#2ecc71" }}>
+                      {savedRun.runHP} HP
+                    </span>
+                  </div>
+                  {savedRun.teamPreview?.length > 0 && (
+                    <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                      {savedRun.teamPreview.slice(0, 6).map((pkm, i) => {
+                        const idx = PkmIndex[pkm as Pkm]
+                        return idx ? (
+                          <img
+                            key={i}
+                            src={getPortraitSrc(idx)}
+                            alt={pkm}
+                            title={t(`pkm.${pkm}`)}
+                            style={{ width: 32, height: 32, imageRendering: "pixelated" }}
+                          />
+                        ) : null
+                      })}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      className={cc("bubbly yellow", { loading: starting })}
+                      disabled={starting}
+                      onClick={resumeRun}
+                    >
+                      {starting ? "Loading..." : "Resume Run"}
+                    </button>
+                    <button
+                      className="bubbly red"
+                      onClick={abandonRun}
+                      style={{ fontSize: "12px", padding: "4px 12px" }}
+                    >
+                      Abandon
+                    </button>
+                  </div>
+                </div>
+              </li>
+            )}
+
+            {/* New Run Panel */}
             <li style={{ listStyle: "none" }}>
               <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
                 <span className="room-name">Pokemon Auto Spire v1.2</span>
@@ -249,6 +395,8 @@ function SpireLobbyContent({
                 </div>
               </div>
             </li>
+
+            {/* Ascension Panel */}
             <li style={{ listStyle: "none" }}>
               <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
                 <span className="room-name">Ascension Run</span>
@@ -349,14 +497,64 @@ function SpireLobbyContent({
         <div className="my-container custom-bg hidden-scrollable" style={{ padding: "12px 16px", fontSize: "14px", lineHeight: "1.6" }}>
           <h2>Dev Notes</h2>
           <ul style={{ paddingLeft: "20px", margin: "8px 0" }}>
+            <li>Join the <a href="https://discord.gg/cfytB2kA" target="_blank" rel="noopener noreferrer" style={{ color: "#7289da" }}>Pokemon Auto Spire Discord</a></li>
             <li>Made by fish in the PAC Discord. Message him in the PAC roguelike mod channel in the community section for feedback.</li>
             <li>Poorly hosted on a server in Sydney.</li>
             <li>Still lots of balancing to do.</li>
             <li>I have not decided how Pokemon rarity should be distributed throughout.</li>
-            <li>No data or progression is saved, that will come in the future.</li>
           </ul>
         </div>
       </section>
+
+      {/* Confirm Overwrite Dialog */}
+      {confirmOverwrite !== null && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+          onClick={() => setConfirmOverwrite(null)}
+        >
+          <div
+            className="my-container my-box"
+            style={{
+              padding: "24px",
+              maxWidth: "400px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>Overwrite Saved Run?</h3>
+            <p style={{ fontSize: "14px", opacity: 0.9 }}>
+              You have a saved run (Act {savedRun?.currentAct}, Floor {savedRun?.currentFloor}).
+              Starting a new run will delete it.
+            </p>
+            <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+              <button
+                className="bubbly red"
+                onClick={confirmNewRun}
+              >
+                Delete & Start New
+              </button>
+              <button
+                className="bubbly"
+                onClick={() => setConfirmOverwrite(null)}
+                style={{ backgroundColor: "#555" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

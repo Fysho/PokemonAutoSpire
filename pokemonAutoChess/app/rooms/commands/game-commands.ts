@@ -60,7 +60,8 @@ import {
   getWildEncounter,
   SpireEncounter
 } from "../../models/spire-encounters"
-import { loadChampionData, promoteNewChampion, getChampionSlotAsEncounter, getEliteFourSlotAsEncounter, PokemonStatBoosts, type DifficultyMode } from "../../services/champion-data"
+import { loadChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, type DifficultyMode } from "../../services/champion-data"
+import { snapshotPlayerTeam, reconstructTeamAsBoard, encodeSnapshotForClient } from "../../services/team-snapshot"
 import { getEventBerries, getEventItems, getRandomEvent } from "../../models/spire-events"
 import { generateShopItems } from "../../models/spire-shops"
 import {
@@ -1229,6 +1230,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.syncRunHPToPlayers()
     resetArraySchema(this.state.spireEncounterBoard, [])
     resetArraySchema(this.state.encounterInventory, [])
+    this.state.encounterSnapshot = null
     this.state.encounterBonusHP = 0
 
     // Clean up any lingering minigame state
@@ -1245,6 +1247,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     if (this.state.mapNodes.size === 0) {
       generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode)
     }
+
+    // Auto-save run for human players
+    this.state.players.forEach((player: Player) => {
+      if (!player.isBot && player.alive && !this.state.runComplete && !this.state.runFailed) {
+        const { saveRun } = require("../../services/run-save")
+        saveRun(player.id, this.state, player)
+      }
+    })
   }
 
   onSelectMapNode(nodeId: string) {
@@ -1297,45 +1307,54 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         } else if (node.nodeType === MapNodeType.ELITE_FOUR) {
           const e4Index = node.floor - 1
           const champData = loadChampionData(this.state.difficultyMode as DifficultyMode)
-          encounter = getEliteFourSlotAsEncounter(champData.eliteFour[e4Index], e4Index)
+          const slotData = getEliteFourSlotForEncounter(champData.eliteFour[e4Index], e4Index)
+          this.state.encounterSnapshot = slotData.snapshot
+          encounter = { name: slotData.name, avatar: slotData.avatar, board: [], items: [] }
         } else if (node.nodeType === MapNodeType.CHAMPION) {
           const champData = loadChampionData(this.state.difficultyMode as DifficultyMode)
-          encounter = getChampionSlotAsEncounter(champData.champion)
+          const slotData = getChampionSlotForEncounter(champData.champion)
+          this.state.encounterSnapshot = slotData.snapshot
+          encounter = { name: slotData.name, avatar: slotData.avatar, board: [], items: [] }
         } else {
           encounter = node.displayName
             ? getLegendaryBossEncounterByName(this.state.currentAct, node.displayName, mode)
             : getLegendaryBossEncounter(this.state.currentAct, mode)
         }
 
-        let perPokemonBoosts: PokemonStatBoosts[] | undefined
         resetArraySchema(this.state.encounterInventory, [])
-        if (node.nodeType === MapNodeType.ELITE_FOUR || node.nodeType === MapNodeType.CHAMPION) {
-          const champData = loadChampionData(this.state.difficultyMode as DifficultyMode)
-          const slot = node.nodeType === MapNodeType.CHAMPION
-            ? champData.champion
-            : champData.eliteFour[node.floor - 1]
-          perPokemonBoosts = slot?.statBoosts
-          if (slot?.inventory?.length) {
-            resetArraySchema(this.state.encounterInventory, slot.inventory)
-          }
-        }
 
-        resetArraySchema(
-          this.state.spireEncounterBoard,
-          encounter.board.map(([pkm, x, y], i) => {
-            const itemStr = encounter.items?.[i]?.length ? `,${encounter.items[i].join(",")}` : ""
-            const boosts = perPokemonBoosts?.[i]
-            const boostStr = boosts && (boosts.hp || boosts.atk || boosts.def || boosts.speDef || boosts.ap || boosts.speed)
-              ? `|${boosts.hp},${boosts.atk},${boosts.def},${boosts.speDef},${boosts.ap},${boosts.speed}`
-              : ""
-            return `${pkm},${x},${y}${itemStr}${boostStr}`
-          })
-        )
-        const stats = calculateEncounterStats(encounter)
-        this.state.encounterDifficulty = stats.difficulty
-        this.state.encounterPokemonCount = stats.pokemonCount
-        this.state.encounterTotalStars = stats.totalStars
-        this.state.encounterTotalItems = stats.totalItems
+        if (this.state.encounterSnapshot) {
+          const snap = this.state.encounterSnapshot
+          resetArraySchema(this.state.spireEncounterBoard, encodeSnapshotForClient(snap))
+          if (snap.inventory?.length) {
+            resetArraySchema(this.state.encounterInventory, snap.inventory)
+          }
+          // Build a SpireEncounter from snapshot for stats calculation
+          const snapEncounter: SpireEncounter = {
+            name: encounter.name,
+            avatar: (snap.pokemon[0]?.name ?? "MAGIKARP") as Pkm,
+            board: snap.pokemon.filter((p) => p.y > 0).map((p) => [p.name, p.x, p.y]),
+            items: snap.pokemon.filter((p) => p.y > 0).map((p) => p.items)
+          }
+          const stats = calculateEncounterStats(snapEncounter)
+          this.state.encounterDifficulty = stats.difficulty
+          this.state.encounterPokemonCount = stats.pokemonCount
+          this.state.encounterTotalStars = stats.totalStars
+          this.state.encounterTotalItems = stats.totalItems
+        } else {
+          resetArraySchema(
+            this.state.spireEncounterBoard,
+            encounter.board.map(([pkm, x, y], i) => {
+              const itemStr = encounter.items?.[i]?.length ? `,${encounter.items[i].join(",")}` : ""
+              return `${pkm},${x},${y}${itemStr}`
+            })
+          )
+          const stats = calculateEncounterStats(encounter)
+          this.state.encounterDifficulty = stats.difficulty
+          this.state.encounterPokemonCount = stats.pokemonCount
+          this.state.encounterTotalStars = stats.totalStars
+          this.state.encounterTotalItems = stats.totalItems
+        }
         this.state.encounterName = encounter.name
         this.state.encounterBonusHP = encounter.bonusHP ?? 0
         this.state.encounterBonusAtk = encounter.bonusAtk ?? 0
@@ -1602,35 +1621,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     if (winner) {
       this.state.runComplete = true
 
-      const boardPokemon: [string, number, number][] = []
-      const boardItems: string[][] = []
-      const boardStatBoosts: PokemonStatBoosts[] = []
-      winner.board.forEach((pokemon) => {
-        if (pokemon.positionY > 0) {
-          boardPokemon.push([pokemon.name, pokemon.positionX, pokemon.positionY])
-          boardItems.push([...pokemon.items])
-          const baseline = PokemonFactory.createPokemonFromName(pokemon.name as Pkm)
-          boardStatBoosts.push({
-            hp: pokemon.hp - baseline.hp,
-            atk: pokemon.atk - baseline.atk,
-            def: pokemon.def - baseline.def,
-            speDef: pokemon.speDef - baseline.speDef,
-            ap: pokemon.ap - baseline.ap,
-            speed: pokemon.speed - baseline.speed
-          })
-        }
-      })
-
-      if (boardPokemon.length > 0) {
-        promoteNewChampion(
-          winner.name,
-          winner.avatar,
-          boardPokemon,
-          boardItems,
-          boardStatBoosts,
-          [...winner.items],
-          this.state.difficultyMode as DifficultyMode
-        )
+      const snapshot = snapshotPlayerTeam(winner)
+      if (snapshot.pokemon.length > 0) {
+        promoteNewChampion(snapshot, this.state.difficultyMode as DifficultyMode)
       }
     } else {
       this.state.runFailed = true
@@ -1639,6 +1632,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       })
       this.syncRunHPToPlayers()
     }
+    // Delete saved run on completion
+    this.state.players.forEach((p: Player) => {
+      if (!p.isBot) {
+        const { deleteSavedRun } = require("../../services/run-save")
+        deleteSavedRun(p.id)
+      }
+    })
     this.clock.setTimeout(() => {
       try {
         this.room.broadcast(Transfer.GAME_END)
@@ -1655,6 +1655,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       player.life = 0
       player.alive = false
       this.syncRunHPToPlayers()
+      const { deleteSavedRun } = require("../../services/run-save")
+      deleteSavedRun(player.id)
       this.clock.setTimeout(() => {
         this.room.broadcast(Transfer.GAME_END)
         this.room.disconnect()
@@ -2614,25 +2616,52 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     })
 
     const node = this.state.mapNodes.get(this.state.currentNodeId)
+    const snapshot = this.state.encounterSnapshot
 
-    // Reconstruct encounter from spireEncounterBoard (set during PICK phase)
-    const board: [Pkm, number, number][] = []
-    const encounterItems: Item[][] = []
-    const encounterStatBoosts: PokemonStatBoosts[] = []
-    Array.from(this.state.spireEncounterBoard).forEach((entry: string) => {
-      const [mainPart, boostPart] = entry.split("|")
-      const parts = mainPart.split(",")
-      board.push([parts[0] as Pkm, parseInt(parts[1]), parseInt(parts[2])])
-      encounterItems.push(parts.slice(3) as Item[])
-      if (boostPart) {
-        const b = boostPart.split(",").map(Number)
-        encounterStatBoosts.push({ hp: b[0] || 0, atk: b[1] || 0, def: b[2] || 0, speDef: b[3] || 0, ap: b[4] || 0, speed: b[5] || 0 })
-      } else {
-        encounterStatBoosts.push({ hp: 0, atk: 0, def: 0, speDef: 0, ap: 0, speed: 0 })
-      }
-    })
+    if (snapshot) {
+      // Snapshot-based encounter (champion/E4/saved teams): full bot-style reconstruction
+      const { board: pveBoard, effects: pveEffectsSet } = reconstructTeamAsBoard(snapshot)
 
-    if (board.length > 0) {
+      this.state.players.forEach((player: Player) => {
+        if (player.alive) {
+          player.opponentId = "pve"
+          player.opponentName = this.state.encounterName || snapshot.name
+          player.opponentAvatar = getAvatarString(
+            PkmIndex[snapshot.pokemon[0]?.name as Pkm ?? "MAGIKARP" as Pkm],
+            false
+          )
+          player.opponentTitle = (node?.nodeType === MapNodeType.ELITE_FOUR ? "ELITE FOUR"
+            : node?.nodeType === MapNodeType.CHAMPION ? "CHAMPION"
+            : "TRAINER") as any
+          player.team = Team.BLUE_TEAM
+
+          const weather = getWeather(player, null, pveBoard)
+          const simulation = new Simulation(
+            crypto.randomUUID(),
+            this.room,
+            player,
+            { id: "pve", board: pveBoard },
+            this.state.stageLevel,
+            weather,
+            false,
+            pveEffectsSet
+          )
+          player.simulationId = simulation.id
+          this.state.simulations.set(simulation.id, simulation)
+          simulation.start()
+        }
+      })
+      this.state.encounterSnapshot = null
+    } else if (this.state.spireEncounterBoard.length > 0) {
+      // String-encoded encounter (wild/gym/elite/boss): existing reconstruction
+      const board: [Pkm, number, number][] = []
+      const encounterItems: Item[][] = []
+      Array.from(this.state.spireEncounterBoard).forEach((entry: string) => {
+        const parts = entry.split(",")
+        board.push([parts[0] as Pkm, parseInt(parts[1]), parseInt(parts[2])])
+        encounterItems.push(parts.slice(3) as Item[])
+      })
+
       const encounter: SpireEncounter = {
         name: this.state.encounterName || node?.region || "Wild",
         avatar: board[0][0],
@@ -2651,12 +2680,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             PkmIndex[encounter.avatar],
             false
           )
-          player.opponentTitle = node?.nodeType === MapNodeType.GYM_LEADER ? "GYM LEADER"
+          player.opponentTitle = (node?.nodeType === MapNodeType.GYM_LEADER ? "GYM LEADER"
             : node?.nodeType === MapNodeType.ELITE ? "ELITE"
-            : node?.nodeType === MapNodeType.ELITE_FOUR ? "ELITE FOUR"
-            : node?.nodeType === MapNodeType.CHAMPION ? "CHAMPION"
             : node?.nodeType === MapNodeType.LEGENDARY_BOSS ? "BOSS"
-            : "WILD"
+            : "WILD") as any
           player.team = Team.BLUE_TEAM
 
           const pveBoard = PokemonFactory.makePveBoard(
@@ -2664,7 +2691,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             false,
             null
           )
-          // Apply encounter items and bonus stats to enemy Pokemon
           const pvePokemons = Array.from(pveBoard.values())
           if (encounter.items) {
             encounter.items.forEach((itemList, i) => {
@@ -2681,16 +2707,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               if (this.state.encounterBonusPP) pkm.maxPP += this.state.encounterBonusPP
             })
           }
-          pvePokemons.forEach((pkm, i) => {
-            const boosts = encounterStatBoosts[i]
-            if (!boosts) return
-            if (boosts.hp) pkm.addMaxHP(boosts.hp)
-            if (boosts.atk) pkm.addAttack(boosts.atk)
-            if (boosts.def) pkm.addDefense(boosts.def)
-            if (boosts.speDef) pkm.addSpecialDefense(boosts.speDef)
-            if (boosts.ap) pkm.addAbilityPower(boosts.ap)
-            if (boosts.speed) pkm.addSpeed(boosts.speed)
-          })
           if (this.state.challengeItem && node?.nodeType === MapNodeType.WILD_BATTLE) {
             pvePokemons.forEach((pkm) => {
               pkm.items.add(this.state.challengeItem as Item)
