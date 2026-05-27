@@ -42,8 +42,8 @@ if (process.env.DISCORD_BAN_WEBHOOK_URL) {
 
 let discordBot: Client | undefined
 const championChannelId = process.env.DISCORD_CHAMPION_CHANNEL_ID
-const arceusChannelId = process.env.DISCORD_ARCEUS_CHANNEL_ID || "1509158620430860349"
-const adminChannelId = process.env.DISCORD_ADMIN_CHANNEL_ID || "1509190218690068510"
+const arceusChannelId = process.env.DISCORD_ARCEUS_CHANNEL_ID
+const adminChannelId = process.env.DISCORD_ADMIN_CHANNEL_ID
 const envTag = `[${process.env.SERVER_ENV || "development"}]`
 let cachedChannel: TextChannel | undefined
 let cachedArceusChannel: TextChannel | undefined
