@@ -147,7 +147,6 @@ function serializeFlowerPots(pots: Pokemon[]): SerializedFlowerPot[] {
 }
 
 export async function saveRun(odToken: string, state: GameState, player: Player): Promise<void> {
-  logger.info(`Saving run for ${player.name} (Act ${state.currentAct}, Floor ${state.currentFloor})`)
   try {
     const team = snapshotPlayerTeam(player, { includeBench: true })
 
