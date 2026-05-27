@@ -1120,7 +1120,7 @@ function adjustEncounterItems(encounter: SpireEncounter, mode: DifficultyMode, a
   return adjusted
 }
 
-function generateLegendaryEliteEncounter(legendary: Pkm, act: number, floor: number): SpireEncounter {
+function generateLegendaryEliteEncounter(legendary: Pkm, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
   const difficulty = getDifficultyConfig(act, floor)
   difficulty.starBudget = [difficulty.starBudget[0] + 2, difficulty.starBudget[1] + 3]
   const legendaryData = getPokemonData(legendary)
