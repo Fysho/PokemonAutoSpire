@@ -154,6 +154,13 @@ export default function GameChoice() {
                       pokemon={proposition as Pkm}
                       inPlanner={false}
                     />
+                    {isUnlockReward && item && (
+                      <img
+                        style={{ width: "2rem", height: "2rem", marginTop: "0.25em" }}
+                        src={"assets/item/" + item + ".png"}
+                        title={t(`item.${item}`)}
+                      />
+                    )}
                   </div>
                 )
               } else {

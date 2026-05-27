@@ -19,6 +19,7 @@ export interface ChampionFileData {
   champion: TeamSnapshot
   eliteFour: [TeamSnapshot, TeamSnapshot, TeamSnapshot, TeamSnapshot]
   championSince?: string
+  eliteFourCrownedAt?: [string, string, string, string]
   longestReign?: LongestReign
 }
 
@@ -195,10 +196,23 @@ export function promoteNewChampion(
     }
   }
 
+  const oldCrownedAt = data.eliteFourCrownedAt ?? [
+    data.championSince ?? now.toISOString(),
+    data.championSince ?? now.toISOString(),
+    data.championSince ?? now.toISOString(),
+    data.championSince ?? now.toISOString()
+  ]
+
   data.eliteFour[0] = { ...data.eliteFour[1] }
   data.eliteFour[1] = { ...data.eliteFour[2] }
   data.eliteFour[2] = { ...data.eliteFour[3] }
   data.eliteFour[3] = { ...data.champion }
+  data.eliteFourCrownedAt = [
+    oldCrownedAt[1],
+    oldCrownedAt[2],
+    oldCrownedAt[3],
+    data.championSince ?? now.toISOString()
+  ]
   data.champion = winnerSnapshot
   data.championSince = now.toISOString()
 

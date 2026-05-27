@@ -915,12 +915,12 @@ export function getWildEncounter(act: number, floor: number, seed: number): Spir
   }
 }
 
-export function generateGymEncounter(synergy: Synergy, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
+export function generateGymEncounter(synergy: Synergy, act: number, floor: number, mode: DifficultyMode = 1, displayName?: string): SpireEncounter {
   const difficulty = getDifficultyConfig(act, floor, mode)
   difficulty.starBudget = [difficulty.starBudget[0], difficulty.starBudget[1] + 1]
   const signaturePokemon = GYM_LEADER_POKEMON[synergy] ?? []
   const names = GYM_LEADER_NAMES[synergy] ?? ["Gym Leader"]
-  const name = pickRandomIn(names)
+  const name = displayName || pickRandomIn(names)
 
   const candidatePool: Pkm[] = []
   for (const pkm of signaturePokemon) {

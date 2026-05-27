@@ -1141,6 +1141,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
           this.spawnOnBench(player, pkm as Pkm)
         }
       }
+      if (choice.items?.length) {
+        choice.items.forEach(item => player.items.push(item))
+      }
       const idx = player.choices.indexOf(choice)
       if (idx >= 0) player.choices.splice(idx, 1)
       return

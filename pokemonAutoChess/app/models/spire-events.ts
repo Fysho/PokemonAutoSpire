@@ -27,8 +27,7 @@ export const SPIRE_EVENTS: SpireEvent[] = [
     name: "Mysterious Trader",
     description: "A cloaked figure offers you a deal...",
     choices: [
-      { label: "Trade 10 gold", description: "Receive a rare item" },
-      { label: "Trade an item", description: "Receive 8 gold" },
+      { label: "Trade 10 gold", description: "Receive a random tool" },
       { label: "Skip", description: "Nothing happens" }
     ]
   },

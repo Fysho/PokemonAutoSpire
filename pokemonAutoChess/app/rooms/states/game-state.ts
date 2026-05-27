@@ -80,6 +80,7 @@ export default class GameState extends Schema {
   @type("uint8") encounterBonusPP: number = 0
   challengeItem: string = ""
   encounterSnapshot: TeamSnapshot | null = null
+  encounterCrownedAt: string | null = null
   @type(["uint8"]) encounterGroundHoles = new ArraySchema<number>()
   @type(["string"]) encounterSynergies = new ArraySchema<string>()
   @type("uint32") arceusDamageDealt: number = 0

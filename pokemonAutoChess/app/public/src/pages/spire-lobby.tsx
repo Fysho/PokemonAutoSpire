@@ -399,52 +399,68 @@ function SpireLobbyContent({
           <h2>Play</h2>
           <ul className="room-list" style={{ padding: 0 }}>
             {/* Resume Run Panel */}
-            {!loadingSave && savedRun && (
-              <li style={{ listStyle: "none" }}>
-                <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", border: "2px solid #f39c12" }}>
-                  <span className="room-name" style={{ color: "#f39c12" }}>Saved Run</span>
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center", fontSize: "13px", opacity: 0.9 }}>
-                    <span>Act {savedRun.currentAct} &middot; Floor {savedRun.currentFloor}</span>
-                    <span>{DIFFICULTY_LABELS[savedRun.difficultyMode] ?? "Normal"}</span>
-                    <span style={{ color: savedRun.runHP <= 30 ? "#e74c3c" : "#2ecc71" }}>
-                      {savedRun.runHP} HP
-                    </span>
-                  </div>
-                  {savedRun.teamPreview?.length > 0 && (
-                    <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
-                      {savedRun.teamPreview.slice(0, 6).map((pkm, i) => {
-                        const idx = PkmIndex[pkm as Pkm]
-                        return idx ? (
-                          <img
-                            key={i}
-                            src={getPortraitSrc(idx)}
-                            alt={pkm}
-                            title={t(`pkm.${pkm}`)}
-                            style={{ width: 32, height: 32, imageRendering: "pixelated" }}
-                          />
-                        ) : null
-                      })}
+            <li style={{ listStyle: "none" }}>
+              <div className="room-item my-box" style={{ display: "flex", flexDirection: "row", gap: "12px", alignItems: "center", flexWrap: "wrap", ...(savedRun ? { border: "2px solid #f39c12" } : {}) }}>
+                <span className="room-name" style={{ color: savedRun ? "#f39c12" : "#888" }}>Saved Run</span>
+                {savedRun ? (
+                  <>
+                    <div style={{ display: "flex", gap: "16px", alignItems: "center", fontSize: "13px", opacity: 0.9 }}>
+                      <span>Act {savedRun.currentAct} &middot; Floor {savedRun.currentFloor}</span>
+                      <span>{DIFFICULTY_LABELS[savedRun.difficultyMode] ?? "Normal"}</span>
+                      <span style={{ color: savedRun.runHP <= 30 ? "#e74c3c" : "#2ecc71" }}>
+                        {savedRun.runHP} HP
+                      </span>
                     </div>
-                  )}
-                  <div style={{ display: "flex", gap: "8px" }}>
+                    {savedRun.teamPreview?.length > 0 && (
+                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                        {savedRun.teamPreview.slice(0, 6).map((pkm, i) => {
+                          const idx = PkmIndex[pkm as Pkm]
+                          return idx ? (
+                            <img
+                              key={i}
+                              src={getPortraitSrc(idx)}
+                              alt={pkm}
+                              title={t(`pkm.${pkm}`)}
+                              style={{ width: 32, height: 32, imageRendering: "pixelated" }}
+                            />
+                          ) : null
+                        })}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: "8px", marginLeft: "auto" }}>
+                      <button
+                        className={cc("bubbly yellow", { loading: starting })}
+                        disabled={starting}
+                        onClick={resumeRun}
+                      >
+                        {starting ? "Loading..." : "Resume Run"}
+                      </button>
+                      <button
+                        className="bubbly red"
+                        onClick={abandonRun}
+                        style={{ fontSize: "12px", padding: "4px 12px" }}
+                      >
+                        Abandon
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: "13px", opacity: 0.6 }}>No saved run</span>
+                    <span style={{ fontSize: "11px", opacity: 0.45, maxWidth: "280px", lineHeight: "1.4" }}>
+                      If the server crashed, wait a minute, refresh, and it may appear. If not, it's lost.
+                    </span>
                     <button
-                      className={cc("bubbly yellow", { loading: starting })}
-                      disabled={starting}
-                      onClick={resumeRun}
+                      className="bubbly"
+                      disabled
+                      style={{ backgroundColor: "#555", cursor: "not-allowed", marginLeft: "auto" }}
                     >
-                      {starting ? "Loading..." : "Resume Run"}
+                      Resume Run
                     </button>
-                    <button
-                      className="bubbly red"
-                      onClick={abandonRun}
-                      style={{ fontSize: "12px", padding: "4px 12px" }}
-                    >
-                      Abandon
-                    </button>
-                  </div>
-                </div>
-              </li>
-            )}
+                  </>
+                )}
+              </div>
+            </li>
 
             {/* New Run Panel */}
             <li style={{ listStyle: "none" }}>
