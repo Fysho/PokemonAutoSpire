@@ -1996,10 +1996,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             )
           }
         }
-        if (won && node.nodeType === MapNodeType.LEGENDARY_BOSS && this.state.currentAct < 3) {
+        if (node.nodeType === MapNodeType.LEGENDARY_BOSS && this.state.currentAct < 3) {
           const isHard = this.state.difficultyMode === 2
           const rewardPool = isHard && this.state.currentAct === 1 ? [...Tools] : [...ShinyItems]
-          const goldItemChoices = pickNRandomIn(rewardPool, 3)
+          const count = won ? 3 : 1
+          const goldItemChoices = pickNRandomIn(rewardPool, count)
           player.choices.push(
             new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
           )

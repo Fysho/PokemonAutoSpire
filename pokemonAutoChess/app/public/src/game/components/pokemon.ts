@@ -1618,6 +1618,12 @@ export function loadCompressedAtlas(
     scene.load.once(
       `filecomplete-json-pokemon-atlas-${index}`,
       (key, type, data) => {
+        if (!data?.s || !data?.a) {
+          console.warn(`Missing sprite atlas data for ${index}`, data)
+          delete lazyLoadingRequests[index]
+          resolve(undefined)
+          return
+        }
         const image = data.i
 
         function traverse(obj: any, path: string, frames) {
