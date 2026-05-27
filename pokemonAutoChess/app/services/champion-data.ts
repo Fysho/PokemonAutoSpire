@@ -9,9 +9,17 @@ import {
   encodeSnapshotForClient
 } from "./team-snapshot"
 
+export interface LongestReign {
+  name: string
+  durationMs: number
+  date: string
+}
+
 export interface ChampionFileData {
   champion: TeamSnapshot
   eliteFour: [TeamSnapshot, TeamSnapshot, TeamSnapshot, TeamSnapshot]
+  championSince?: string
+  longestReign?: LongestReign
 }
 
 // Legacy format for migration
@@ -153,20 +161,46 @@ export function saveChampionData(data: ChampionFileData, mode: DifficultyMode = 
   }
 }
 
+export interface PromotionResult {
+  previousChampion: string
+  reignDurationMs: number | null
+  isNewLongestReign: boolean
+  previousLongestReign: LongestReign | null
+}
+
 export function promoteNewChampion(
   winnerSnapshot: TeamSnapshot,
   mode: DifficultyMode = 1
-): void {
+): PromotionResult {
   const data = loadChampionData(mode)
   const previousChampion = data.champion.name
   const e4Names = data.eliteFour.map((e) => e.name)
   const diffLabel = DIFFICULTY_LABELS[mode]
+
+  const now = new Date()
+  let reignDurationMs: number | null = null
+  let isNewLongestReign = false
+  let previousLongestReign = data.longestReign ?? null
+
+  if (data.championSince) {
+    reignDurationMs = now.getTime() - new Date(data.championSince).getTime()
+    if (!data.longestReign || reignDurationMs > data.longestReign.durationMs) {
+      previousLongestReign = data.longestReign ?? null
+      isNewLongestReign = true
+      data.longestReign = {
+        name: previousChampion,
+        durationMs: reignDurationMs,
+        date: now.toISOString()
+      }
+    }
+  }
 
   data.eliteFour[0] = { ...data.eliteFour[1] }
   data.eliteFour[1] = { ...data.eliteFour[2] }
   data.eliteFour[2] = { ...data.eliteFour[3] }
   data.eliteFour[3] = { ...data.champion }
   data.champion = winnerSnapshot
+  data.championSince = now.toISOString()
 
   saveChampionData(data, mode)
 
@@ -197,6 +231,8 @@ ${teamList}
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 `)
+
+  return { previousChampion, reignDurationMs, isNewLongestReign, previousLongestReign }
 }
 
 export function getChampionSlotForEncounter(slot: TeamSnapshot) {
@@ -214,5 +250,30 @@ export function getEliteFourSlotForEncounter(slot: TeamSnapshot, e4Index: number
     avatar: (slot.pokemon[0]?.name ?? "MAGIKARP") as Pkm,
     encodedBoard: encodeSnapshotForClient(slot),
     snapshot: slot
+  }
+}
+
+export function formatDuration(ms: number): string {
+  const totalMinutes = Math.floor(ms / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+  }
+  return `${Math.max(1, minutes)}m`
+}
+
+export function getChampionReignForClient(mode: DifficultyMode = 1): {
+  championName: string
+  championSince: string | null
+  longestReign: { name: string; durationMs: number } | null
+} {
+  const data = loadChampionData(mode)
+  return {
+    championName: data.champion.name,
+    championSince: data.championSince ?? null,
+    longestReign: data.longestReign
+      ? { name: data.longestReign.name, durationMs: data.longestReign.durationMs }
+      : null
   }
 }

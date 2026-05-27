@@ -66,6 +66,7 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .main-lobby ul.react-tabs__tab-list {
@@ -205,4 +206,28 @@
   .custom-bg {
     background-position-x: center;
   }
+}
+
+.hometown-help-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 240px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.92);
+  color: #ddd;
+  font-size: 11px;
+  line-height: 1.4;
+  border-radius: 6px;
+  border: 1px solid #555;
+  pointer-events: none;
+  z-index: 100;
+  white-space: normal;
+  text-align: left;
+}
+
+.hometown-help:hover .hometown-help-tooltip {
+  display: block;
 }

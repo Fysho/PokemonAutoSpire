@@ -101,6 +101,10 @@ const userMetadataSchema = new Schema({
       enum: Title
     }
   ],
+  spireRegion: {
+    type: String,
+    default: "town"
+  },
   spireStats: {
     type: {
       easy: {

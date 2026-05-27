@@ -120,6 +120,16 @@ export async function leaveAllRooms() {
 export function joinGame(room: Room<GameState>) {
   leaveAllRooms()
   rooms.game = room
+  try {
+    localStorage.setItem("spire_reconnect", JSON.stringify({
+      reconnectionToken: room.reconnectionToken,
+      roomId: room.roomId
+    }))
+  } catch { /* localStorage unavailable */ }
+}
+
+export function clearGameReconnection() {
+  try { localStorage.removeItem("spire_reconnect") } catch { /* noop */ }
 }
 
 export function lockShop() {

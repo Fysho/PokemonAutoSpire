@@ -32,6 +32,9 @@ export interface SnapshotPokemon {
   statBoosts?: PokemonStatBoosts
   skill?: Ability
   dishes?: Item[]
+  evolution?: Pkm
+  stacks?: number
+  stacksRequired?: number
 }
 
 export interface TeamSnapshot {
@@ -42,6 +45,7 @@ export interface TeamSnapshot {
   groundHoles: number[]
   lightX: number
   lightY: number
+  region?: string
 }
 
 export function snapshotPlayerTeam(
@@ -75,7 +79,15 @@ export function snapshotPlayerTeam(
     if (pkm.emotion !== Emotion.NORMAL) snap.emotion = pkm.emotion
     if (hasBoosts) snap.statBoosts = boosts
     if (pkm.skill !== baseline.skill) snap.skill = pkm.skill
-    if (pkm.dishes?.size > 0) snap.dishes = [...pkm.dishes] as Item[]
+    if (pkm.dishes?.size > 0) {
+      snap.dishes = [...pkm.dishes] as Item[]
+    } else if (pkm._cookedDishes?.length > 0) {
+      snap.dishes = [...pkm._cookedDishes] as Item[]
+    }
+
+    if (pkm.evolution !== Pkm.DEFAULT) snap.evolution = pkm.evolution
+    if (pkm.stacks > 0) snap.stacks = pkm.stacks
+    if (pkm.stacksRequired > 0) snap.stacksRequired = pkm.stacksRequired
 
     pokemon.push(snap)
   })
@@ -141,6 +153,10 @@ export function reconstructTeamAsBoard(snapshot: TeamSnapshot): {
         pkm.dishes.add(dish)
       }
     }
+
+    if (snap.evolution) pkm.evolution = snap.evolution
+    if (snap.stacks) pkm.stacks = snap.stacks
+    if (snap.stacksRequired) pkm.stacksRequired = snap.stacksRequired
 
     board.set(pkm.id, pkm)
   }
@@ -233,6 +249,10 @@ export function reconstructTeamAsPlayer(
       }
     }
 
+    if (snap.evolution) pkm.evolution = snap.evolution
+    if (snap.stacks) pkm.stacks = snap.stacks
+    if (snap.stacksRequired) pkm.stacksRequired = snap.stacksRequired
+
     player.board.set(pkm.id, pkm)
   }
 
@@ -279,7 +299,8 @@ export function encodeSnapshotForClient(snapshot: TeamSnapshot): string[] {
   return snapshot.pokemon
     .filter((p) => p.y > 0)
     .map((p) => {
-      const itemStr = p.items.length > 0 ? `,${p.items.join(",")}` : ""
+      const allItems = [...p.items, ...(p.dishes ?? [])]
+      const itemStr = allItems.length > 0 ? `,${allItems.join(",")}` : ""
       const b = p.statBoosts
       const boostStr =
         b && (b.hp || b.atk || b.def || b.speDef || b.ap || b.speed)

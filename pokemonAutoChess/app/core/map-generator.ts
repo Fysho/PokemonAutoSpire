@@ -1,6 +1,6 @@
 import { ArraySchema, MapSchema } from "@colyseus/schema"
 import { MapEdge, MapNode, MapNodeType } from "../models/colyseus-models/map-node"
-import { getEliteEncounterAvatar, getEliteEncounterCount, getEliteEncounterName, getEliteFourDisplayName, getEliteFourSynergies, getGymLeaderDisplayName, getGymSynergies, pickLegendaryBoss } from "../models/spire-encounters"
+import { getEliteEncounterAvatar, getEliteEncounterCount, getEliteEncounterName, getEliteFourDisplayName, getEliteFourSynergies, getGymLeaderDisplayName, getGymSynergies, getUnlockEncounterAvatar, getUnlockEncounterCount, getUnlockEncounterName, pickLegendaryBoss } from "../models/spire-encounters"
 import { loadChampionData, type DifficultyMode } from "../services/champion-data"
 import { PkmIndex } from "../types/enum/Pokemon"
 import { DungeonPMDO } from "../types/enum/Dungeon"
@@ -44,12 +44,20 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
 
   if (floor === 8 || floor === 13 || floor === 17) {
     const eliteChance = act === 1 ? 0.7 : 0.5
-    return roll < eliteChance ? MapNodeType.ELITE : MapNodeType.WILD_BATTLE
+    if (roll < eliteChance) {
+      const eliteWeight = act === 1 ? 0.5 : 0.1
+      return Math.random() < eliteWeight ? MapNodeType.ELITE : MapNodeType.UNLOCK
+    }
+    return MapNodeType.WILD_BATTLE
   }
 
   if (floor === 4 || floor === 11) {
     const eliteChance = act === 1 ? 0.4 : 0.3
-    return roll < eliteChance ? MapNodeType.ELITE : MapNodeType.WILD_BATTLE
+    if (roll < eliteChance) {
+      const eliteWeight = act === 1 ? 0.5 : 0.1
+      return Math.random() < eliteWeight ? MapNodeType.ELITE : MapNodeType.UNLOCK
+    }
+    return MapNodeType.WILD_BATTLE
   }
 
   if (floor === 9 || floor === 15) {
@@ -169,6 +177,11 @@ export function generateActMap(
   shuffleArray(eliteIndices)
   let elitePick = 0
 
+  const unlockTotal = getUnlockEncounterCount(act)
+  const unlockIndices = Array.from({ length: unlockTotal }, (_, i) => i)
+  shuffleArray(unlockIndices)
+  let unlockPick = 0
+
   for (let floor = 1; floor <= totalFloors; floor++) {
     let nodeCount: number
     if (floor === totalFloors) {
@@ -210,6 +223,14 @@ export function generateActMap(
         elitePick++
         node.displayName = getEliteEncounterName(node.eliteEncounterIndex, act)
         const avatar = getEliteEncounterAvatar(node.eliteEncounterIndex, act)
+        node.eliteAvatar = PkmIndex[avatar] ?? ""
+      }
+
+      if (nodeType === MapNodeType.UNLOCK) {
+        node.eliteEncounterIndex = unlockIndices[unlockPick % unlockIndices.length]
+        unlockPick++
+        node.displayName = getUnlockEncounterName(node.eliteEncounterIndex, act)
+        const avatar = getUnlockEncounterAvatar(node.eliteEncounterIndex, act)
         node.eliteAvatar = PkmIndex[avatar] ?? ""
       }
 

@@ -27,6 +27,7 @@ export interface IPreferencesState {
   synergiesPosition: { x: number; y: number }
   opponentSynergiesPosition: { x: number; y: number } | null
   expeditionsPosition: { x: number; y: number }
+  runEndPosition: { x: number; y: number }
   showDetailsOnHover: boolean
   showDamageNumbers: boolean
   showEvolutions: boolean
@@ -57,6 +58,7 @@ const defaultPreferences: IPreferencesState = {
   synergiesPosition: { x: 0, y: 0 },
   opponentSynergiesPosition: null,
   expeditionsPosition: { x: 0, y: 0 },
+  runEndPosition: { x: 0, y: 0 },
   showDetailsOnHover: false,
   showDamageNumbers: true,
   showEvolutions: true,

@@ -1,4 +1,6 @@
 import React from "react"
+import DraggableWindow from "../modal/draggable-window"
+import { usePreference } from "../../../preferences"
 
 interface GameRunEndProps {
   victory: boolean
@@ -10,6 +12,9 @@ interface GameRunEndProps {
   eliteFourAvailable?: boolean
   currentAct?: number
   arceusDamageDealt?: number
+  isNewArceusRecord?: boolean
+  previousArceusRecord?: number
+  previousArceusHolder?: string
   onEnterEliteFour?: () => void
   onChallengeArceus?: () => void
   onBackToLobby?: () => void
@@ -37,15 +42,20 @@ export default function GameRunEnd({
   eliteFourAvailable = false,
   currentAct = 3,
   arceusDamageDealt = 0,
+  isNewArceusRecord = false,
+  previousArceusRecord = 0,
+  previousArceusHolder = "",
   onEnterEliteFour,
   onChallengeArceus,
   onBackToLobby
 }: GameRunEndProps) {
+  const [savedPosition, setSavedPosition] = usePreference("runEndPosition")
   const diffLabel = DIFFICULTY_LABELS[difficultyMode] ?? "Normal"
   const diffColor = DIFFICULTY_COLORS[difficultyMode] ?? "#f39c12"
   const isArceusEnd = currentAct === 5 && arceusDamageDealt > 0
 
   const getTitle = () => {
+    if (isArceusEnd && isNewArceusRecord) return "NEW RECORD!"
     if (isArceusEnd) return "Game Over"
     if (!victory) return "Defeated"
     if (currentAct === 4) return "Champion!"
@@ -54,6 +64,12 @@ export default function GameRunEnd({
   }
 
   const getSubtitle = () => {
+    if (isArceusEnd && isNewArceusRecord && previousArceusHolder) {
+      return `You took the record from ${previousArceusHolder}!`
+    }
+    if (isArceusEnd && isNewArceusRecord) {
+      return "You set the first Arceus damage record!"
+    }
     if (isArceusEnd) return "Your score is the damage dealt to Arceus."
     if (!victory) return null
     if (currentAct === 4) return "You are the new Champion!"
@@ -65,85 +81,98 @@ export default function GameRunEnd({
   const showArceus = currentAct === 4
   const showEliteFour = eliteFourAvailable
 
+  const defaultPosition = savedPosition?.x || savedPosition?.y
+    ? savedPosition
+    : { x: Math.floor((window.innerWidth - 320) / 2), y: 20 }
+
   return (
-    <div
-      style={{
+    <>
+      <DraggableWindow
+        title={getTitle()}
+        className="my-container"
+        style={{ zIndex: 200, width: "320px" }}
+        initialPosition={defaultPosition}
+        onMove={setSavedPosition}
+      >
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          padding: "4px 0"
+        }}>
+          {subtitle && (
+            <span style={{
+              fontSize: "16px",
+              color: isNewArceusRecord ? "#f1c40f" : eliteFourAvailable ? "#f1c40f" : "#ccc",
+              marginBottom: "4px",
+              fontStyle: "italic",
+              textAlign: "center"
+            }}>
+              {subtitle}
+            </span>
+          )}
+
+          <span style={{
+            fontSize: "15px",
+            fontWeight: "bold",
+            color: diffColor,
+            marginBottom: "8px",
+            textAlign: "center"
+          }}>
+            {diffLabel} Mode
+          </span>
+
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: "4px 16px",
+            fontSize: "17px"
+          }}>
+            {isArceusEnd && <>
+              <span style={{ opacity: 0.7 }}>Damage to Arceus</span>
+              <span style={{ fontWeight: "bold", color: "#f1c40f", textAlign: "right" }}>
+                {arceusDamageDealt.toLocaleString()}
+              </span>
+            </>}
+            {isArceusEnd && previousArceusRecord > 0 && !isNewArceusRecord && <>
+              <span style={{ opacity: 0.7 }}>Record</span>
+              <span style={{ fontWeight: "bold", textAlign: "right" }}>
+                {previousArceusRecord.toLocaleString()} ({previousArceusHolder})
+              </span>
+            </>}
+            {isArceusEnd && isNewArceusRecord && previousArceusRecord > 0 && <>
+              <span style={{ opacity: 0.7 }}>Previous Record</span>
+              <span style={{ opacity: 0.7, textAlign: "right" }}>
+                {previousArceusRecord.toLocaleString()} ({previousArceusHolder})
+              </span>
+            </>}
+            <span style={{ opacity: 0.7 }}>HP Remaining</span>
+            <span style={{ fontWeight: "bold", textAlign: "right" }}>{runHP}</span>
+            <span style={{ opacity: 0.7 }}>Battles Won</span>
+            <span style={{ fontWeight: "bold", color: "#2ecc71", textAlign: "right" }}>{battlesWon}</span>
+            <span style={{ opacity: 0.7 }}>Battles Lost</span>
+            <span style={{ fontWeight: "bold", color: "#e74c3c", textAlign: "right" }}>{battlesLost}</span>
+            <span style={{ opacity: 0.7 }}>Gold Earned</span>
+            <span style={{ fontWeight: "bold", color: "#f1c40f", textAlign: "right" }}>{totalGold}</span>
+          </div>
+        </div>
+      </DraggableWindow>
+
+      <div style={{
         position: "absolute",
-        top: "20px",
+        bottom: "200px",
         left: 0,
         right: 0,
         display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        zIndex: 200,
-        color: "white",
-        pointerEvents: "none"
-      }}
-    >
-      <h1 style={{
-        fontSize: "42px",
-        margin: "0 0 2px",
-        color: victory ? (currentAct === 4 ? "#f1c40f" : "#2ecc71") : "#e74c3c",
-        textShadow: "0 2px 8px rgba(0,0,0,0.8)"
-      }}>
-        {getTitle()}
-      </h1>
-      {subtitle && (
-        <span style={{
-          fontSize: "16px",
-          color: eliteFourAvailable ? "#f1c40f" : "#ccc",
-          textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-          marginBottom: "4px",
-          fontStyle: "italic"
-        }}>
-          {subtitle}
-        </span>
-      )}
-
-      <span style={{
-        fontSize: "14px",
-        fontWeight: "bold",
-        color: diffColor,
-        textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-        marginBottom: "8px"
-      }}>
-        {diffLabel} Mode
-      </span>
-
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "auto auto",
-        gap: "3px 12px",
-        fontSize: "15px",
-        textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-        background: "rgba(0,0,0,0.6)",
-        borderRadius: "8px",
-        padding: "10px 16px"
-      }}>
-        {isArceusEnd && <>
-          <span style={{ textAlign: "right", opacity: 0.7 }}>Damage to Arceus</span>
-          <span style={{ fontWeight: "bold", color: "#f1c40f" }}>{arceusDamageDealt.toLocaleString()}</span>
-        </>}
-        <span style={{ textAlign: "right", opacity: 0.7 }}>HP Remaining</span>
-        <span style={{ fontWeight: "bold" }}>{runHP}</span>
-        <span style={{ textAlign: "right", opacity: 0.7 }}>Battles Won</span>
-        <span style={{ fontWeight: "bold", color: "#2ecc71" }}>{battlesWon}</span>
-        <span style={{ textAlign: "right", opacity: 0.7 }}>Battles Lost</span>
-        <span style={{ fontWeight: "bold", color: "#e74c3c" }}>{battlesLost}</span>
-        <span style={{ textAlign: "right", opacity: 0.7 }}>Gold Earned</span>
-        <span style={{ fontWeight: "bold", color: "#f1c40f" }}>{totalGold}</span>
-      </div>
-
-      <div style={{
-        display: "flex",
+        justifyContent: "center",
         gap: "12px",
-        marginTop: "12px",
-        pointerEvents: "auto"
+        zIndex: 200,
+        pointerEvents: "none"
       }}>
         {showEliteFour && onEnterEliteFour && (
           <button
             className="bubbly"
             onClick={onEnterEliteFour}
+            style={{ pointerEvents: "auto" }}
           >
             Enter the Elite Four
           </button>
@@ -152,30 +181,24 @@ export default function GameRunEnd({
           <button
             className="bubbly"
             onClick={onChallengeArceus}
-            style={{ background: "#9b59b6" }}
+            style={{ background: "#9b59b6", pointerEvents: "auto" }}
           >
             Challenge Arceus
           </button>
         )}
         {onBackToLobby && (
           <button
+            className="bubbly"
             onClick={onBackToLobby}
             style={{
-              padding: "12px 36px",
-              fontSize: "18px",
-              borderRadius: "8px",
-              border: "none",
               background: victory ? "#2ecc71" : "#e74c3c",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: "bold",
-              boxShadow: `0 4px 12px ${victory ? "rgba(46,204,113,0.4)" : "rgba(231,76,60,0.4)"}`
+              pointerEvents: "auto"
             }}
           >
             Back to Lobby
           </button>
         )}
       </div>
-    </div>
+    </>
   )
 }

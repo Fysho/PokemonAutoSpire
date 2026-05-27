@@ -28,7 +28,7 @@ import { SpecialGameRule } from "../../types/enum/SpecialGameRule"
 import { TownEncounter } from "../../types/enum/TownEncounter"
 import { Weather } from "../../types/enum/Weather"
 import { TeamSnapshot } from "../../services/team-snapshot"
-import { pickRandomIn, randomBetween } from "../../utils/random"
+import { pickRandomIn } from "../../utils/random"
 
 export default class GameState extends Schema {
   @type("string") afterGameId = ""
@@ -48,8 +48,8 @@ export default class GameState extends Schema {
   @type("string") gameMode: GameMode = GameMode.CUSTOM_LOBBY
   @type({ set: "string" }) spectators = new SetSchema<string>()
   @type({ map: Simulation }) simulations = new MapSchema<Simulation>()
-  @type("uint8") lightX = randomBetween(0, BOARD_WIDTH - 1)
-  @type("uint8") lightY = randomBetween(1, BOARD_HEIGHT / 2)
+  @type("uint8") lightX = 0
+  @type("uint8") lightY = 0
   @type("string") specialGameRule: SpecialGameRule | null = null
   @type("string") townEncounter: TownEncounter | null = null
 
@@ -83,6 +83,9 @@ export default class GameState extends Schema {
   @type(["uint8"]) encounterGroundHoles = new ArraySchema<number>()
   @type(["string"]) encounterSynergies = new ArraySchema<string>()
   @type("uint32") arceusDamageDealt: number = 0
+  @type("boolean") isNewArceusRecord: boolean = false
+  @type("uint32") previousArceusRecord: number = 0
+  @type("string") previousArceusHolder: string = ""
   @type("string") spireEventName: string = ""
   @type("string") spireEventDescription: string = ""
   @type(["string"]) spireEventChoiceLabels = new ArraySchema<string>()
@@ -93,6 +96,7 @@ export default class GameState extends Schema {
   shop: Shop = new Shop()
   simulationPaused = false
   gameFinished = false
+  playerSpireRegion = "town"
   gameLoaded = false
   name: string
   startTime: number

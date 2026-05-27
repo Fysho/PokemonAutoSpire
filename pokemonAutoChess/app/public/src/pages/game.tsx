@@ -46,7 +46,7 @@ import {
   useAppDispatch,
   useAppSelector
 } from "../hooks"
-import { authenticateUser, client, joinGame, rooms } from "../network"
+import { authenticateUser, clearGameReconnection, client, joinGame, rooms } from "../network"
 import store from "../stores"
 import {
   addDpsMeter,
@@ -80,6 +80,9 @@ import {
   setEncounterGroundHoles,
   setGameSpeed,
   setArceusDamageDealt,
+  setIsNewArceusRecord,
+  setPreviousArceusRecord,
+  setPreviousArceusHolder,
   setRoundTime,
   setShopFreeRolls,
   setShopLocked,
@@ -92,7 +95,8 @@ import {
 } from "../stores/GameStore"
 import {
   setConnectionStatus,
-  setErrorAlertMessage
+  setErrorAlertMessage,
+  setRole
 } from "../stores/NetworkStore"
 import GameChoice from "./component/game/game-choice"
 import GameEvent from "./component/game/game-event"
@@ -189,6 +193,7 @@ export default function Game() {
   )
   const room: Room<GameState> | undefined = rooms.game
   const uid: string = useAppSelector((state) => state.network.uid)
+  const isAdmin = useAppSelector((state) => state.network.profile?.role === Role.ADMIN)
   const spectatedPlayerId: string = useAppSelector(
     (state) => state.game.playerIdSpectated
   )
@@ -205,6 +210,7 @@ export default function Game() {
   const [runFailed, setRunFailed] = useState<boolean>(false)
   const [eliteFourAvailable, setEliteFourAvailable] = useState<boolean>(false)
   const [loaded, setLoaded] = useState<boolean>(false)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState<boolean>(false)
   const [connectError, setConnectError] = useState<string>("")
   const [finalRank, setFinalRank] = useState<number>(0)
   enum FinalRankVisibility {
@@ -226,14 +232,33 @@ export default function Game() {
         connected.current = true
         connecting.current = false
         dispatch(setConnectionStatus(ConnectionStatus.CONNECTED))
-      } else {
-        navigate("/")
+        return
       }
+
+      try {
+        const saved = localStorage.getItem("spire_reconnect")
+        if (saved) {
+          const { reconnectionToken } = JSON.parse(saved)
+          if (reconnectionToken) {
+            const room = await client.reconnect<GameState>(reconnectionToken)
+            joinGame(room)
+            connected.current = true
+            connecting.current = false
+            dispatch(setConnectionStatus(ConnectionStatus.CONNECTED))
+            return
+          }
+        }
+      } catch {
+        clearGameReconnection()
+      }
+
+      navigate("/lobby")
     },
     [dispatch]
   )
 
   const leave = useCallback(async () => {
+    clearGameReconnection()
     if (gameContainer && gameContainer.game) {
       gameContainer.game.destroy(true)
     }
@@ -306,6 +331,17 @@ export default function Game() {
   useEffect(() => {
     // leaderboards removed for single-player
   }, [])
+
+  useEffect(() => {
+    if (uid && uid !== "local-player") {
+      fetch(`/api/user-role/${uid}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.role) dispatch(setRole(data.role as Role))
+        })
+        .catch(() => {})
+    }
+  }, [uid])
 
   useEffect(() => {
     const connect = () => {
@@ -630,6 +666,7 @@ export default function Game() {
       $state.listen("runComplete", (value) => {
         setRunComplete(value)
         if (value) {
+          clearGameReconnection()
           const g = getGameScene()
           if (g?.board) g.board.pickMode(false)
         }
@@ -638,6 +675,7 @@ export default function Game() {
       $state.listen("runFailed", (value) => {
         if (value) {
           setRunFailed(true)
+          clearGameReconnection()
           const g = getGameScene()
           if (g?.board) g.board.pickMode(false)
         }
@@ -653,6 +691,18 @@ export default function Game() {
 
       $state.listen("arceusDamageDealt", (value) => {
         dispatch(setArceusDamageDealt(value))
+      })
+
+      $state.listen("isNewArceusRecord", (value) => {
+        dispatch(setIsNewArceusRecord(value))
+      })
+
+      $state.listen("previousArceusRecord", (value) => {
+        dispatch(setPreviousArceusRecord(value))
+      })
+
+      $state.listen("previousArceusHolder", (value) => {
+        dispatch(setPreviousArceusHolder(value))
       })
 
       $state.listen("noElo", (value) => {
@@ -827,7 +877,6 @@ export default function Game() {
           if (player.id === store.getState().game.playerIdSpectated) {
             const gameScene = getGameScene()
             if (gameScene) {
-              gameScene.setMap(newMap)
               const alreadyLoading = gameScene.load.isLoading()
               if (!alreadyLoading) {
                 gameScene.load.reset()
@@ -979,6 +1028,9 @@ export default function Game() {
   const money = useAppSelector((state) => state.game.money)
   const difficultyMode = useAppSelector((state) => state.game.difficultyMode)
   const arceusDamageDealt = useAppSelector((state) => state.game.arceusDamageDealt)
+  const isNewArceusRecord = useAppSelector((state) => state.game.isNewArceusRecord)
+  const previousArceusRecord = useAppSelector((state) => state.game.previousArceusRecord)
+  const previousArceusHolder = useAppSelector((state) => state.game.previousArceusHolder)
   const isMapPhase = phase === GamePhaseState.MAP
   const isRestPhase = phase === GamePhaseState.REST
   const isEventPhase = phase === GamePhaseState.EVENT
@@ -1011,6 +1063,9 @@ export default function Game() {
                 eliteFourAvailable={eliteFourAvailable}
                 currentAct={currentAct}
                 arceusDamageDealt={arceusDamageDealt}
+                isNewArceusRecord={isNewArceusRecord}
+                previousArceusRecord={previousArceusRecord}
+                previousArceusHolder={previousArceusHolder}
                 onEnterEliteFour={eliteFourAvailable ? () => {
                   rooms.game?.send(Transfer.ENTER_ELITE_FOUR)
                   setRunComplete(false)
@@ -1122,7 +1177,7 @@ export default function Game() {
           )}
           {isShopPhase && (
             <div style={{
-              position: "absolute", bottom: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 50
+              position: "absolute", bottom: "200px", left: "50%", transform: "translateX(-50%)", zIndex: 50
             }}>
               <button
                 onClick={() => rooms.game?.send(Transfer.SKIP_REWARD)}
@@ -1148,16 +1203,14 @@ export default function Game() {
             position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
             display: "flex", flexDirection: "column", gap: "8px", zIndex: 300
           }}>
-            {localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) === "Fisho" && (
-              <button
-                onClick={() => { setRunComplete(true); setEliteFourAvailable(true) }}
-                style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
-              >
-                Test Victory
-              </button>
-            )}
-            {(localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) === "Fisho" || localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) === "Fisho2") && (
+            {isAdmin && (
               <>
+                <button
+                  onClick={() => { setRunComplete(true); setEliteFourAvailable(true) }}
+                  style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                >
+                  Test Victory
+                </button>
                 {[1, 2, 3].map(act => (
                   <button
                     key={act}
@@ -1172,6 +1225,18 @@ export default function Game() {
                     Skip to Act {act}
                   </button>
                 ))}
+                <button
+                  onClick={() => rooms.game?.send(Transfer.GIVE_GOLD)}
+                  style={{ padding: "6px 12px", background: "#f39c12", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                >
+                  Give 999 Gold
+                </button>
+                <button
+                  onClick={() => rooms.game?.send(Transfer.GIVE_MEWTWO)}
+                  style={{ padding: "6px 12px", background: "#3498db", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                >
+                  Give Mewtwo
+                </button>
                 <button
                   onClick={() => {
                     rooms.game?.send(Transfer.ENTER_ELITE_FOUR)
@@ -1196,9 +1261,7 @@ export default function Game() {
                   Skip to Act 5
                 </button>
                 <button
-                  onClick={() => {
-                    rooms.game?.send(Transfer.RESET_CHAMPION)
-                  }}
+                  onClick={() => rooms.game?.send(Transfer.RESET_CHAMPION)}
                   style={{ padding: "6px 12px", background: "#e74c3c", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
                 >
                   Reset E4/Champion
@@ -1206,10 +1269,10 @@ export default function Game() {
               </>
             )}
             <button
-              onClick={() => setRunFailed(true)}
+              onClick={() => setShowLeaveConfirm(true)}
               style={{ padding: "6px 12px", background: "#e74c3c", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
             >
-              Abandon Run
+              Leave Game
             </button>
           </div>
         </>
@@ -1217,6 +1280,97 @@ export default function Game() {
         <GameLoadingScreen connectError={connectError} />
       )}
       <ConnectionStatusNotification />
+      {(connectionStatus === ConnectionStatus.CONNECTION_LOST || connectionStatus === ConnectionStatus.CONNECTION_FAILED) && !runComplete && !runFailed && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9998,
+          color: "white"
+        }}>
+          <h2 style={{ margin: "0 0 8px", textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
+            {connectionStatus === ConnectionStatus.CONNECTION_LOST ? "Connection Lost" : "Disconnected"}
+          </h2>
+          <p style={{ margin: "0 0 16px", opacity: 0.8, fontSize: "14px" }}>
+            {connectionStatus === ConnectionStatus.CONNECTION_LOST
+              ? "Attempting to reconnect..."
+              : "The connection to the server was lost."}
+          </p>
+          <button
+            onClick={leave}
+            style={{
+              padding: "12px 36px",
+              fontSize: "18px",
+              borderRadius: "8px",
+              border: "none",
+              background: "#e74c3c",
+              color: "white",
+              cursor: "pointer",
+              fontWeight: "bold",
+              boxShadow: "0 4px 12px rgba(231,76,60,0.4)"
+            }}
+          >
+            Return to Lobby
+          </button>
+        </div>
+      )}
+      {showLeaveConfirm && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9998,
+          color: "white"
+        }}>
+          <h2 style={{ margin: "0 0 8px", textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
+            Leave Game
+          </h2>
+          <p style={{ margin: "0 0 20px", opacity: 0.8, fontSize: "14px" }}>
+            Are you sure? You can resume later.
+          </p>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button
+              onClick={leave}
+              style={{
+                padding: "12px 36px",
+                fontSize: "18px",
+                borderRadius: "8px",
+                border: "none",
+                background: "#e74c3c",
+                color: "white",
+                cursor: "pointer",
+                fontWeight: "bold",
+                boxShadow: "0 4px 12px rgba(231,76,60,0.4)"
+              }}
+            >
+              Leave
+            </button>
+            <button
+              onClick={() => setShowLeaveConfirm(false)}
+              style={{
+                padding: "12px 36px",
+                fontSize: "18px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.3)",
+                background: "transparent",
+                color: "white",
+                cursor: "pointer",
+                fontWeight: "bold"
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

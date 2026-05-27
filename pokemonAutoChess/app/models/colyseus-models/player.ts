@@ -983,19 +983,14 @@ export default class Player extends Schema implements IPlayer {
     delay?: number
     shiny?: boolean
   }): Wanderer {
-    const id = crypto.randomUUID()
-    const wanderer = new Wanderer({
-      id,
+    return new Wanderer({
+      id: crypto.randomUUID(),
       pkm,
       type,
       behavior,
       data,
       shiny
     })
-    setTimeout(() => {
-      this.wanderers.set(id, wanderer)
-    }, delay)
-    return wanderer
   }
 }
 

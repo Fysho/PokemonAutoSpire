@@ -104,9 +104,14 @@ export default function GamePokemonPortrait(props: {
   const pokemonCustom = getPkmWithCustom(pokemon.index, customs)
   const rarityColor = RarityColor[pokemon.rarity]
 
-  const evolutionName = spectatedPlayer
-    ? pokemon.evolutionRule.getEvolution(pokemon, spectatedPlayer)
-    : (pokemon.evolutions[0] ?? pokemon.evolution)
+  let evolutionName: Pkm
+  try {
+    evolutionName = spectatedPlayer
+      ? pokemon.evolutionRule.getEvolution(pokemon, spectatedPlayer)
+      : (pokemon.evolutions[0] ?? pokemon.evolution)
+  } catch {
+    evolutionName = pokemon.evolutions[0] ?? pokemon.evolution
+  }
   let pokemonEvolution = PokemonFactory.createPokemonFromName(evolutionName)
 
   const willEvolve =
@@ -124,13 +129,18 @@ export default function GamePokemonPortrait(props: {
     countEvol === pokemon.evolutionRule.numberRequired - 1 &&
     pokemonEvolution.hasEvolution
   ) {
-    const evolutionName2 = spectatedPlayer
-      ? pokemonEvolution.evolutionRule.getEvolution(
-          pokemonEvolution,
-          spectatedPlayer,
-          stageLevel
-        )
-      : (pokemonEvolution.evolutions[0] ?? pokemonEvolution.evolution)
+    let evolutionName2: Pkm
+    try {
+      evolutionName2 = spectatedPlayer
+        ? pokemonEvolution.evolutionRule.getEvolution(
+            pokemonEvolution,
+            spectatedPlayer,
+            stageLevel
+          )
+        : (pokemonEvolution.evolutions[0] ?? pokemonEvolution.evolution)
+    } catch {
+      evolutionName2 = pokemonEvolution.evolutions[0] ?? pokemonEvolution.evolution
+    }
     pokemonEvolution = PokemonFactory.createPokemonFromName(evolutionName2)
   }
 

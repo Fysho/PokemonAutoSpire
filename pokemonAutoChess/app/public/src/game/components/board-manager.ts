@@ -297,6 +297,8 @@ export default class BoardManager {
 
   showLightCell() {
     this.hideLightCell()
+    this.lightX = this.state.lightX
+    this.lightY = this.state.lightY
     const lightCount = this.player.synergies.get(Synergy.LIGHT)
     if (lightCount && lightCount >= SynergyTriggers[Synergy.LIGHT][0]) {
       const coordinates = transformBoardCoordinates(this.lightX, this.lightY)
@@ -904,10 +906,6 @@ export default class BoardManager {
     }
     this.updateOpponentAvatar(null, null)
     this.updateScoutingAvatars(true)
-    this.scene.minigameManager?.addVillagers(
-      this.scene.room?.state.townEncounter ?? null,
-      store.getState().game.podium
-    )
   }
 
   setPlayer(player: Player) {

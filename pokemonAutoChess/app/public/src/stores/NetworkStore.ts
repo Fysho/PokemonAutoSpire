@@ -1,7 +1,7 @@
 import { User } from "@firebase/auth-types"
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import { CollectionUtils } from "../../../core/collection"
-import { Emotion, Title, Transfer } from "../../../types"
+import { Emotion, Role, Title, Transfer } from "../../../types"
 import { ConnectionStatus } from "../../../types/enum/ConnectionStatus"
 import { Language } from "../../../types/enum/Language"
 import {
@@ -108,6 +108,9 @@ export const networkSlice = createSlice({
       state.notifications = state.notifications.filter(
         (n) => n.id !== action.payload
       )
+    },
+    setRole: (state, action: PayloadAction<Role>) => {
+      if (state.profile) state.profile.role = action.payload
     }
   }
 })
@@ -124,7 +127,8 @@ export const {
   selectLanguage,
   setConnectionStatus,
   setErrorAlertMessage,
-  setPendingGameId
+  setPendingGameId,
+  setRole
 } = networkSlice.actions
 
 export default networkSlice.reducer

@@ -385,8 +385,7 @@ export default class GameScene extends Scene {
     }
 
     const tilemap = this.tilemaps.get(mapName)
-    if (!tilemap)
-      return logger.error(`Tilemap not yet loaded for map ${mapName}`)
+    if (!tilemap) return
 
     const map = this.make.tilemap({ key: "map_" + mapName })
     if (this.map) this.map.destroy()

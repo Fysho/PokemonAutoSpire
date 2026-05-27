@@ -1,5 +1,5 @@
 import { Command } from "@colyseus/command"
-import { SetSchema, StateView } from "@colyseus/schema"
+import { MapSchema, SetSchema, StateView } from "@colyseus/schema"
 import { Client, updateLobby } from "colyseus"
 import {
   AdditionalPicksStages,
@@ -29,6 +29,7 @@ import {
   OnItemDroppedEffect,
   OnStageStartEffect
 } from "../../core/effects/effect"
+import { DishByPkm } from "../../core/dishes"
 import { ItemEffects } from "../../core/effects/items"
 import { PassiveEffects } from "../../core/effects/passives"
 import { giveRandomEgg } from "../../core/eggs"
@@ -40,7 +41,7 @@ import {
 import { getFlowerPotsUnlocked } from "../../core/flower-pots"
 import { generateActMap, markAvailableNodes } from "../../core/map-generator"
 import { selectMatchups } from "../../core/matchmaking"
-import { canSell, PokemonEntity } from "../../core/pokemon-entity"
+import { canSell, getUnitScore, PokemonEntity } from "../../core/pokemon-entity"
 import Simulation from "../../core/simulation"
 import { MapNodeType } from "../../models/colyseus-models/map-node"
 import {
@@ -57,10 +58,14 @@ import {
   getLegendaryBossEncounter,
   getLegendaryBossEncounterByName,
   getRegionalWildEncounter,
+  getUnlockEncounter,
+  getUnlockEncounterPokemon,
+  getUnlockEncounterType,
   getWildEncounter,
   SpireEncounter
 } from "../../models/spire-encounters"
 import { loadChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, type DifficultyMode } from "../../services/champion-data"
+import { discordService } from "../../services/discord"
 import { snapshotPlayerTeam, reconstructTeamAsPlayer, encodeSnapshotForClient } from "../../services/team-snapshot"
 import { getEventBerries, getEventItems, getRandomEvent } from "../../models/spire-events"
 import { generateShopItems } from "../../models/spire-shops"
@@ -109,6 +114,8 @@ import {
   CraftableItemsNoScarves,
   CraftableNoStonesOrScarves,
   Dishes,
+  DishesGoingToInventory,
+  HerbaMysticas,
   Item,
   ItemComponents,
   ItemComponentsNoFossilOrScarf,
@@ -116,6 +123,7 @@ import {
   ItemRecipe,
   ItemsSoldAtTown,
   Mulches,
+  NonSpecialBerries,
   Scarves,
   Sweets,
   SynergyGem,
@@ -151,6 +159,7 @@ import {
   isOnBench,
   isPositionEmpty
 } from "../../utils/board"
+import { distanceC } from "../../utils/distance"
 import { repeat } from "../../utils/function"
 import { logger } from "../../utils/logger"
 import { max } from "../../utils/number"
@@ -158,7 +167,8 @@ import {
   chance,
   pickNRandomIn,
   pickRandomIn,
-  randomBetween
+  randomBetween,
+  randomWeighted
 } from "../../utils/random"
 import { resetArraySchema, schemaValues } from "../../utils/schemas"
 import { getWeather } from "../../utils/weather"
@@ -1119,10 +1129,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               if (!p.isBot) {
                 p.life = 0
                 p.alive = false
-                const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
-                deleteSavedRun(p.id)
-                saveRunHistory(p.id, this.state, p, false)
-                incrementRunEnd(p.id, this.state.difficultyMode, true, false, 0)
               }
             })
             this.syncRunHPToPlayers()
@@ -1230,6 +1236,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     })
   }
 
+  autoSaveRun() {
+    this.state.players.forEach((player: Player) => {
+      if (!player.isBot && player.alive && !this.state.runComplete && !this.state.runFailed) {
+        const { saveRun } = require("../../services/run-save")
+        saveRun(player.id, this.state, player)
+      }
+    })
+  }
+
   initializeMapPhase() {
     this.state.phase = GamePhaseState.MAP
     this.state.time = 999 * 1000
@@ -1259,13 +1274,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode)
     }
 
-    // Auto-save run for human players
-    this.state.players.forEach((player: Player) => {
-      if (!player.isBot && player.alive && !this.state.runComplete && !this.state.runFailed) {
-        const { saveRun } = require("../../services/run-save")
-        saveRun(player.id, this.state, player)
-      }
-    })
+    this.autoSaveRun()
   }
 
   onSelectMapNode(nodeId: string) {
@@ -1287,12 +1296,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           player.updateRegionalPool(this.state, true, previousMap)
         }
       })
+    } else if (node.nodeType === MapNodeType.ARCEUS_BOSS) {
+      this.state.players.forEach((player: Player) => {
+        if (!player.isBot) {
+          player.map = "In the Nightmare" as any
+        }
+      })
     }
 
     switch (node.nodeType) {
       case MapNodeType.WILD_BATTLE:
       case MapNodeType.GYM_LEADER:
       case MapNodeType.ELITE:
+      case MapNodeType.UNLOCK:
       case MapNodeType.LEGENDARY_BOSS:
       case MapNodeType.ELITE_FOUR:
       case MapNodeType.CHAMPION:
@@ -1315,16 +1331,24 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           )
         } else if (node.nodeType === MapNodeType.ELITE) {
           encounter = getEliteEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode)
+        } else if (node.nodeType === MapNodeType.UNLOCK) {
+          encounter = getUnlockEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode)
         } else if (node.nodeType === MapNodeType.ELITE_FOUR) {
           const e4Index = node.floor - 1
           const champData = loadChampionData(this.state.difficultyMode as DifficultyMode)
           const slotData = getEliteFourSlotForEncounter(champData.eliteFour[e4Index], e4Index)
           this.state.encounterSnapshot = slotData.snapshot
+          if (slotData.snapshot.region && slotData.snapshot.region !== "town") {
+            this.state.players.forEach((p: Player) => { if (!p.isBot) p.map = slotData.snapshot.region as any })
+          }
           encounter = { name: slotData.name, avatar: slotData.avatar, board: [], items: [] }
         } else if (node.nodeType === MapNodeType.CHAMPION) {
           const champData = loadChampionData(this.state.difficultyMode as DifficultyMode)
           const slotData = getChampionSlotForEncounter(champData.champion)
           this.state.encounterSnapshot = slotData.snapshot
+          if (slotData.snapshot.region && slotData.snapshot.region !== "town") {
+            this.state.players.forEach((p: Player) => { if (!p.isBot) p.map = slotData.snapshot.region as any })
+          }
           encounter = { name: slotData.name, avatar: slotData.avatar, board: [], items: [] }
         } else {
           encounter = node.displayName
@@ -1413,6 +1437,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.phase = GamePhaseState.SHOP
     this.state.time = 999 * 1000
     this.state.roundTime = 999
+    this.autoSaveRun()
 
     const shopItems = generateShopItems(this.state.currentAct)
 
@@ -1431,6 +1456,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.phase = GamePhaseState.REST
     this.state.time = 999 * 1000
     this.state.roundTime = 999
+    this.autoSaveRun()
 
     const dojoTicket = this.getDojoTicket()
 
@@ -1480,6 +1506,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.phase = GamePhaseState.EVENT
     this.state.time = 60 * 1000
     this.state.roundTime = 60
+    this.autoSaveRun()
 
     const event = getRandomEvent()
     this.state.spireEventName = event.name
@@ -1640,6 +1667,35 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.arceusDamageDealt = totalDamageDealt
     this.state.gameFinished = true
     this.state.runFailed = true
+
+    const humanPlayer = schemaValues(this.state.players).find((p) => !p.isBot)
+    if (humanPlayer && totalDamageDealt > 0) {
+      const snapshot = snapshotPlayerTeam(humanPlayer, { includeBench: true })
+      const { checkAndUpdateArceusRecord } = require("../../services/arceus-record")
+      const { isNewRecord, previousRecord } = checkAndUpdateArceusRecord(
+        humanPlayer.name,
+        totalDamageDealt,
+        snapshot,
+        this.state.difficultyMode as 0 | 1 | 2
+      )
+      if (isNewRecord) {
+        this.state.isNewArceusRecord = true
+        if (previousRecord) {
+          this.state.previousArceusRecord = previousRecord.damage
+          this.state.previousArceusHolder = previousRecord.playerName
+        }
+        discordService.announceArceusRecord(
+          snapshot,
+          totalDamageDealt,
+          this.state.difficultyMode as 0 | 1 | 2,
+          previousRecord
+        )
+      } else if (previousRecord) {
+        this.state.previousArceusRecord = previousRecord.damage
+        this.state.previousArceusHolder = previousRecord.playerName
+      }
+    }
+
     this.state.players.forEach((p: Player) => {
       if (!p.isBot) {
         p.life = 0
@@ -1648,6 +1704,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         deleteSavedRun(p.id)
         saveRunHistory(p.id, this.state, p, false)
         incrementRunEnd(p.id, this.state.difficultyMode, true, true, this.state.arceusDamageDealt)
+        this.room.runHistoryRecorded = true
       }
     })
     this.syncRunHPToPlayers()
@@ -1662,8 +1719,32 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       this.state.runComplete = true
 
       const snapshot = snapshotPlayerTeam(winner, { includeBench: true })
+      snapshot.region = this.state.playerSpireRegion || "town"
       if (snapshot.pokemon.length > 0) {
-        promoteNewChampion(snapshot, this.state.difficultyMode as DifficultyMode)
+        const previousData = loadChampionData(this.state.difficultyMode as DifficultyMode)
+        const defeatedChampion = previousData.champion.name
+        const result = promoteNewChampion(snapshot, this.state.difficultyMode as DifficultyMode)
+        const newE4 = [
+          previousData.eliteFour[1].name,
+          previousData.eliteFour[2].name,
+          previousData.eliteFour[3].name,
+          defeatedChampion
+        ]
+        discordService.announceNewChampion(
+          snapshot,
+          this.state.difficultyMode as DifficultyMode,
+          defeatedChampion,
+          newE4,
+          result.reignDurationMs
+        )
+        if (result.isNewLongestReign) {
+          discordService.announceNewLongestReign(
+            result.previousChampion,
+            result.reignDurationMs!,
+            this.state.difficultyMode as DifficultyMode,
+            result.previousLongestReign
+          )
+        }
       }
     } else {
       this.state.runFailed = true
@@ -1679,6 +1760,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         deleteSavedRun(p.id)
         saveRunHistory(p.id, this.state, p, !!winner)
         incrementRunEnd(p.id, this.state.difficultyMode, true, !!winner, 0)
+        this.room.runHistoryRecorded = true
       }
     })
   }
@@ -1695,6 +1777,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       deleteSavedRun(player.id)
       saveRunHistory(player.id, this.state, player, false)
       incrementRunEnd(player.id, this.state.difficultyMode, false, false, 0)
+      this.room.runHistoryRecorded = true
     }
   }
 
@@ -1703,6 +1786,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.time = 999 * 1000
     this.state.roundTime = 999
     resetArraySchema(this.state.spireEncounterBoard, [])
+    this.autoSaveRun()
 
     const node = this.state.mapNodes.get(this.state.currentNodeId)
     if (!node) return
@@ -1812,10 +1896,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             player.choices.push(
               new PlayerChoice({ type: "eliteReward", pokemons, items })
             )
-          } else if (won && template.name === "Bug Swarm") {
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons: [Pkm.SCATTERBUG, Pkm.GRUBBIN] })
-            )
           } else if (won && template.name === "Iron Defense") {
             const comp1 = pickRandomIn(ItemComponentsNoFossilOrScarf)
             const comp2 = pickRandomIn(ItemComponentsNoFossilOrScarf)
@@ -1864,6 +1944,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.generateWildRewardChoice(player, node, false)
           }
           } // end else (handcrafted elite)
+        } else if (node.nodeType === MapNodeType.UNLOCK && node.eliteEncounterIndex >= 0) {
+          if (won) {
+            const unlockPokemon = getUnlockEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct)
+            player.choices.push(
+              new PlayerChoice({ type: "unlockReward", pokemons: unlockPokemon })
+            )
+          } else {
+            this.generateWildRewardChoice(player, node, false)
+          }
         } else if (node.nodeType === MapNodeType.GYM_LEADER) {
           if (won && node.gymLeaderSynergy) {
             const synergy = node.gymLeaderSynergy as Synergy
@@ -1956,6 +2045,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             deleteSavedRun(p.id)
             saveRunHistory(p.id, this.state, p, false)
             incrementRunEnd(p.id, this.state.difficultyMode, false, false, 0)
+            this.room.runHistoryRecorded = true
           }
         })
         this.syncRunHPToPlayers()
@@ -2006,6 +2096,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             deleteSavedRun(player.id)
             saveRunHistory(player.id, this.state, player, false)
             incrementRunEnd(player.id, this.state.difficultyMode, false, false, 0)
+            this.room.runHistoryRecorded = true
             this.syncRunHPToPlayers()
           }
         }
@@ -2020,6 +2111,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             pokemon.action = PokemonActionState.IDLE
           }
         })
+
+        this.spawnBabyEggs(player, false)
 
         player.updateSynergies()
       }
@@ -2167,6 +2260,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
   updatePlayerBetweenStages(player: Player) {
     const board = schemaValues(player.board)
+
+    board.forEach((pokemon) => { pokemon._cookedDishes = [] })
 
     if (
       getSynergyStep(player.synergies, Synergy.FIRE) === 4 &&
@@ -2650,10 +2745,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         if (player.alive) {
           player.opponentId = opponentPlayer.id
           player.opponentName = this.state.encounterName || snapshot.name
-          player.opponentAvatar = getAvatarString(
-            PkmIndex[snapshot.pokemon.find((p) => p.y > 0)?.name as Pkm ?? "MAGIKARP" as Pkm],
-            false
-          )
+          player.opponentAvatar = snapshot.avatar
           player.opponentTitle = (node?.nodeType === MapNodeType.ELITE_FOUR ? "ELITE FOUR"
             : node?.nodeType === MapNodeType.CHAMPION ? "CHAMPION"
             : "TRAINER") as any
@@ -2707,6 +2799,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           )
           player.opponentTitle = (node?.nodeType === MapNodeType.GYM_LEADER ? "GYM LEADER"
             : node?.nodeType === MapNodeType.ELITE ? "ELITE"
+            : node?.nodeType === MapNodeType.UNLOCK ? "UNLOCK"
             : node?.nodeType === MapNodeType.LEGENDARY_BOSS ? "BOSS"
             : "WILD") as any
           player.team = Team.BLUE_TEAM
@@ -2755,6 +2848,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           pveEffects.update(pveSynergies, pveBoard)
           const pveEffectsSet = new Set<EffectEnum>()
           pveEffects.forEach((e) => pveEffectsSet.add(e))
+
+          cookDishesForPveBoard(pveBoard, pveSynergies)
 
           const weather = getWeather(player, null, pveBoard)
           const simulation = new Simulation(
@@ -2863,6 +2958,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   }
 
   spawnWanderingPokemons() {
+    return // wandering NPCs disabled — visual-only feature that causes duplicate lag
+
     const isPVE = this.state.stageLevel in PVEStages
 
     this.state.players.forEach((player: Player) => {
@@ -3071,5 +3168,94 @@ function changePokemonPosition(
     const { skill: baseSkill, pp: baseMaxPP } = getPokemonData(pokemon.name)
     pokemon.skill = baseSkill
     pokemon.maxPP = baseMaxPP
+  }
+}
+
+function cookDishesForPveBoard(
+  board: MapSchema<Pokemon>,
+  synergies: Synergies
+) {
+  const gourmetCount = synergies.get(Synergy.GOURMET) ?? 0
+  if (gourmetCount < 3) return
+
+  const gourmetLevel = getSynergyStep(synergies, Synergy.GOURMET)
+  const nbHats = gourmetCount >= 5 ? 2 : 1
+  const boardPokemon = Array.from(board.values()).filter((p) => !isOnBench(p))
+  const gourmetPokemon = boardPokemon.filter((p) => p.types.has(Synergy.GOURMET))
+  gourmetPokemon.sort((a, b) => getUnitScore(b) - getUnitScore(a))
+
+  const chefs = gourmetPokemon.slice(0, nbHats)
+  for (const chef of chefs) {
+    chef.items.add(Item.CHEF_HAT)
+  }
+
+  const nbDishes = [0, 1, 2, 2][gourmetLevel] ?? 2
+  for (const chef of chefs) {
+    let dish = DishByPkm[chef.name]
+    if (chef.items.has(Item.COOKING_POT)) {
+      dish = Item.HEARTY_STEW
+    } else if (
+      chef.name.startsWith("ARCEUS") ||
+      chef.name === Pkm.KECLEON ||
+      chef.items.has(Item.GOURMET_MEMORY)
+    ) {
+      dish = Item.SANDWICH
+    }
+    if (!dish || nbDishes <= 0) continue
+
+    let dishes = Array.from({ length: nbDishes }, () => dish!)
+    if (dish === Item.BERRIES) {
+      dishes = pickNRandomIn(
+        NonSpecialBerries.filter((i) => !chef.items.has(i)),
+        nbDishes
+      )
+    }
+    if (dish === Item.MUSHROOMS) {
+      dishes = Array.from(
+        { length: nbDishes },
+        () =>
+          randomWeighted({
+            [Item.TINY_MUSHROOM]: 77,
+            [Item.BIG_MUSHROOM]: 20,
+            [Item.BALM_MUSHROOM]: 3
+          }) ?? Item.TINY_MUSHROOM
+      )
+    }
+    if (dish === Item.SWEETS) {
+      dishes = pickNRandomIn(Sweets, nbDishes)
+    }
+
+    for (let dish of dishes) {
+      if (isIn(DishesGoingToInventory, dish)) continue
+      let candidates = boardPokemon.filter(
+        (p) =>
+          p.canEat &&
+          !p.dishes.has(dish) &&
+          distanceC(
+            chef.positionX,
+            chef.positionY,
+            p.positionX,
+            p.positionY
+          ) === 1
+      )
+      if (dish === Item.HERBA_MYSTICA) {
+        candidates = candidates.filter((p) =>
+          HerbaMysticas.every((herba) => !p.dishes.has(herba))
+        )
+      }
+      candidates.sort((a, b) => getUnitScore(b) - getUnitScore(a))
+      const target = candidates[0] ?? chef
+      if (!target.canEat) continue
+      if (dish === Item.HERBA_MYSTICA) {
+        const flavors: Item[] = []
+        if (target.types.has(Synergy.FAIRY)) flavors.push(Item.HERBA_MYSTICA_SWEET)
+        if (target.types.has(Synergy.PSYCHIC)) flavors.push(Item.HERBA_MYSTICA_SPICY)
+        if (target.types.has(Synergy.ELECTRIC)) flavors.push(Item.HERBA_MYSTICA_SOUR)
+        if (target.types.has(Synergy.GRASS)) flavors.push(Item.HERBA_MYSTICA_BITTER)
+        if (flavors.length === 0) flavors.push(Item.HERBA_MYSTICA_SALTY)
+        dish = pickRandomIn(flavors)
+      }
+      target.dishes.add(dish)
+    }
   }
 }

@@ -246,7 +246,7 @@ export default class Simulation extends Schema implements ISimulation {
               this.applyDishEffects(dish, pokemon, entity, player)
             })
             pokemon.action = PokemonActionState.IDLE
-            pokemon.dishes.clear() // consume all dishes
+            pokemon.dishes.clear()
           }
           if (entity) {
             entity.getEffects(OnSimulationStartEffect).forEach((effect) => {
@@ -255,10 +255,18 @@ export default class Simulation extends Schema implements ISimulation {
           }
         })
       } else {
-        // PVE: no player, but still fire OnSimulationStartEffect for opponent entities
+        // PVE: apply dish effects and fire OnSimulationStartEffect for opponent entities
         schemaValues(team).forEach((entity) => {
-          ;(entity as PokemonEntity).getEffects(OnSimulationStartEffect).forEach((effect) => {
-            effect.apply({ simulation: this, player: undefined as any, team, entity: entity as PokemonEntity })
+          const pveEntity = entity as PokemonEntity
+          const pokemon = pveEntity.refToBoardPokemon as Pokemon
+          if (pokemon?.dishes?.size > 0) {
+            pokemon.dishes.forEach((dish) => {
+              this.applyDishEffects(dish, pokemon, pveEntity, undefined as any)
+            })
+            pokemon.dishes.clear()
+          }
+          pveEntity.getEffects(OnSimulationStartEffect).forEach((effect) => {
+            effect.apply({ simulation: this, player: undefined as any, team, entity: pveEntity })
           })
         })
       }
@@ -540,9 +548,9 @@ export default class Simulation extends Schema implements ISimulation {
     })
 
     if (pokemon.passive === Passive.GLUTTON) {
-      pokemon.addMaxHP(20)
-      entity?.addMaxHP(20, entity, 0, false)
-      if (pokemon.maxHP > 750) {
+      pokemon.addMaxHP(10)
+      entity?.addMaxHP(10, entity, 0, false)
+      if (pokemon.maxHP > 750 && player) {
         player.titles.add(Title.GLUTTON)
       }
     }
@@ -1308,9 +1316,9 @@ export default class Simulation extends Schema implements ISimulation {
       case EffectEnum.ETHEREAL: {
         const activeSynergies = player?.synergies.countActiveSynergies() || 0
         const speedFactor =
-          [1, 3, 6][SynergyEffects[Synergy.AMORPHOUS].indexOf(effect)] ?? 0
+          [1, 2, 3][SynergyEffects[Synergy.AMORPHOUS].indexOf(effect)] ?? 0
         const hpFactor =
-          [3, 6, 12][SynergyEffects[Synergy.AMORPHOUS].indexOf(effect)] ?? 0
+          [2, 3, 6][SynergyEffects[Synergy.AMORPHOUS].indexOf(effect)] ?? 0
         pokemon.effects.add(effect)
         pokemon.addSpeed(speedFactor * activeSynergies, pokemon, 0, false)
         pokemon.addMaxHP(hpFactor * activeSynergies, pokemon, 0, false)

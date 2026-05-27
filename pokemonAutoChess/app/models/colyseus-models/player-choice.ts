@@ -14,6 +14,7 @@ export type PlayerChoiceType =
   | "wildRewardRerolled"
   | "gymReward"
   | "eliteReward"
+  | "unlockReward"
 
 export class PlayerChoice extends Schema {
   @type("string") id: string

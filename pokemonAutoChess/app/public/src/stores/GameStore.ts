@@ -63,6 +63,9 @@ export interface GameStateStore {
   encounterGroundHoles: number[]
   gameSpeed: number
   arceusDamageDealt: number
+  isNewArceusRecord: boolean
+  previousArceusRecord: number
+  previousArceusHolder: string
 }
 
 const initialState: GameStateStore = {
@@ -107,7 +110,10 @@ const initialState: GameStateStore = {
   encounterInventory: [],
   encounterGroundHoles: [],
   gameSpeed: 1,
-  arceusDamageDealt: 0
+  arceusDamageDealt: 0,
+  isNewArceusRecord: false,
+  previousArceusRecord: 0,
+  previousArceusHolder: ""
 }
 
 export const gameSlice: Slice<GameStateStore> = createSlice({
@@ -162,6 +168,15 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
     },
     setArceusDamageDealt: (state, action: PayloadAction<number>) => {
       state.arceusDamageDealt = action.payload
+    },
+    setIsNewArceusRecord: (state, action: PayloadAction<boolean>) => {
+      state.isNewArceusRecord = action.payload
+    },
+    setPreviousArceusRecord: (state, action: PayloadAction<number>) => {
+      state.previousArceusRecord = action.payload
+    },
+    setPreviousArceusHolder: (state, action: PayloadAction<string>) => {
+      state.previousArceusHolder = action.payload
     },
     setNoELO: (state, action: PayloadAction<boolean>) => {
       state.noElo = action.payload
@@ -416,7 +431,10 @@ export const {
   setItemsProposition,
   setPodium,
   setGameSpeed,
-  setArceusDamageDealt
+  setArceusDamageDealt,
+  setIsNewArceusRecord,
+  setPreviousArceusRecord,
+  setPreviousArceusHolder
 } = gameSlice.actions
 
 export default gameSlice.reducer

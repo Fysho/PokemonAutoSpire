@@ -81,6 +81,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
   additionalEpicPool: Array<Pkm>
   miniGame: MiniGame
   isResume: boolean = false
+  runHistoryRecorded: boolean = false
   constructor() {
     super()
     this.dispatcher = new Dispatcher(this)
@@ -247,6 +248,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
           this.state.players.set(user.uid, player)
           this.state.botManager.addBot(player)
         } else {
+          const UserMetadata = require("../models/mongo-models/user-metadata").default
+          const meta = await UserMetadata.findOne({ uid: user.uid }, { role: 1 }).lean()
+          const resolvedRole = meta?.role || Role.BASIC
           const player = new Player(
             user.uid,
             user.name,
@@ -257,7 +261,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
             this.state.players.size + 1,
             new Map(),
             "",
-            Role.BASIC,
+            resolvedRole,
             this.state
           )
           this.state.players.set(user.uid, player)
@@ -355,6 +359,56 @@ export default class GameRoom extends Room<{ state: GameState }> {
           cmd.clock = this.clock
           cmd.generateWildRewardChoice(player, node, won, true)
         }
+      }
+    })
+
+    this.onMessage(Transfer.REROLL_BOSS_REWARD, (client) => {
+      if (!this.state.gameFinished && client.auth) {
+        const player = this.state.players.get(client.auth.uid)
+        if (!player || player.money < 20) return
+        const choiceIdx = player.choices.findIndex((c) => c.type === "item")
+        if (choiceIdx < 0) return
+        const currentItems = [...player.choices[choiceIdx].items]
+        player.choices.splice(choiceIdx, 1)
+        player.money -= 20
+        const { pickNRandomIn } = require("../utils/random")
+        const { ShinyItems, Tools } = require("../types/enum/Item")
+        const { PlayerChoice } = require("../models/colyseus-models/player-choice")
+        const isHard = this.state.difficultyMode === 2
+        const fullPool = isHard && this.state.currentAct === 1 ? [...Tools] : [...ShinyItems]
+        const filteredPool = fullPool.filter((i: Item) => !currentItems.includes(i))
+        const pool = filteredPool.length >= 3 ? filteredPool : fullPool
+        const newItems = pickNRandomIn(pool, 3)
+        player.choices.push(new PlayerChoice({ type: "item", items: newItems }))
+      }
+    })
+
+    this.onMessage(Transfer.REROLL_STARTER, (client) => {
+      if (!this.state.gameFinished && client.auth) {
+        const player = this.state.players.get(client.auth.uid)
+        if (!player) return
+        const choiceIdx = player.choices.findIndex((c) => c.type === "starter")
+        if (choiceIdx < 0) return
+        player.choices.splice(choiceIdx, 1)
+        const { pickRandomIn: pickRandom, pickNRandomIn: pickNRandom } = require("../utils/random")
+        const { ItemComponentsNoFossilOrScarf } = require("../types/enum/Item")
+        const { getPokemonData } = require("../models/precomputed/precomputed-pokemon-data")
+        const { PlayerChoice } = require("../models/colyseus-models/player-choice")
+        const allOneStars = [
+          ...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON,
+          ...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON,
+          ...PRECOMPUTED_POKEMONS_PER_RARITY.RARE,
+          ...PRECOMPUTED_POKEMONS_PER_RARITY.EPIC
+        ].filter((p: Pkm) => getPokemonData(p).stars === 1)
+        const starterOptions = pickNRandom(allOneStars, 3)
+        const starterItems = starterOptions.map(() => pickRandom(ItemComponentsNoFossilOrScarf))
+        player.choices.push(
+          new PlayerChoice({
+            type: "starter",
+            pokemons: starterOptions,
+            items: starterItems
+          })
+        )
       }
     })
 
@@ -663,7 +717,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.ENTER_ACT_5, (client) => {
-      if (client.auth && (!this.state.gameFinished || this.state.runComplete)) {
+      const player = client.auth ? this.state.players.get(client.auth.uid) : null
+      const isAdmin = player?.role === Role.ADMIN
+      if (client.auth && (this.state.currentAct === 4 || isAdmin)) {
         const { generateActMap } = require("../core/map-generator")
         this.state.runComplete = false
         this.state.runFailed = false
@@ -693,10 +749,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     this.onMessage(Transfer.SKIP_TO_ACT, (client, { act }: { act: number }) => {
       if (!client.auth || this.state.gameFinished) return
-      const playerName = Array.from(this.state.players.values()).find(
-        (p: Player) => !p.isBot && p.id === client.auth.uid
-      )?.name
-      if (playerName !== "Fisho" && playerName !== "Fisho2") return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player || player.role !== Role.ADMIN) return
       if (act < 1 || act > 3) return
       const { generateActMap } = require("../core/map-generator")
       this.state.runComplete = false
@@ -715,6 +769,29 @@ export default class GameRoom extends Room<{ state: GameState }> {
       this.state.phase = GamePhaseState.MAP
       this.state.time = 999 * 1000
       this.state.roundTime = 999
+    })
+
+    this.onMessage(Transfer.GIVE_GOLD, (client) => {
+      if (!client.auth) return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player || player.role !== Role.ADMIN) return
+      player.money = 999
+    })
+
+    this.onMessage(Transfer.GIVE_MEWTWO, (client) => {
+      if (!client.auth) return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player || player.role !== Role.ADMIN) return
+      this.spawnOnBench(player, Pkm.MEWTWO)
+      player.board.forEach((pokemon) => {
+        if (pokemon.name === Pkm.MEWTWO) {
+          pokemon.addMaxHP(500)
+          pokemon.addAttack(200)
+          pokemon.addAbilityPower(200)
+          pokemon.addDefense(100)
+          pokemon.addSpecialDefense(100)
+        }
+      })
     })
   }
 
@@ -739,38 +816,29 @@ export default class GameRoom extends Room<{ state: GameState }> {
     const { pickNRandomIn } = require("../utils/random")
     const { PRECOMPUTED_POKEMONS_PER_RARITY } = require("../models/precomputed/precomputed-rarity")
 
+    const { randomBetween: randBetween } = require("../utils/random")
+    const { BOARD_WIDTH, BOARD_HEIGHT } = require("../config")
+    this.state.lightX = randBetween(0, BOARD_WIDTH - 1)
+    this.state.lightY = randBetween(1, BOARD_HEIGHT / 2)
+
     this.state.phase = GamePhaseState.MAP
     this.state.time = 999 * 1000
     this.state.roundTime = 999
     generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2)
     logger.info(`Map generated: ${this.state.mapNodes.size} nodes, ${this.state.mapEdges.length} edges`)
 
-    const isFisho2 = Array.from(this.state.players.values()).some(
-      (p: Player) => !p.isBot && p.name === "Fisho2"
-    )
-    if (isFisho2 && this.state.currentAct <= 3) {
-      const { MapNodeType } = require("../models/colyseus-models/map-node")
-      const { getEliteEncounterCount, getEliteEncounterName } = require("../models/spire-encounters")
-      const eliteTotal = getEliteEncounterCount(this.state.currentAct)
-      let converted = 0
-      let eliteIdx = 0
-      this.state.mapNodes.forEach((node: any) => {
-        if (converted >= 10) return
-        if (node.nodeType === MapNodeType.WILD_BATTLE || node.nodeType === MapNodeType.GYM_LEADER || node.nodeType === MapNodeType.MYSTERY_ENCOUNTER || node.nodeType === MapNodeType.POKEMART) {
-          node.nodeType = MapNodeType.ELITE
-          node.eliteEncounterIndex = eliteIdx % eliteTotal
-          node.displayName = getEliteEncounterName(eliteIdx % eliteTotal, this.state.currentAct)
-          eliteIdx++
-          converted++
-        }
-      })
-      logger.info(`Fisho2 mode: converted ${converted} nodes to ELITE encounters`)
-    }
-
     this.state.players.forEach((player: Player) => {
+      player.lightX = this.state.lightX
+      player.lightY = this.state.lightY
       if (!player.isBot) {
         const { incrementRunStarted } = require("../services/run-save")
         incrementRunStarted(player.id, this.state.difficultyMode)
+        const UserMetadata = require("../models/mongo-models/user-metadata").default
+        UserMetadata.findOne({ uid: player.id }, { spireRegion: 1 }).lean().then((u: any) => {
+          const region = u?.spireRegion || "town"
+          this.state.playerSpireRegion = region
+          if (region !== "town") player.map = region
+        }).catch(() => {})
         const { pickRandomIn: pickRandom } = require("../utils/random")
         const { ItemComponentsNoFossilOrScarf } = require("../types/enum/Item")
         const { getPokemonData } = require("../models/precomputed/precomputed-pokemon-data")
@@ -790,26 +858,6 @@ export default class GameRoom extends Room<{ state: GameState }> {
           })
         )
 
-        if (player.name === "Fisho" || player.name === "Fisho2") {
-          player.addMoney(995, true, null)
-          this.spawnOnBench(player, Pkm.MEWTWO)
-          this.spawnOnBench(player, Pkm.MEWTWO)
-          this.spawnOnBench(player, Pkm.MEW)
-          this.spawnOnBench(player, Pkm.MEW)
-          this.spawnOnBench(player, Pkm.GIBLE)
-          this.spawnOnBench(player, Pkm.ONIX)
-          this.spawnOnBench(player, Pkm.DRATINI)
-          this.spawnOnBench(player, Pkm.CHARMANDER)
-          player.board.forEach((pokemon) => {
-            if (pokemon.name === Pkm.MEWTWO || pokemon.name === Pkm.MEW) {
-              pokemon.addMaxHP(500)
-              pokemon.addAttack(200)
-              pokemon.addAbilityPower(200)
-              pokemon.addDefense(100)
-              pokemon.addSpecialDefense(100)
-            }
-          })
-        }
       }
     })
   }
@@ -884,18 +932,43 @@ export default class GameRoom extends Room<{ state: GameState }> {
   async onLeave(client: Client, code: number) {
     const player = this.state.players.get(client.auth?.uid)
     const name = player?.name || client.auth?.uid || "Unknown"
-    let reason = "disconnected"
-    if (this.state.runComplete) reason = "won"
-    else if (this.state.runFailed) reason = "dead"
-    else if (this.state.gameFinished) reason = "game finished"
-    else reason = "abandoned"
-    logger.info(`${name} left game | reason: ${reason} | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
+
+    if (this.state.runComplete || this.state.runFailed || this.state.gameFinished) {
+      const reason = this.state.runComplete ? "won" : this.state.runFailed ? "dead" : "game finished"
+      logger.info(`${name} left game | reason: ${reason} | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
+      return
+    }
+
+    const RECONNECT_TIMEOUT = 90
+    logger.info(`${name} disconnected | act: ${this.state.currentAct} floor: ${this.state.currentFloor} | waiting ${RECONNECT_TIMEOUT}s for reconnect`)
+    this.state.simulationPaused = true
+    this.autoDispose = false
+
+    try {
+      await this.allowReconnection(client, RECONNECT_TIMEOUT)
+      this.state.simulationPaused = false
+      this.autoDispose = true
+      logger.info(`${name} reconnected`)
+    } catch {
+      this.state.simulationPaused = false
+      this.autoDispose = true
+      logger.info(`${name} reconnect timed out — abandoned | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
+    }
   }
 
   async onDispose() {
     const humanPlayer = Array.from(this.state.players.values()).find(p => !p.isBot)
     const name = humanPlayer?.name || "Unknown"
     logger.info(`Dispose Game ${this.roomId} | player: ${name}`)
+
+    if (!this.runHistoryRecorded && (this.state.runComplete || this.state.runFailed) && humanPlayer) {
+      const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../services/run-save")
+      deleteSavedRun(humanPlayer.id)
+      await saveRunHistory(humanPlayer.id, this.state, humanPlayer, false)
+      await incrementRunEnd(humanPlayer.id, this.state.difficultyMode, true, false, 0)
+      logger.info(`Deferred run history saved for ${name} (E4 loss, no Arceus)`)
+    }
+
     this.dispatcher.stop()
   }
 
@@ -956,6 +1029,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
 
       player.board.set(pokemon.id, pokemon)
+      pokemon.onAcquired(player)
       this.clock.setTimeout(() => {
         pokemon.action = PokemonActionState.IDLE
         this.checkEvolutionsAfterPokemonAcquired(player.id)
@@ -1046,12 +1120,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
     )
       return
 
-    if (choice.type === "wildReward" || choice.type === "gymReward" || choice.type === "eliteReward") {
+    if (choice.type === "unlockReward") {
       const pkm = choice.pokemons[choiceIndex]
       if (pkm && pkm !== Pkm.DEFAULT) {
         const freeSpace = getFreeSpaceOnBench(player.board)
         if (freeSpace < 1 && !bypassLackOfSpace) return false
-        if (pkm === Pkm.SCATTERBUG || pkm === Pkm.GRUBBIN) {
+        const data = getPokemonData(pkm as Pkm)
+        if (data.rarity === Rarity.HATCH) {
           const egg = PokemonFactory.createPokemonFromName(Pkm.EGG, player) as Egg
           egg.action = PokemonActionState.SLEEP
           egg.evolution = pkm as Pkm
@@ -1065,6 +1140,18 @@ export default class GameRoom extends Room<{ state: GameState }> {
         } else {
           this.spawnOnBench(player, pkm as Pkm)
         }
+      }
+      const idx = player.choices.indexOf(choice)
+      if (idx >= 0) player.choices.splice(idx, 1)
+      return
+    }
+
+    if (choice.type === "wildReward" || choice.type === "gymReward" || choice.type === "eliteReward") {
+      const pkm = choice.pokemons[choiceIndex]
+      if (pkm && pkm !== Pkm.DEFAULT) {
+        const freeSpace = getFreeSpaceOnBench(player.board)
+        if (freeSpace < 1 && !bypassLackOfSpace) return false
+        this.spawnOnBench(player, pkm as Pkm)
       } else {
         const item = choice.items[choiceIndex]
         if (item) {

@@ -13,6 +13,7 @@ import { Ability } from "../types/enum/Ability"
 import { Item } from "../types/enum/Item"
 import { Pkm, PkmIndex } from "../types/enum/Pokemon"
 import { Synergy } from "../types/enum/Synergy"
+import { computeSynergies } from "../models/colyseus-models/synergies"
 import { getAvatarString } from "../utils/avatar"
 import { logger } from "../utils/logger"
 
@@ -146,6 +147,7 @@ function serializeFlowerPots(pots: Pokemon[]): SerializedFlowerPot[] {
 }
 
 export async function saveRun(odToken: string, state: GameState, player: Player): Promise<void> {
+  logger.info(`Saving run for ${player.name} (Act ${state.currentAct}, Floor ${state.currentFloor})`)
   try {
     const team = snapshotPlayerTeam(player, { includeBench: true })
 
@@ -343,6 +345,10 @@ export function restoreRunToState(
       }
     }
 
+    if (snap.evolution) pkm.evolution = snap.evolution as Pkm
+    if (snap.stacks) pkm.stacks = snap.stacks
+    if (snap.stacksRequired) pkm.stacksRequired = snap.stacksRequired
+
     player.board.set(pkm.id, pkm)
   }
 
@@ -450,8 +456,17 @@ export function restoreRunToState(
   player.epicRegionalPool = (savedData.epicRegionalPool ?? []) as Pkm[]
   player.ultraRegionalPool = (savedData.ultraRegionalPool ?? []) as Pkm[]
 
-  // Recompute synergies from restored board
-  player.updateSynergies()
+  // Compute synergies and effects directly, bypassing updateSynergies()
+  // which has side effects (scarves, artificial items, TMs, wands, etc.)
+  // that duplicate items already restored from the snapshot
+  const synergyCounts = computeSynergies(
+    Array.from(player.board.values()),
+    player.bonusSynergies.size > 0 ? player.bonusSynergies : undefined
+  )
+  synergyCounts.forEach((value, synergy) => {
+    player.synergies.set(synergy, value)
+  })
+  player.effects.update(player.synergies, player.board)
 }
 
 export async function saveRunHistory(

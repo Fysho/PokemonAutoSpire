@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises"
+import { monitor } from "@colyseus/monitor"
 import { defineRoom, defineServer, ServerOptions } from "colyseus"
 import cors from "cors"
 import express from "express"
+import basicAuth from "express-basic-auth"
 import helmet from "helmet"
 import { marked } from "marked"
 import path from "path"
@@ -199,6 +201,46 @@ export const server = defineServer({
       }
     })
 
+    app.get("/api/spire-region/:uid", async (req, res) => {
+      try {
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const user = await UserMetadata.findOne({ uid: req.params.uid }, { spireRegion: 1 }).lean()
+        res.json({ region: user?.spireRegion ?? "town" })
+      } catch (error) {
+        logger.error("Error fetching spire region:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    app.put("/api/spire-region/:uid", async (req, res) => {
+      try {
+        const region = req.body?.region
+        if (typeof region !== "string") {
+          return res.status(400).json({ error: "Invalid region" })
+        }
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        await UserMetadata.updateOne(
+          { uid: req.params.uid },
+          { $set: { spireRegion: region } },
+          { upsert: true }
+        )
+        res.json({ ok: true })
+      } catch (error) {
+        logger.error("Error saving spire region:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    app.get("/api/user-role/:uid", async (req, res) => {
+      try {
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const user = await UserMetadata.findOne({ uid: req.params.uid }, { role: 1 }).lean()
+        res.json({ role: user?.role || "BASIC" })
+      } catch (error) {
+        res.json({ role: "BASIC" })
+      }
+    })
+
     app.get("/api/spire-stats/:uid", async (req, res) => {
       try {
         const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
@@ -232,10 +274,28 @@ export const server = defineServer({
         })
         res.json({
           champion: simplify(data.champion),
-          eliteFour: data.eliteFour.map(simplify)
+          eliteFour: data.eliteFour.map(simplify),
+          championSince: data.championSince ?? null,
+          longestReign: data.longestReign
+            ? { name: data.longestReign.name, durationMs: data.longestReign.durationMs }
+            : null
         })
       } catch (error) {
         logger.error("Error fetching champion data:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    app.get("/api/arceus-record/:difficulty", async (req, res) => {
+      try {
+        const { getArceusLeaderboardForClient } = await import("./services/arceus-record")
+        const mode = parseInt(req.params.difficulty) as 0 | 1 | 2
+        if (mode !== 0 && mode !== 1 && mode !== 2) {
+          return res.status(400).json({ error: "Invalid difficulty" })
+        }
+        res.json(getArceusLeaderboardForClient(mode))
+      } catch (error) {
+        logger.error("Error fetching Arceus record:", error)
         res.status(500).json({ error: "Internal server error" })
       }
     })
@@ -262,5 +322,15 @@ export const server = defineServer({
         res.status(500).json({ error: "Internal server error" })
       }
     })
+
+    const monitorPassword = process.env.MONITOR_PASSWORD
+    if (monitorPassword) {
+      app.use(
+        "/colyseus",
+        basicAuth({ users: { admin: monitorPassword }, challenge: true }),
+        monitor()
+      )
+      logger.info("Colyseus monitor available at /colyseus")
+    }
   }
 })

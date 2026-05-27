@@ -1,12 +1,86 @@
 import { RegionDetails } from "../config"
 import { PRECOMPUTED_REGIONAL_MONS } from "./precomputed/precomputed-pokemon-data"
 import { getPokemonData } from "./precomputed/precomputed-pokemon-data"
+import { precomputedPokemons } from "./precomputed/precomputed-pokemons"
 import { PRECOMPUTED_POKEMONS_PER_TYPE } from "./precomputed/precomputed-types"
 import { DungeonPMDO } from "../types/enum/Dungeon"
 import { Pkm, PkmFamily } from "../types/enum/Pokemon"
 import { CraftableItems, Item, ItemComponentsNoFossilOrScarf, NonSpecialBerries, Tools } from "../types/enum/Item"
 import { Synergy } from "../types/enum/Synergy"
 import { pickNRandomIn, pickRandomIn, randomBetween } from "../utils/random"
+
+// ─── Act 3 Item Class System ─────────────────────────────────
+
+type ItemClass = "frontline" | "physical" | "special" | "support"
+
+const FRONTLINE_ITEMS: Item[] = [
+  Item.POWER_LENS, Item.HEAVY_DUTY_BOOTS, Item.STAR_DUST, Item.SHINY_CHARM,
+  Item.MUSCLE_BAND, Item.SAFETY_GOGGLES, Item.KINGS_ROCK, Item.MAX_REVIVE,
+  Item.ASSAULT_VEST, Item.SHELL_BELL, Item.POKE_DOLL, Item.ROCKY_HELMET,
+  Item.EXPLOSIVE_BAND, Item.TWIST_BAND, Item.BIG_EATER_BELT, Item.COVER_BAND,
+  Item.SMOKE_BALL
+]
+
+const PHYSICAL_ITEMS: Item[] = [
+  Item.UPGRADE, Item.REAPER_CLOTH, Item.SCOPE_LENS, Item.DEEP_SEA_TOOTH,
+  Item.XRAY_VISION, Item.RAZOR_FANG, Item.LOADED_DICE, Item.PUNCHING_GLOVE,
+  Item.RAZOR_CLAW, Item.PROTECTIVE_PADS, Item.RED_ORB, Item.FLAME_ORB,
+  Item.BLACK_BELT, Item.MACH_RIBBON, Item.NULLIFY_BANDANNA
+]
+
+const SPECIAL_ITEMS: Item[] = [
+  Item.CHOICE_SPECS, Item.SOUL_DEW, Item.POKEMONOMICON, Item.AQUA_EGG,
+  Item.BLUE_ORB, Item.LUCKY_RIBBON, Item.WIDE_LENS
+]
+
+const SUPPORT_ITEMS: Item[] = [
+  Item.ABILITY_SHIELD, Item.GREEN_ORB, Item.GRACIDEA_FLOWER, Item.EFFICIENT_BANDANNA
+]
+
+const ITEM_CLASS_POOLS: Record<ItemClass, Item[]> = {
+  frontline: FRONTLINE_ITEMS,
+  physical: PHYSICAL_ITEMS,
+  special: SPECIAL_ITEMS,
+  support: SUPPORT_ITEMS
+}
+
+const POKEMON_STATS_CACHE = new Map<Pkm, { atk: number; def: number; speDef: number; range: number }>()
+for (const p of precomputedPokemons) {
+  POKEMON_STATS_CACHE.set(p.name, { atk: p.atk, def: p.def, speDef: p.speDef, range: p.range })
+}
+
+function getItemClassForPokemon(pkm: Pkm): ItemClass {
+  const stats = POKEMON_STATS_CACHE.get(pkm)
+  if (!stats) return pickRandomIn(["frontline", "physical", "special", "support"] as ItemClass[])
+
+  const { atk, def, speDef, range } = stats
+  const frontlineWeight = (def + speDef) * 2 + (range <= 1 ? 5 : 0)
+  const physicalWeight = atk * 2 + (range <= 1 ? 8 : 0)
+  const specialWeight = (range >= 2 ? 15 : 3) + speDef
+  const supportWeight = 4 + (range >= 3 ? 10 : 0)
+
+  const total = frontlineWeight + physicalWeight + specialWeight + supportWeight
+  let roll = Math.random() * total
+
+  roll -= frontlineWeight
+  if (roll <= 0) return "frontline"
+  roll -= physicalWeight
+  if (roll <= 0) return "physical"
+  roll -= specialWeight
+  if (roll <= 0) return "special"
+  return "support"
+}
+
+function generateAct3ClassItems(board: [Pkm, number, number][], mode: DifficultyMode = 1): Item[][] {
+  const maxItems = mode === 0 ? 2 : 3
+  return board.map(([pkm]) => {
+    const count = randomBetween(0, maxItems)
+    if (count === 0) return []
+    const itemClass = getItemClassForPokemon(pkm)
+    const pool = ITEM_CLASS_POOLS[itemClass]
+    return pickNRandomIn(pool, Math.min(count, pool.length))
+  })
+}
 
 export type SpireEncounter = {
   name: string
@@ -126,17 +200,17 @@ const GYM_LEADER_POKEMON: Partial<Record<Synergy, Pkm[]>> = {
   [Synergy.NORMAL]: [Pkm.SLAKOTH, Pkm.VIGOROTH, Pkm.SLAKING, Pkm.SNORLAX, Pkm.CHANSEY, Pkm.BLISSEY, Pkm.AMBIPOM, Pkm.RATTATA, Pkm.RATICATE],
   [Synergy.BUG]: [Pkm.SCIZOR, Pkm.FORRETRESS, Pkm.SCOLIPEDE, Pkm.CATERPIE, Pkm.METAPOD, Pkm.BUTTERFREE, Pkm.WEEDLE, Pkm.KAKUNA, Pkm.BEEDRILL],
   [Synergy.FIELD]: [Pkm.LILLIPUP, Pkm.HERDIER, Pkm.STOUTLAND, Pkm.SKITTY, Pkm.DELCATTY, Pkm.EEVEE, Pkm.ZIGZAGOON, Pkm.LINOONE],
-  [Synergy.ARTIFICIAL]: [Pkm.KLINK, Pkm.KLANG, Pkm.KLINKLANG, Pkm.VOLTORB, Pkm.ELECTRODE, Pkm.VAROOM, Pkm.REVAVROOM, Pkm.KOFFING, Pkm.WEEZING],
   [Synergy.AQUATIC]: [Pkm.POLIWAG, Pkm.POLIWHIRL, Pkm.POLIWRATH, Pkm.WOOPER, Pkm.QUAGSIRE, Pkm.TENTACOOL, Pkm.TENTACRUEL, Pkm.BIDOOF, Pkm.BIBAREL],
   [Synergy.MONSTER]: [Pkm.ARON, Pkm.LAIRON, Pkm.AGGRON, Pkm.TURTWIG, Pkm.GROTLE, Pkm.TORTERRA, Pkm.BAGON, Pkm.SHELGON, Pkm.SANDILE, Pkm.KROKOROK],
-  [Synergy.AMORPHOUS]: [Pkm.METAPOD, Pkm.SCATTERBUG, Pkm.SPEWPA, Pkm.GRIMER, Pkm.MUK, Pkm.SANDYGAST, Pkm.PALOSSAND],
+  // [Synergy.AMORPHOUS]: [Pkm.METAPOD, Pkm.SCATTERBUG, Pkm.SPEWPA, Pkm.GRIMER, Pkm.MUK, Pkm.SANDYGAST, Pkm.PALOSSAND],
   [Synergy.WILD]: [Pkm.RATTATA, Pkm.RATICATE, Pkm.SPEAROW, Pkm.FEAROW, Pkm.AIPOM, Pkm.AMBIPOM],
   [Synergy.SOUND]: [Pkm.ZUBAT, Pkm.GOLBAT, Pkm.CROBAT, Pkm.IGGLYBUFF, Pkm.JIGGLYPUFF, Pkm.WIGGLYTUFF, Pkm.WHISMUR, Pkm.LOUDRED],
   [Synergy.FLORA]: [Pkm.SPRIGATITO, Pkm.FLORAGATO, Pkm.BULBASAUR, Pkm.IVYSAUR, Pkm.VENUSAUR, Pkm.SUNKERN, Pkm.SUNFLORA],
   [Synergy.BABY]: [Pkm.PICHU, Pkm.AZURILL, Pkm.IGGLYBUFF, Pkm.CLEFFA, Pkm.TOGEPI, Pkm.RIOLU],
   [Synergy.HUMAN]: [Pkm.FENNEKIN, Pkm.BRAIXEN, Pkm.MACHOP, Pkm.MACHOKE, Pkm.MACHAMP, Pkm.CHIMCHAR, Pkm.MONFERNO, Pkm.INFERNAPE, Pkm.PETILIL],
-  [Synergy.LIGHT]: [Pkm.MAREEP, Pkm.FLAFFY, Pkm.AMPHAROS, Pkm.LITWICK, Pkm.LAMPENT, Pkm.CHANDELURE, Pkm.CHINCHOU, Pkm.LANTURN, Pkm.ROGGENROLA, Pkm.BOLDORE],
-  [Synergy.GOURMET]: [Pkm.SMOLIV, Pkm.DOLLIV, Pkm.ARBOLIVA, Pkm.LICKITUNG, Pkm.LICKILICKY, Pkm.MUNCHLAX, Pkm.NACLI, Pkm.NACLSTACK, Pkm.GARGANACL],
+  // [Synergy.LIGHT]: [Pkm.MAREEP, Pkm.FLAFFY, Pkm.AMPHAROS, Pkm.LITWICK, Pkm.LAMPENT, Pkm.CHANDELURE, Pkm.CHINCHOU, Pkm.LANTURN, Pkm.ROGGENROLA, Pkm.BOLDORE],
+  // [Synergy.GOURMET]: [Pkm.SMOLIV, Pkm.DOLLIV, Pkm.ARBOLIVA, Pkm.LICKITUNG, Pkm.LICKILICKY, Pkm.MUNCHLAX, Pkm.NACLI, Pkm.NACLSTACK, Pkm.GARGANACL],
+  // [Synergy.ARTIFICIAL]: [Pkm.KLINK, Pkm.KLANG, Pkm.KLINKLANG, Pkm.VOLTORB, Pkm.ELECTRODE, Pkm.VAROOM, Pkm.REVAVROOM, Pkm.KOFFING, Pkm.WEEZING],
   [Synergy.FOSSIL]: [Pkm.KABUTO, Pkm.KABUTOPS, Pkm.OMANYTE, Pkm.OMASTAR, Pkm.ANORITH, Pkm.ARMALDO, Pkm.CRANIDOS, Pkm.RAMPARDOS]
 }
 
@@ -162,17 +236,17 @@ const GYM_LEADER_NAMES: Partial<Record<Synergy, string[]>> = {
   [Synergy.NORMAL]: ["Norman", "Whitney", "Lenora", "Cheren"],
   [Synergy.BUG]: ["Bugsy", "Burgh", "Viola"],
   [Synergy.FIELD]: ["Field Gym"],
-  [Synergy.ARTIFICIAL]: ["Artificial Gym"],
   [Synergy.AQUATIC]: ["Aquatic Gym"],
   [Synergy.MONSTER]: ["Monster Gym"],
-  [Synergy.AMORPHOUS]: ["Amorphous Gym"],
+  // [Synergy.AMORPHOUS]: ["Amorphous Gym"],
   [Synergy.WILD]: ["Wild Gym"],
   [Synergy.SOUND]: ["Sound Gym"],
   [Synergy.FLORA]: ["Flora Gym"],
   [Synergy.BABY]: ["Baby Gym"],
   [Synergy.HUMAN]: ["Human Gym"],
-  [Synergy.LIGHT]: ["Light Gym"],
-  [Synergy.GOURMET]: ["Gourmet Gym"],
+  // [Synergy.LIGHT]: ["Light Gym"],
+  // [Synergy.GOURMET]: ["Gourmet Gym"],
+  // [Synergy.ARTIFICIAL]: ["Artificial Gym"],
   [Synergy.FOSSIL]: ["Fossil Gym"]
 }
 
@@ -198,7 +272,7 @@ export type EliteEncounterTemplate = {
   pokemon: Pkm[]
   rewards: Pkm[]
   board: [pkm: Pkm, x: number, y: number][]
-  eliteType?: "legendary" | "unique"
+  eliteType?: "legendary" | "unique" | "hatch"
 }
 
 // Act 1: Baby/basic Pokemon fights, reward 1-star Pokemon
@@ -236,13 +310,6 @@ const ACT1_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
     avatar: Pkm.LAIRON,
     pokemon: [Pkm.LAIRON, Pkm.GRAVELER, Pkm.ONIX],
     rewards: [Pkm.LAIRON, Pkm.GRAVELER, Pkm.ONIX],
-    board: []
-  },
-  {
-    name: "Bug Swarm",
-    avatar: Pkm.CATERPIE,
-    pokemon: [Pkm.CATERPIE, Pkm.WEEDLE, Pkm.SCATTERBUG, Pkm.GRUBBIN],
-    rewards: [Pkm.SCATTERBUG, Pkm.GRUBBIN],
     board: []
   }
 ]
@@ -415,10 +482,46 @@ const UNIQUE_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
   eliteType: "unique" as const
 }))
 
+const HATCH_BASES: Pkm[] = [
+  Pkm.TYMPOLE, Pkm.AXEW, Pkm.DREEPY, Pkm.SNIVY, Pkm.SCORBUNNY,
+  Pkm.POPPLIO, Pkm.GOTHITA, Pkm.ROWLET, Pkm.FROAKIE, Pkm.TEPIG,
+  Pkm.GRUBBIN, Pkm.SCATTERBUG
+]
+
+const HATCH_EVOLUTIONS: Partial<Record<Pkm, Pkm>> = {
+  [Pkm.TYMPOLE]: Pkm.PALPITOAD,
+  [Pkm.AXEW]: Pkm.FRAXURE,
+  [Pkm.DREEPY]: Pkm.DRAKLOAK,
+  [Pkm.SNIVY]: Pkm.SERVINE,
+  [Pkm.SCORBUNNY]: Pkm.RABOOT,
+  [Pkm.POPPLIO]: Pkm.BRIONNE,
+  [Pkm.GOTHITA]: Pkm.GOTHORITA,
+  [Pkm.ROWLET]: Pkm.DARTIX,
+  [Pkm.FROAKIE]: Pkm.FROGADIER,
+  [Pkm.TEPIG]: Pkm.PIGNITE,
+  [Pkm.GRUBBIN]: Pkm.CHARJABUG,
+  [Pkm.SCATTERBUG]: Pkm.SPEWPA
+}
+
+const HATCH_UNLOCK_ENCOUNTERS: EliteEncounterTemplate[] = HATCH_BASES.map(pkm => ({
+  name: getPokemonData(pkm).name.replace(/_/g, " "),
+  avatar: pkm,
+  pokemon: [],
+  rewards: [pkm],
+  board: [],
+  eliteType: "hatch" as const
+}))
+
 const ELITE_ENCOUNTERS_BY_ACT: { [act: number]: EliteEncounterTemplate[] } = {
   1: ACT1_ELITE_ENCOUNTERS,
-  2: [...ACT2_ELITE_ENCOUNTERS, ...UNIQUE_ELITE_ENCOUNTERS],
-  3: [...ACT3_ELITE_ENCOUNTERS, ...LEGENDARY_ELITE_ENCOUNTERS]
+  2: ACT2_ELITE_ENCOUNTERS,
+  3: ACT3_ELITE_ENCOUNTERS
+}
+
+const UNLOCK_ENCOUNTERS_BY_ACT: { [act: number]: EliteEncounterTemplate[] } = {
+  1: HATCH_UNLOCK_ENCOUNTERS,
+  2: UNIQUE_ELITE_ENCOUNTERS,
+  3: LEGENDARY_ELITE_ENCOUNTERS
 }
 
 const LEGENDARY_BOSSES: { [act: number]: SpireEncounter[] } = {
@@ -758,7 +861,9 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
     })
   }
 
-  const items = generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
+  const items = act >= 3
+    ? generateAct3ClassItems(board, mode)
+    : generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
 
   const regionName = (region as string).replace(/([A-Z])/g, " $1").trim()
 
@@ -915,7 +1020,9 @@ export function generateGymEncounter(synergy: Synergy, act: number, floor: numbe
     }
   })
 
-  const items = generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
+  const items = act >= 3
+    ? generateAct3ClassItems(board, mode)
+    : generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
 
   return addHardModeItems({
     name,
@@ -980,6 +1087,7 @@ export function getGymLeaderGem(synergy: Synergy): Item {
 
 function addHardModeItems(encounter: SpireEncounter, act: number, floor: number, mode: DifficultyMode): SpireEncounter {
   if (mode !== 2) return encounter
+  if (act >= 3) return encounter
   const progress = (act - 1) * 20 + floor
   if (progress <= 8) return encounter
 
@@ -996,8 +1104,9 @@ function addHardModeItems(encounter: SpireEncounter, act: number, floor: number,
   return adjusted
 }
 
-function adjustEncounterItems(encounter: SpireEncounter, mode: DifficultyMode): SpireEncounter {
+function adjustEncounterItems(encounter: SpireEncounter, mode: DifficultyMode, act?: number): SpireEncounter {
   if (mode === 1 || !encounter.items) return encounter
+  if (act !== undefined && act >= 3) return encounter
   const adjusted = { ...encounter, items: encounter.items.map(list => [...list]) }
   if (mode === 0) {
     for (const list of adjusted.items!) {
@@ -1069,14 +1178,86 @@ function generateLegendaryEliteEncounter(legendary: Pkm, act: number, floor: num
     }
   })
 
-  const items = generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
+  const items = act >= 3
+    ? generateAct3ClassItems(board, mode)
+    : generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
   const name = legendaryData.name.replace(/_/g, " ")
 
   return { name, avatar: legendary, board, items }
 }
 
+function generateHatchUnlockEncounter(basePkm: Pkm, floor: number): SpireEncounter {
+  const evolved = HATCH_EVOLUTIONS[basePkm] ?? basePkm
+  const baseData = getPokemonData(basePkm)
+  const synergies = (baseData.types ?? []) as Synergy[]
+
+  const candidates = HATCH_BASES.filter(pkm => {
+    if (pkm === basePkm) return false
+    const data = getPokemonData(pkm)
+    const otherSynergies = (data.types ?? []) as Synergy[]
+    return synergies.some(s => otherSynergies.includes(s))
+  })
+  if (candidates.length === 0) candidates.push(Pkm.SCATTERBUG)
+
+  const supportCount = Math.min(Math.ceil(floor / 5), 4, candidates.length)
+  const support = pickNRandomIn(candidates, supportCount)
+
+  const frontRow: [number, number][] = [[3, 3], [5, 3]]
+  const backRow: [number, number][] = [[2, 1], [6, 1]]
+  const board: [Pkm, number, number][] = [[evolved, 4, 2]]
+  support.forEach((pkm, i) => {
+    const pos = i < 2 ? backRow[i] : frontRow[i - 2]
+    board.push([pkm, pos[0], pos[1]])
+  })
+
+  return {
+    name: baseData.name.replace(/_/g, " "),
+    avatar: basePkm,
+    board
+  }
+}
+
+export function getUnlockEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
+  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+  const template = encounters[index % encounters.length]
+
+  if (template.eliteType === "hatch") {
+    return addHardModeItems(adjustEncounterItems(generateHatchUnlockEncounter(template.avatar, floor), mode, act), act, floor, mode)
+  }
+  return addHardModeItems(adjustEncounterItems(generateLegendaryEliteEncounter(template.avatar, act, floor), mode, act), act, floor, mode)
+}
+
+export function getUnlockEncounterCount(act: number): number {
+  return (UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS).length
+}
+
+export function getUnlockEncounterName(index: number, act: number): string {
+  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+  return encounters[index % encounters.length]?.name ?? "Unlock"
+}
+
+export function getUnlockEncounterAvatar(index: number, act: number): Pkm {
+  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+  return encounters[index % encounters.length]?.avatar ?? Pkm.DEFAULT
+}
+
+export function getUnlockEncounterType(index: number, act: number): "legendary" | "unique" | "hatch" | undefined {
+  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+  return encounters[index % encounters.length]?.eliteType
+}
+
+export function getUnlockEncounterPokemon(index: number, act: number): Pkm[] {
+  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+  const template = encounters[index % encounters.length]
+  return [template.avatar]
+}
+
 export function getEliteEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
-  return addHardModeItems(adjustEncounterItems(getEliteEncounterBase(index, act, floor), mode), act, floor, mode)
+  const base = getEliteEncounterBase(index, act, floor)
+  if (act >= 3) {
+    base.items = generateAct3ClassItems(base.board, mode)
+  }
+  return addHardModeItems(adjustEncounterItems(base, mode, act), act, floor, mode)
 }
 
 function getEliteEncounterBase(index: number, act: number, floor: number): SpireEncounter {
@@ -1282,7 +1463,7 @@ export function getEliteEncounterPokemon(index: number, act: number): Pkm[] {
   return template.rewards
 }
 
-export function getEliteEncounterType(index: number, act: number): "legendary" | "unique" | undefined {
+export function getEliteEncounterType(index: number, act: number): "legendary" | "unique" | "hatch" | undefined {
   const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
   const template = encounters[index % encounters.length]
   return template.eliteType
@@ -1324,7 +1505,7 @@ function applyHardBossBoost(encounter: SpireEncounter, act: number, mode: Diffic
 
 export function getLegendaryBossEncounter(act: number, mode: DifficultyMode = 1): SpireEncounter {
   const bosses = LEGENDARY_BOSSES[act] || LEGENDARY_BOSSES[1]
-  return adjustEncounterItems(applyHardBossBoost(pickRandomIn(bosses), act, mode), mode)
+  return adjustEncounterItems(applyHardBossBoost(pickRandomIn(bosses), act, mode), mode, act)
 }
 
 export function pickLegendaryBoss(act: number): { name: string; sprites: Pkm[] } {
@@ -1337,7 +1518,7 @@ export function pickLegendaryBoss(act: number): { name: string; sprites: Pkm[] }
 export function getLegendaryBossEncounterByName(act: number, name: string, mode: DifficultyMode = 1): SpireEncounter {
   const bosses = LEGENDARY_BOSSES[act] || LEGENDARY_BOSSES[1]
   const boss = bosses.find(b => b.name === name) ?? pickRandomIn(bosses)
-  return adjustEncounterItems(applyHardBossBoost(boss, act, mode), mode)
+  return adjustEncounterItems(applyHardBossBoost(boss, act, mode), mode, act)
 }
 
 export function getRegionalCandidates(region: string, act: number): Pkm[] {
@@ -1487,6 +1668,7 @@ export function getGoldReward(nodeType: string, act: number): number {
   switch (nodeType) {
     case "WILD_BATTLE": return 2 + act
     case "ELITE": return 3 + act * 2
+    case "UNLOCK": return 3 + act * 2
     case "GYM_LEADER": return 5 + act * 3
     case "LEGENDARY_BOSS": return 11 + act * 4
     case "ELITE_FOUR": return 8 + act * 3
@@ -1776,10 +1958,10 @@ export function getArceusEncounter(): SpireEncounter {
       [Item.CHOICE_SPECS, Item.SCOPE_LENS, Item.SHELL_BELL, Item.MUSCLE_BAND, Item.UPGRADE, Item.SOUL_DEW,
        Item.ROCKY_HELMET, Item.SAFETY_GOGGLES, Item.GREEN_ORB, Item.BLUE_ORB, Item.RED_ORB, Item.MAX_REVIVE, Item.STICKY_BARB, Item.POWER_LENS]
     ],
-    bonusHP: 5000,
-    bonusAtk: 100,
-    bonusDef: 40,
-    bonusSpeDef: 40,
-    bonusAP: 300
+    bonusHP: 10000,
+    bonusAtk: 150,
+    bonusDef: 60,
+    bonusSpeDef: 60,
+    bonusAP: 500
   }
 }

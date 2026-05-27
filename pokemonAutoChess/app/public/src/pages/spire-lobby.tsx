@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router"
 import { useTranslation } from "react-i18next"
-import { client, getIdToken, joinGame } from "../network"
+import { clearGameReconnection, client, getIdToken, joinGame } from "../network"
 import { useAppSelector } from "../hooks"
 import { SynergyTriggers } from "../../../config"
 import { computeSynergies } from "../../../models/colyseus-models/synergies"
 import PokemonFactory from "../../../models/pokemon-factory"
 import { EloRank } from "../../../types/enum/EloRank"
+import { DungeonPMDO } from "../../../types/enum/Dungeon"
 import { Pkm, PkmIndex } from "../../../types/enum/Pokemon"
 import { Synergy } from "../../../types/enum/Synergy"
 import { getPortraitSrc, getAvatarSrc } from "../../../utils/avatar"
@@ -55,6 +56,8 @@ export default function SpireLobby() {
   const [serverStatus, setServerStatus] = useState<{ ccu: number; totalAccounts: number } | null>(null)
   const [playerName, setPlayerName] = useState(() => localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) ?? "Username")
   const [avatarPkm, setAvatarPkm] = useState<Pkm>(() => (localStore.get(LocalStoreKeys.SPIRE_PLAYER_AVATAR) as Pkm) || Pkm.RATTATA)
+  const [playerRegion, setPlayerRegion] = useState(() => localStore.get(LocalStoreKeys.SPIRE_PLAYER_REGION) ?? "town")
+  const [regionLoaded, setRegionLoaded] = useState(false)
   const [savedRun, setSavedRun] = useState<SavedRunSummary | null>(null)
   const [loadingSave, setLoadingSave] = useState(true)
   const [confirmOverwrite, setConfirmOverwrite] = useState<number | null>(null)
@@ -85,6 +88,36 @@ export default function SpireLobby() {
   useEffect(() => {
     localStore.set(LocalStoreKeys.SPIRE_PLAYER_AVATAR, avatarPkm)
   }, [avatarPkm])
+
+  useEffect(() => {
+    localStore.set(LocalStoreKeys.SPIRE_PLAYER_REGION, playerRegion)
+    if (regionLoaded && uid && uid !== "local-player") {
+      fetch(`/api/spire-region/${uid}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ region: playerRegion })
+      }).catch(() => {})
+    }
+  }, [playerRegion])
+
+  useEffect(() => { clearGameReconnection() }, [])
+
+  useEffect(() => {
+    if (!uid || uid === "local-player") {
+      setRegionLoaded(true)
+      return
+    }
+    fetch(`/api/spire-region/${uid}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.region) {
+          setPlayerRegion(data.region)
+          localStore.set(LocalStoreKeys.SPIRE_PLAYER_REGION, data.region)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setRegionLoaded(true))
+  }, [uid])
 
   useEffect(() => {
     if (!uid || uid === "local-player") {
@@ -227,6 +260,8 @@ export default function SpireLobby() {
           confirmOverwrite={confirmOverwrite}
           setConfirmOverwrite={setConfirmOverwrite}
           confirmNewRun={confirmNewRun}
+          playerRegion={playerRegion}
+          setPlayerRegion={setPlayerRegion}
         />
       </div>
     </main>
@@ -247,7 +282,9 @@ function SpireLobbyContent({
   loadingSave,
   confirmOverwrite,
   setConfirmOverwrite,
-  confirmNewRun
+  confirmNewRun,
+  playerRegion,
+  setPlayerRegion
 }: {
   startRun: (difficultyMode: number) => void
   resumeRun: () => void
@@ -263,6 +300,8 @@ function SpireLobbyContent({
   confirmOverwrite: number | null
   setConfirmOverwrite: (v: number | null) => void
   confirmNewRun: () => void
+  playerRegion: string
+  setPlayerRegion: (region: string) => void
 }) {
   const [activeSection, setActive] = useState<string>("rooms")
   const [ascensionIndex, setAscensionIndex] = useState(0)
@@ -487,7 +526,7 @@ function SpireLobbyContent({
               </div>
             </li>
           </ul>
-          <div className="my-box" style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "12px", padding: "10px 14px" }}>
+          <div className="my-box" style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", flexWrap: "wrap" }}>
             <img
               src={getPortraitSrc(avatarIndex)}
               alt="avatar"
@@ -501,6 +540,7 @@ function SpireLobbyContent({
               maxLength={20}
               style={{
                 flex: 1,
+                minWidth: "100px",
                 padding: "6px 10px",
                 borderRadius: "4px",
                 border: "1px solid #555",
@@ -527,8 +567,42 @@ function SpireLobbyContent({
                   <option key={p} value={p}>{t(`pkm.${p}`)}</option>
                 ))}
             </select>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <span style={{ fontSize: "12px", opacity: 0.7, whiteSpace: "nowrap" }}>Home Town</span>
+              <span
+                style={{
+                  position: "relative",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: "14px", height: "14px", borderRadius: "50%",
+                  border: "1px solid #888", fontSize: "10px", color: "#aaa",
+                  cursor: "pointer", flexShrink: 0
+                }}
+                className="hometown-help"
+              >
+                ?
+                <span className="hometown-help-tooltip">
+                  Your Home Town is the background shown when you start a run. If you become Champion or Elite Four, challengers will fight you here. Check the wiki for region previews. It's purely cosmetic.
+                </span>
+              </span>
+            </div>
+            <select
+              value={playerRegion}
+              onChange={(e) => setPlayerRegion(e.target.value)}
+              className="pokemon-typeahead"
+              style={{ maxWidth: "180px" }}
+            >
+              <option value="town">Default (Town)</option>
+              {Object.values(DungeonPMDO)
+                .sort((a, b) => a.localeCompare(b))
+                .map((d) => (
+                  <option key={d} value={d}>
+                    {d.replace(/([A-Z])/g, " $1").replace(/(\d+)/g, " $1").trim()}
+                  </option>
+                ))}
+            </select>
           </div>
           <ChampionDisplay />
+          <ArceusRecordDisplay />
         </div>
       </section>
 
@@ -612,6 +686,8 @@ interface ChampionSlot {
 interface ChampionData {
   champion: ChampionSlot
   eliteFour: ChampionSlot[]
+  championSince: string | null
+  longestReign: { name: string; durationMs: number } | null
 }
 
 const DIFF_ORDER: { mode: number; label: string; color: string }[] = [
@@ -619,6 +695,14 @@ const DIFF_ORDER: { mode: number; label: string; color: string }[] = [
   { mode: 1, label: "Normal", color: "#f39c12" },
   { mode: 0, label: "Easy", color: "#27ae60" }
 ]
+
+function formatDurationClient(ms: number): string {
+  const totalMinutes = Math.floor(ms / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+  return `${Math.max(1, minutes)}m`
+}
 
 function ChampionDisplay() {
   const [data, setData] = useState<Record<number, ChampionData>>({})
@@ -637,7 +721,7 @@ function ChampionDisplay() {
   return (
     <div style={{ marginTop: "12px" }}>
       <h2 style={{ textAlign: "center", margin: "0 0 10px 0" }}>
-        Elite Four & Champion
+        Champion & Elite Four
       </h2>
       {DIFF_ORDER.map(({ mode, label, color }) => {
         const d = data[mode]
@@ -657,9 +741,23 @@ function ChampionDisplay() {
             {isOpen && d && (
               <div style={{ padding: "0 12px 10px", display: "flex", flexDirection: "column", gap: "6px" }}>
                 <ChampionSlotRow slot={d.champion} title="Champion" highlight />
-                {d.eliteFour.map((e4, i) => (
-                  <ChampionSlotRow key={i} slot={e4} title={`Elite Four ${i + 1}`} />
+                {d.championSince && (
+                  <div style={{ fontSize: "12px", opacity: 0.6, textAlign: "center", margin: "-2px 0" }}>
+                    Champion for {formatDurationClient(Date.now() - new Date(d.championSince).getTime())}
+                  </div>
+                )}
+                {[...d.eliteFour].reverse().map((e4, i, arr) => (
+                  <ChampionSlotRow key={i} slot={e4} title={`Elite Four ${arr.length - i}`} />
                 ))}
+                {d.longestReign && (
+                  <div style={{
+                    fontSize: "12px", textAlign: "center", marginTop: "4px",
+                    padding: "4px 8px", background: "rgba(241,196,15,0.1)", borderRadius: "4px"
+                  }}>
+                    <span style={{ color: "#f1c40f" }}>Longest Reign:</span>{" "}
+                    {d.longestReign.name} ({formatDurationClient(d.longestReign.durationMs)})
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -746,6 +844,85 @@ function ChampionSlotRow({ slot, title, highlight }: { slot: ChampionSlot; title
           ) : null
         })}
       </div>
+    </div>
+  )
+}
+
+interface ArceusLeaderboardEntry {
+  name: string
+  avatar: string
+  damage: number
+  pokemon: { name: string; items: string[] }[]
+}
+
+function ArceusRecordDisplay() {
+  const [leaderboards, setLeaderboards] = useState<Record<number, ArceusLeaderboardEntry[]>>({})
+  const [expanded, setExpanded] = useState<number | null>(null)
+
+  useEffect(() => {
+    DIFF_ORDER.forEach(({ mode }) => {
+      fetch(`/api/arceus-record/${mode}`)
+        .then((r) => r.json())
+        .then((d) => setLeaderboards((prev) => ({ ...prev, [mode]: d })))
+        .catch(() => {})
+    })
+  }, [])
+
+  return (
+    <div style={{ marginTop: "12px" }}>
+      <h2 style={{ textAlign: "center", margin: "0 0 10px 0" }}>
+        Arceus Damage Records
+      </h2>
+      {DIFF_ORDER.map(({ mode, label, color }) => {
+        const lb = leaderboards[mode] ?? []
+        const isOpen = expanded === mode
+        return (
+          <div key={mode} className="my-box" style={{ marginBottom: "6px", padding: "0" }}>
+            <div
+              onClick={() => setExpanded(isOpen ? null : mode)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "8px 12px", cursor: "pointer", userSelect: "none"
+              }}
+            >
+              <span style={{ fontWeight: "bold", color, flex: 1, textAlign: "center" }}>{label}</span>
+              <span style={{ fontSize: "12px", opacity: 0.6 }}>{isOpen ? "▲" : "▼"}</span>
+            </div>
+            {isOpen && (
+              <div style={{ padding: "0 12px 10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                {Array.from({ length: 5 }, (_, i) => {
+                  const entry = lb[i]
+                  if (!entry) {
+                    return (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "center", gap: "8px", padding: "4px 0",
+                        borderTop: "1px solid rgba(255,255,255,0.1)", minHeight: "58px"
+                      }}>
+                        <span style={{
+                          fontSize: "14px", opacity: 0.3, minWidth: "80px", flexShrink: 0, fontWeight: "bold"
+                        }}>#{i + 1}</span>
+                      </div>
+                    )
+                  }
+                  const slot: ChampionSlot = {
+                    name: entry.name,
+                    avatar: entry.avatar,
+                    pokemon: entry.pokemon
+                  }
+                  return (
+                    <ChampionSlotRow
+                      key={i}
+                      slot={slot}
+                      title={entry.damage.toLocaleString()}
+                      highlight={i === 0}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

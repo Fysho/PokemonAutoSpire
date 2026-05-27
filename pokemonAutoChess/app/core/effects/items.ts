@@ -1,4 +1,5 @@
 import { ARMOR_FACTOR, RegionDetails } from "../../config"
+import { MapNodeType } from "../../models/colyseus-models/map-node"
 import { getSynergyStep } from "../../models/colyseus-models/synergies"
 import PokemonFactory, { getPokemonBaseline } from "../../models/pokemon-factory"
 import { PVEStages } from "../../models/pve-stages"
@@ -372,7 +373,7 @@ const chefCookEffect = new OnStageStartEffect(({ pokemon, player, room }) => {
   }
 
   if (chef.passive === Passive.GLUTTON) {
-    chef.addMaxHP(30)
+    chef.addMaxHP(15)
     if (chef.maxHP > 750) {
       player.titles.add(Title.GLUTTON)
     }
@@ -450,6 +451,7 @@ const chefCookEffect = new OnStageStartEffect(({ pokemon, player, room }) => {
               dish = pickRandomIn(flavors)
             }
             pokemon.dishes.add(dish)
+            pokemon._cookedDishes.push(dish)
             pokemon.action = PokemonActionState.EAT
           }
         })
@@ -462,10 +464,13 @@ export class FishingRodEffect extends OnStageStartEffect {
   constructor(rod: FishingRod) {
     super(({ player, room }) => {
       const isAfterPVE = room.state.stageLevel - 1 in PVEStages
+      const currentNode = room.state.mapNodes.get(room.state.currentNodeId)
+      const isAfterWild = currentNode?.nodeType === MapNodeType.WILD_BATTLE
       if (
         rod &&
         getFreeSpaceOnBench(player.board) > 0 &&
         !isAfterPVE &&
+        isAfterWild &&
         room.state.stageLevel > 3 &&
         !player.isBot
       ) {

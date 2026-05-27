@@ -74,7 +74,8 @@ export default function GameChoice() {
   const isWildReward = choice.type === "wildReward"
   const isGymReward = choice.type === "gymReward"
   const isEliteReward = choice.type === "eliteReward"
-  const isSpecialReward = isGymReward || isEliteReward
+  const isUnlockReward = choice.type === "unlockReward"
+  const isSpecialReward = isGymReward || isEliteReward || isUnlockReward
 
   let message: string | null = null
   let regionSynergies: Synergy[] = []
@@ -90,6 +91,8 @@ export default function GameChoice() {
     message = "Choose a gym reward"
   } else if (isEliteReward) {
     message = "Choose an elite reward"
+  } else if (isUnlockReward) {
+    message = "Claim your unlock reward"
   } else if (choice.type === "addPick") {
     message = "Choose a Pokemon"
   } else if (choice.type === "starter") {
@@ -302,6 +305,18 @@ export default function GameChoice() {
             Reroll (1g)
           </button>
         )}
+        {choice.type === "starter" && (
+          <button
+            className={`bubbly blue active`}
+            style={{ marginLeft: "0.5em" }}
+            onClick={() => {
+              playSound(SOUNDS.BUTTON_CLICK)
+              rooms.game?.send(Transfer.REROLL_STARTER)
+            }}
+          >
+            Reroll
+          </button>
+        )}
         {isSpecialReward && (
           <button
             className={`bubbly blue active`}
@@ -312,6 +327,18 @@ export default function GameChoice() {
             }}
           >
             Pass (+5g)
+          </button>
+        )}
+        {choice.type === "item" && (
+          <button
+            className={`bubbly blue active`}
+            style={{ marginLeft: "0.5em" }}
+            onClick={() => {
+              playSound(SOUNDS.BUTTON_CLICK)
+              rooms.game?.send(Transfer.REROLL_BOSS_REWARD)
+            }}
+          >
+            Reroll (20g)
           </button>
         )}
       </div>
