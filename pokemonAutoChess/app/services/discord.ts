@@ -44,6 +44,7 @@ let discordBot: Client | undefined
 const championChannelId = process.env.DISCORD_CHAMPION_CHANNEL_ID
 const arceusChannelId = process.env.DISCORD_ARCEUS_CHANNEL_ID || "1509158620430860349"
 const adminChannelId = process.env.DISCORD_ADMIN_CHANNEL_ID || "1509190218690068510"
+const envTag = `[${process.env.SERVER_ENV || "development"}]`
 let cachedChannel: TextChannel | undefined
 let cachedArceusChannel: TextChannel | undefined
 
@@ -75,7 +76,7 @@ if (process.env.DISCORD_BOT_TOKEN && (championChannelId || arceusChannelId || ad
       }, 30000)
       pendingResets.set(message.author.id, timeout)
       message.reply(
-        "Are you sure you want to reset **all** Champion/E4 and Arceus damage leaderboards for all difficulties? Type `/confirm-reset` within 30 seconds to proceed."
+        `${envTag} Are you sure you want to reset **all** Champion/E4 and Arceus damage leaderboards for all difficulties? Type \`/confirm-reset\` within 30 seconds to proceed.`
       )
       return
     }
@@ -83,7 +84,7 @@ if (process.env.DISCORD_BOT_TOKEN && (championChannelId || arceusChannelId || ad
     if (content === "/confirm-reset") {
       const pending = pendingResets.get(message.author.id)
       if (!pending) {
-        message.reply("No pending reset. Use `/reset-leaderboards` first.")
+        message.reply(`${envTag} No pending reset. Use \`/reset-leaderboards\` first.`)
         return
       }
       clearTimeout(pending)
@@ -94,7 +95,7 @@ if (process.env.DISCORD_BOT_TOKEN && (championChannelId || arceusChannelId || ad
       resetChampionData()
       resetArceusLeaderboard()
 
-      message.reply("All Champion/E4 and Arceus damage leaderboards have been reset for all difficulties.")
+      message.reply(`${envTag} All Champion/E4 and Arceus damage leaderboards have been reset for all difficulties.`)
       logger.info(`Leaderboards reset by Discord user ${message.author.tag}`)
       return
     }
@@ -433,7 +434,7 @@ export const discordService = {
       const reignStr = reignDurationMs != null ? ` ${defeatedChampion} held the title for ${formatDuration(reignDurationMs)}.` : ""
 
       const embed = new EmbedBuilder()
-        .setTitle(`**${snapshot.name}** has defeated **${defeatedChampion}** to become the new Champion of ${diffLabel}!`)
+        .setTitle(`${envTag} **${snapshot.name}** has defeated **${defeatedChampion}** to become the new Champion of ${diffLabel}!`)
         .setDescription(reignStr || null)
         .setColor(DIFFICULTY_COLOR[difficultyMode] ?? 0xffbb33)
         .setTimestamp()
@@ -493,8 +494,8 @@ export const discordService = {
       const diffLabel = DIFFICULTY_LABEL[difficultyMode] ?? "Normal"
 
       const title = previousRecord
-        ? `**${snapshot.name}** set a new Arceus damage record on ${diffLabel}, taking the title from **${previousRecord.playerName}**!`
-        : `**${snapshot.name}** set the first Arceus damage record on ${diffLabel}!`
+        ? `${envTag} **${snapshot.name}** set a new Arceus damage record on ${diffLabel}, taking the title from **${previousRecord.playerName}**!`
+        : `${envTag} **${snapshot.name}** set the first Arceus damage record on ${diffLabel}!`
 
       const embed = new EmbedBuilder()
         .setTitle(title)
@@ -544,8 +545,8 @@ export const discordService = {
       const durationStr = formatDuration(durationMs)
 
       const title = previousRecord
-        ? `**${championName}** now holds the longest champion reign on ${diffLabel}, taking the record from **${previousRecord.name}**!`
-        : `**${championName}** set the first longest reign record on ${diffLabel}!`
+        ? `${envTag} **${championName}** now holds the longest champion reign on ${diffLabel}, taking the record from **${previousRecord.name}**!`
+        : `${envTag} **${championName}** set the first longest reign record on ${diffLabel}!`
 
       const embed = new EmbedBuilder()
         .setTitle(title)

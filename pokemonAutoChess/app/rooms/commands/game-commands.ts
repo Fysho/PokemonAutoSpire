@@ -1796,7 +1796,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         const lastHistory = player.history.at(-1)
         const won = lastHistory?.result === BattleResult.WIN
         const modeLabel = ["Easy", "Normal", "Hard"][this.state.difficultyMode] ?? "Normal"
-        logger.info(`Player: "${player.name}" stage ${this.state.stageLevel} ${won ? "win" : "loss"}, hp remaining: ${this.state.runHP}, difficulty: ${modeLabel}`)
+        logger.info(`Player: ${player.name.padEnd(20)} stage ${String(this.state.stageLevel).padStart(2)} ${won ? "win " : "loss"}, hp: ${String(this.state.runHP).padStart(3)}, difficulty: ${modeLabel.padEnd(10)}`)
 
         const baseGold = getGoldReward(node.nodeType, this.state.currentAct)
         const bonusGold = getPassiveItemBonusGold(player.items)

@@ -691,9 +691,9 @@ interface ChampionData {
 }
 
 const DIFF_ORDER: { mode: number; label: string; color: string }[] = [
-  { mode: 2, label: "Hard", color: "#e74c3c" },
-  { mode: 1, label: "Normal", color: "#f39c12" },
-  { mode: 0, label: "Easy", color: "#27ae60" }
+  { mode: 2, label: "Hard", color: "#ffffff" },
+  { mode: 1, label: "Normal", color: "#ffffff" },
+  { mode: 0, label: "Easy", color: "#ffffff" }
 ]
 
 function formatDurationClient(ms: number): string {
