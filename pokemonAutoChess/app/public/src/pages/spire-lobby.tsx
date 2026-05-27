@@ -61,6 +61,7 @@ export default function SpireLobby() {
   const [savedRun, setSavedRun] = useState<SavedRunSummary | null>(null)
   const [loadingSave, setLoadingSave] = useState(true)
   const [confirmOverwrite, setConfirmOverwrite] = useState<number | null>(null)
+  const [lostRunPopup, setLostRunPopup] = useState<"found" | "not-found" | "error" | "searching" | null>(null)
 
   useEffect(() => {
     if (!uid) {
@@ -203,6 +204,22 @@ export default function SpireLobby() {
     createRoom(savedRun.difficultyMode, true)
   }
 
+  function findLostRun() {
+    if (!uid || uid === "local-player") return
+    setLostRunPopup("searching")
+    fetch(`/api/saved-run/${uid}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.odToken) {
+          setSavedRun(data)
+          setLostRunPopup("found")
+        } else {
+          setLostRunPopup("not-found")
+        }
+      })
+      .catch(() => setLostRunPopup("error"))
+  }
+
   function abandonRun() {
     if (!uid) return
     fetch(`/api/saved-run/${uid}`, { method: "DELETE" })
@@ -260,6 +277,9 @@ export default function SpireLobby() {
           confirmOverwrite={confirmOverwrite}
           setConfirmOverwrite={setConfirmOverwrite}
           confirmNewRun={confirmNewRun}
+          findLostRun={findLostRun}
+          lostRunPopup={lostRunPopup}
+          setLostRunPopup={setLostRunPopup}
           playerRegion={playerRegion}
           setPlayerRegion={setPlayerRegion}
         />
@@ -283,6 +303,9 @@ function SpireLobbyContent({
   confirmOverwrite,
   setConfirmOverwrite,
   confirmNewRun,
+  findLostRun,
+  lostRunPopup,
+  setLostRunPopup,
   playerRegion,
   setPlayerRegion
 }: {
@@ -300,6 +323,9 @@ function SpireLobbyContent({
   confirmOverwrite: number | null
   setConfirmOverwrite: (v: number | null) => void
   confirmNewRun: () => void
+  findLostRun: () => void
+  lostRunPopup: "found" | "not-found" | "error" | "searching" | null
+  setLostRunPopup: (v: "found" | "not-found" | "error" | "searching" | null) => void
   playerRegion: string
   setPlayerRegion: (region: string) => void
 }) {
@@ -447,16 +473,23 @@ function SpireLobbyContent({
                 ) : (
                   <>
                     <span style={{ fontSize: "13px", opacity: 0.6 }}>No saved run</span>
-                    <span style={{ fontSize: "11px", opacity: 0.45, maxWidth: "280px", lineHeight: "1.4" }}>
-                      If the server crashed, wait a minute, refresh, and it may appear. If not, it's lost.
-                    </span>
-                    <button
-                      className="bubbly"
-                      disabled
-                      style={{ backgroundColor: "#555", cursor: "not-allowed", marginLeft: "auto" }}
-                    >
-                      Resume Run
-                    </button>
+                    <div style={{ display: "flex", gap: "8px", marginLeft: "auto" }}>
+                      <button
+                        className="bubbly"
+                        onClick={findLostRun}
+                        disabled={lostRunPopup === "searching"}
+                        style={{ backgroundColor: "#2980b9", fontSize: "12px", padding: "4px 12px" }}
+                      >
+                        {lostRunPopup === "searching" ? "Searching..." : "Find Lost Run"}
+                      </button>
+                      <button
+                        className="bubbly"
+                        disabled
+                        style={{ backgroundColor: "#555", cursor: "not-allowed" }}
+                      >
+                        Resume Run
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
@@ -639,6 +672,65 @@ function SpireLobbyContent({
           </ul>
         </div>
       </section>
+
+      {/* Find Lost Run Popup */}
+      {lostRunPopup && lostRunPopup !== "searching" && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+          onClick={() => setLostRunPopup(null)}
+        >
+          <div
+            className="my-container my-box"
+            style={{
+              padding: "24px",
+              maxWidth: "400px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {lostRunPopup === "found" ? (
+              <>
+                <h3 style={{ color: "#2ecc71" }}>Run Found!</h3>
+                <p style={{ fontSize: "14px", opacity: 0.9 }}>
+                  Your saved run was recovered from the database. You can now resume it.
+                </p>
+              </>
+            ) : lostRunPopup === "error" ? (
+              <>
+                <h3 style={{ color: "#f1c40f" }}>Inconclusive</h3>
+                <p style={{ fontSize: "14px", opacity: 0.9 }}>
+                  You're not connected to the server or the server is down. Refresh the page and try again.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 style={{ color: "#e74c3c" }}>No Run Found</h3>
+                <p style={{ fontSize: "14px", opacity: 0.9 }}>
+                  No saved run was found in the database for your account.
+                </p>
+              </>
+            )}
+            <button
+              className="bubbly"
+              onClick={() => setLostRunPopup(null)}
+              style={{ backgroundColor: "#555" }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Confirm Overwrite Dialog */}
       {confirmOverwrite !== null && (
