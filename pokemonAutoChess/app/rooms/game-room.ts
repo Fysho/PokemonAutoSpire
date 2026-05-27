@@ -939,8 +939,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
       return
     }
 
-    const RECONNECT_TIMEOUT = 90
-    logger.info(`${name} disconnected | act: ${this.state.currentAct} floor: ${this.state.currentFloor} | waiting ${RECONNECT_TIMEOUT}s for reconnect`)
+    if (code >= 4000) {
+      logger.info(`${name} left voluntarily (code: ${code}) | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
+      return
+    }
+
+    const RECONNECT_TIMEOUT = 30
+    logger.info(`${name} disconnected (code: ${code}) | act: ${this.state.currentAct} floor: ${this.state.currentFloor} | waiting ${RECONNECT_TIMEOUT}s for reconnect`)
     this.state.simulationPaused = true
     this.autoDispose = false
 
@@ -1141,8 +1146,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
           this.spawnOnBench(player, pkm as Pkm)
         }
       }
-      if (choice.items?.length) {
-        choice.items.forEach(item => player.items.push(item))
+      if (pkm === Pkm.DEFAULT && choice.items?.length) {
+        choice.items.forEach(item => { if (item) player.items.push(item) })
       }
       const idx = player.choices.indexOf(choice)
       if (idx >= 0) player.choices.splice(idx, 1)

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { monitor } from "@colyseus/monitor"
 import { defineRoom, defineServer, ServerOptions } from "colyseus"
+import { WebSocketTransport } from "@colyseus/ws-transport"
 import cors from "cors"
 import express from "express"
 import basicAuth from "express-basic-auth"
@@ -85,7 +86,12 @@ async function renderLegalPage(
   }
 }
 
-let gameOptions: ServerOptions = {}
+let gameOptions: ServerOptions = {
+  transport: new WebSocketTransport({
+    pingInterval: 15000,
+    pingMaxRetries: 4
+  })
+}
 
 export const server = defineServer({
   ...gameOptions,

@@ -1972,12 +1972,16 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           if (won) {
             const unlockPokemon = getUnlockEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct)
             const unlockType = getUnlockEncounterType(node.eliteEncounterIndex, this.state.currentAct)
-            const unlockItems: Item[] = unlockType === "hatch"
-              ? [pickRandomIn(ItemComponentsNoFossilOrScarf)]
-              : []
-            player.choices.push(
-              new PlayerChoice({ type: "unlockReward", pokemons: unlockPokemon, items: unlockItems })
-            )
+            if (unlockType === "hatch") {
+              const component = pickRandomIn(ItemComponentsNoFossilOrScarf)
+              player.choices.push(
+                new PlayerChoice({ type: "unlockReward", pokemons: [...unlockPokemon, Pkm.DEFAULT], items: ["" as Item, component] })
+              )
+            } else {
+              player.choices.push(
+                new PlayerChoice({ type: "unlockReward", pokemons: unlockPokemon, items: [] })
+              )
+            }
           } else {
             this.generateWildRewardChoice(player, node, false)
           }

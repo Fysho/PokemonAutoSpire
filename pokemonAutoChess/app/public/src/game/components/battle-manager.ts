@@ -881,10 +881,11 @@ export default class BattleManager {
     targetY?: number
     delay?: number
   }) {
-    if (this.simulation?.id === args.id && args.skill) {
+    const children = this.group?.getChildren()
+    if (this.simulation?.id === args.id && args.skill && children) {
       displayAbility({
         scene: this.scene,
-        pokemonsOnBoard: this.group.getChildren() as PokemonSprite[],
+        pokemonsOnBoard: children as PokemonSprite[],
         ability: args.skill,
         ap: args.ap ?? 0,
         orientation: args.orientation,
