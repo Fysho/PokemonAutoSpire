@@ -224,32 +224,13 @@ export default function Game() {
 
   const currentGameEvent = getCurrentGameEvent()
 
-  const MAX_ATTEMPS_RECONNECT = 3
-
   const connectToGame = useCallback(
-    async (attempts = 1) => {
+    async () => {
       if (rooms.game?.connection.isOpen) {
         connected.current = true
         connecting.current = false
         dispatch(setConnectionStatus(ConnectionStatus.CONNECTED))
         return
-      }
-
-      try {
-        const saved = localStorage.getItem("spire_reconnect")
-        if (saved) {
-          const { reconnectionToken } = JSON.parse(saved)
-          if (reconnectionToken) {
-            const room = await client.reconnect<GameState>(reconnectionToken)
-            joinGame(room)
-            connected.current = true
-            connecting.current = false
-            dispatch(setConnectionStatus(ConnectionStatus.CONNECTED))
-            return
-          }
-        }
-      } catch {
-        clearGameReconnection()
       }
 
       navigate("/lobby")
@@ -548,38 +529,8 @@ export default function Game() {
         }
       )
 
-      room.onDrop((code) => {
-        if (code >= 1001 && code <= 1015) {
-          // Between 1001 and 1015 - Abnormal socket shutdown
-          if (connectionStatus === ConnectionStatus.CONNECTED) {
-            dispatch(setConnectionStatus(ConnectionStatus.CONNECTION_LOST))
-          }
-        }
-      })
-
-      room.onReconnect(() => {
-        dispatch(setConnectionStatus(ConnectionStatus.CONNECTED))
-      })
-
-      room.onLeave((code) => {
-        const shouldGoToLobby = [
-          CloseCodes.ROOM_DELETED,
-          CloseCodes.USER_BANNED
-        ].includes(code)
-        if (shouldGoToLobby) {
-          const errorMessage = CloseCodesMessages[code] as
-            | ErrorMessage
-            | undefined
-          if (errorMessage) {
-            dispatch(setErrorAlertMessage(t(`errors.${errorMessage}`)))
-          }
-
-          const scene = getGameScene()
-          if (scene?.music) scene.music.destroy()
-          navigate("/lobby")
-        } else {
-          dispatch(setConnectionStatus(ConnectionStatus.CONNECTION_FAILED))
-        }
+      room.onLeave(() => {
+        dispatch(setConnectionStatus(ConnectionStatus.CONNECTION_FAILED))
       })
 
       const $ = getStateCallbacks(room)
@@ -1280,7 +1231,7 @@ export default function Game() {
         <GameLoadingScreen connectError={connectError} />
       )}
       <ConnectionStatusNotification />
-      {(connectionStatus === ConnectionStatus.CONNECTION_LOST || connectionStatus === ConnectionStatus.CONNECTION_FAILED) && !runComplete && !runFailed && (
+      {connectionStatus === ConnectionStatus.CONNECTION_FAILED && !runComplete && !runFailed && (
         <div style={{
           position: "fixed",
           top: 0, left: 0, right: 0, bottom: 0,
@@ -1293,12 +1244,10 @@ export default function Game() {
           color: "white"
         }}>
           <h2 style={{ margin: "0 0 8px", textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
-            {connectionStatus === ConnectionStatus.CONNECTION_LOST ? "Connection Lost" : "Disconnected"}
+            Disconnected
           </h2>
           <p style={{ margin: "0 0 16px", opacity: 0.8, fontSize: "14px" }}>
-            {connectionStatus === ConnectionStatus.CONNECTION_LOST
-              ? "Attempting to reconnect..."
-              : "The connection to the server was lost."}
+            Your run has been saved. You can resume from the lobby.
           </p>
           <button
             onClick={leave}

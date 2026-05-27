@@ -1,5 +1,6 @@
 import { ArraySchema, MapSchema } from "@colyseus/schema"
 import Player from "../models/colyseus-models/player"
+import { PlayerChoice, PlayerChoiceType } from "../models/colyseus-models/player-choice"
 import { Pokemon } from "../models/colyseus-models/pokemon"
 import { MapNode, MapEdge } from "../models/colyseus-models/map-node"
 import { SavedRun, ISavedRun } from "../models/mongo-models/saved-run"
@@ -10,6 +11,7 @@ import GameState from "../rooms/states/game-state"
 import { snapshotPlayerTeam, SnapshotPokemon, TeamSnapshot } from "./team-snapshot"
 import { Emotion } from "../types"
 import { Ability } from "../types/enum/Ability"
+import { GamePhaseState } from "../types/enum/Game"
 import { Item } from "../types/enum/Item"
 import { Pkm, PkmIndex } from "../types/enum/Pokemon"
 import { Synergy } from "../types/enum/Synergy"
@@ -102,6 +104,8 @@ interface SavedRunData {
   fairyWands: string[]
   regions: string[]
   shopsSinceLastUnownShop: number
+  choices?: { type: string; pokemons: string[]; items: string[] }[]
+  phase?: number
 }
 
 function serializeMapNodes(nodes: MapSchema<MapNode>): SerializedMapNode[] {
@@ -201,7 +205,15 @@ export async function saveRun(odToken: string, state: GameState, player: Player)
       scarvesItems: [...player.scarvesItems] as string[],
       fairyWands: [...player.fairyWands] as string[],
       regions: [...player.regions] as string[],
-      shopsSinceLastUnownShop: player.shopsSinceLastUnownShop
+      shopsSinceLastUnownShop: player.shopsSinceLastUnownShop,
+      choices: player.choices.length > 0
+        ? Array.from(player.choices).map((c) => ({
+            type: c.type,
+            pokemons: [...c.pokemons] as string[],
+            items: [...c.items] as string[]
+          }))
+        : undefined,
+      phase: state.phase
     }
 
     const teamPreview = team.pokemon
@@ -466,6 +478,22 @@ export function restoreRunToState(
     player.synergies.set(synergy, value)
   })
   player.effects.update(player.synergies, player.board)
+
+  // Restore pending reward choices
+  if (savedData.choices?.length) {
+    for (const c of savedData.choices) {
+      player.choices.push(
+        new PlayerChoice({
+          type: c.type as PlayerChoiceType,
+          pokemons: c.pokemons as any[],
+          items: c.items as Item[]
+        })
+      )
+    }
+    if (savedData.phase === GamePhaseState.REWARD) {
+      state.phase = GamePhaseState.REWARD
+    }
+  }
 }
 
 export async function saveRunHistory(

@@ -1810,7 +1810,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.time = 999 * 1000
     this.state.roundTime = 999
     resetArraySchema(this.state.spireEncounterBoard, [])
-    this.autoSaveRun()
 
     const node = this.state.mapNodes.get(this.state.currentNodeId)
     if (!node) return
@@ -2039,6 +2038,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         }
       }
     })
+
+    this.autoSaveRun()
 
     const currentNode = this.state.mapNodes.get(this.state.currentNodeId)
     if (currentNode?.nodeType === MapNodeType.LEGENDARY_BOSS) {

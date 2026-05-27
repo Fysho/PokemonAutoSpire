@@ -895,7 +895,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     restoreRunToState(this.state, player, savedRun.data)
 
-    this.state.phase = GamePhaseState.MAP
+    if (this.state.phase !== GamePhaseState.REWARD) {
+      this.state.phase = GamePhaseState.MAP
+    }
     this.state.time = 999 * 1000
     this.state.roundTime = 999
     player.alive = true
@@ -932,32 +934,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
   async onLeave(client: Client, code: number) {
     const player = this.state.players.get(client.auth?.uid)
     const name = player?.name || client.auth?.uid || "Unknown"
+    const location = `act: ${this.state.currentAct} floor: ${this.state.currentFloor}`
 
     if (this.state.runComplete || this.state.runFailed || this.state.gameFinished) {
       const reason = this.state.runComplete ? "won" : this.state.runFailed ? "dead" : "game finished"
-      logger.info(`${name} left game | reason: ${reason} | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
-      return
-    }
-
-    if (code >= 4000) {
-      logger.info(`${name} left voluntarily (code: ${code}) | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
-      return
-    }
-
-    const RECONNECT_TIMEOUT = 30
-    logger.info(`${name} disconnected (code: ${code}) | act: ${this.state.currentAct} floor: ${this.state.currentFloor} | waiting ${RECONNECT_TIMEOUT}s for reconnect`)
-    this.state.simulationPaused = true
-    this.autoDispose = false
-
-    try {
-      await this.allowReconnection(client, RECONNECT_TIMEOUT)
-      this.state.simulationPaused = false
-      this.autoDispose = true
-      logger.info(`${name} reconnected`)
-    } catch {
-      this.state.simulationPaused = false
-      this.autoDispose = true
-      logger.info(`${name} reconnect timed out — abandoned | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`)
+      logger.info(`${name} left game | reason: ${reason} | ${location}`)
+    } else {
+      logger.info(`${name} disconnected (code: ${code}) | ${location}`)
     }
   }
 

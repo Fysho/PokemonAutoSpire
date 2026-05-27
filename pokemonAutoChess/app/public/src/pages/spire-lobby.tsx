@@ -205,7 +205,10 @@ export default function SpireLobby() {
   }
 
   function findLostRun() {
-    if (!uid || uid === "local-player") return
+    if (!uid || uid === "local-player") {
+      setLostRunPopup("error")
+      return
+    }
     setLostRunPopup("searching")
     fetch(`/api/saved-run/${uid}`)
       .then((res) => res.json())
