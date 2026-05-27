@@ -89,8 +89,9 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | Starter selection & reroll | `app/rooms/game-room.ts` → `startGame()`, `REROLL_STARTER` handler |
 | Home Town (region choice) | `user-metadata.ts` (DB), `spire-lobby.tsx` (UI), `app.config.ts` (API), `team-snapshot.ts` (region field), `game-commands.ts` (E4/Champion map) |
 | Run history / stats | `app/services/run-save.ts` → `saveRunHistory()`, `incrementRunStarted()`, `incrementRunEnd()` |
-| Champion/E4 data | `app/services/champion-data.ts` → `loadChampionData()`, `promoteNewChampion()` |
-| Discord announcements | `app/services/discord.ts` → `discordService.announceNewChampion()` |
+| Champion/E4 data | `app/services/champion-data.ts` → `loadChampionData()`, `promoteNewChampion()`. Tracks `championSince` timestamp and `longestReign` per difficulty. |
+| Arceus damage leaderboard | `app/services/arceus-record.ts` → Top 5 per difficulty. JSON files (`arceus-record.json`, `-easy`, `-hard`). `checkAndUpdateArceusRecord()`, `getArceusLeaderboardForClient()`. |
+| Discord announcements | `app/services/discord.ts` → `discordService.announceNewChampion()`, `announceArceusRecord()`, `announceNewLongestReign()`. Bot also listens for admin commands in `DISCORD_ADMIN_CHANNEL_ID`. |
 | Difficulty balancing | `spire-encounters.ts` → `addHardModeItems()`, `applyHardBossBoost()`, `adjustEncounterItems()` |
 | Dojo ticket tier | `game-commands.ts` → `getDojoTicket()` |
 | Lobby UI | `app/public/src/pages/spire-lobby.tsx` |
@@ -108,7 +109,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 
 ### Map Node Types
 - **Wild Battle**: Regional encounters with synergy icons. In Acts 2-3, encounters focus on one synergy from the region.
-- **Gym Leader**: Dynamically generated from `GYM_LEADER_POKEMON` map (18 synergy types). Floors 6/12/18 guaranteed, 9/15 at 40%. No synergy repeats per act. Act 2 biases unique Pokemon, Act 3 includes legendaries.
+- **Gym Leader**: Dynamically generated from `GYM_LEADER_POKEMON` map (27 synergy types; Gourmet, Light, Artificial, Amorphous commented out). Floors 6/12/18 guaranteed, 9/15 at 40%. No synergy repeats per act. Act 2 biases unique Pokemon, Act 3 includes legendaries.
 - **Elite**: Floors 4/8/11/13/17 (variable chance). Handcrafted themed encounters (19 total across acts). Faint red outline on map to distinguish from Unlock nodes.
 - **Unlock**: Same floors as Elite (50/50 split). Proc-gen encounters that reward a specific Pokemon. Act 1: hatch mon eggs (12 families), Act 2: unique Pokemon, Act 3: legendary Pokemon.
 - **PokeMart**: Walk-around shop. 6 Pokemon + 6 items + 2 eggs (Acts 1-2, 12g each). Ditto 3x weighted.
@@ -164,14 +165,15 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | `app/core/map-generator.ts` | StS-style branching maps: 20 floors/act, 3-5 nodes/floor, no-crossing edges. Gyms on floors 6/12/18 (guaranteed) + 9/15 (40%). Elites on 8/13/17 (50%). Centers on 10/19. Boss on 20. |
 | `app/core/relic-effects.ts` | 15 passive items (PASSIVE_ITEMS list). Helpers: `getRelicBonusGold()`, `getRelicPostBattleHeal()`, `getRelicDamageReduction()`, `getRelicPokemonOfferCount()`, `getRelicBonusXP()`, `getRelicRestHealBonus()`, `getRandomItemChoices()` |
 | `app/models/colyseus-models/map-node.ts` | `MapNode` (id, type, x, y, region, gymLeaderSynergy, eliteEncounterIndex, displayName) and `MapEdge` schemas. `MapNodeType` enum (includes ELITE and UNLOCK). |
-| `app/models/spire-encounters.ts` | Regional wild encounters via `getRegionalWildEncounter()` with difficulty scaling (`getDifficultyConfig()`). Dynamic gym generation via `generateGymEncounter()` with 18 synergy types and `GYM_LEADER_POKEMON` map. Elite encounter templates with act-specific tiers. Multiple boss options per act via `LEGENDARY_BOSSES` arrays. `getGoldReward()`. |
+| `app/models/spire-encounters.ts` | Regional wild encounters via `getRegionalWildEncounter()` with difficulty scaling (`getDifficultyConfig()`). Dynamic gym generation via `generateGymEncounter()` with 27 synergy types and `GYM_LEADER_POKEMON` map. Elite encounter templates with act-specific tiers. Multiple boss options per act via `LEGENDARY_BOSSES` arrays. `getGoldReward()`. |
 | `app/models/spire-events.ts` | Mystery encounter templates with choices. `getRandomEvent()`, `getEventItems()`, `getEventBerries()` |
 | `app/models/spire-shops.ts` | 6 Pokemon + 2 eggs (Acts 1-2, 12g) + 6 items. Ditto weighted 3x. Pricing: `RARITY_BASE_PRICE` + `STAR_BONUS_PRICE`. `generateShopItems(act)` |
 | `app/models/mongo-models/run-history.ts` | Mongoose model for completed run history. Stores: odToken, time, act, floor, difficulty, HP, arceusDamage, victory, team Pokemon with items. |
 | `app/models/mongo-models/saved-run.ts` | Mongoose model for save/resume. Stores full game state snapshot for mid-run persistence. |
-| `app/services/run-save.ts` | Save/load/delete runs, run history recording, player stat counters (`incrementRunStarted`, `incrementRunEnd`, `saveRunHistory`, `getRunHistory`). |
-| `app/services/team-snapshot.ts` | Universal team save/load. `TeamSnapshot` captures full team state (board+bench, items, stats, shiny, emotion, dishes, TMs, inventory, ground holes, light position, optional region). `snapshotPlayerTeam()` serializes a Player — uses `pokemon._cookedDishes` fallback to capture dishes that were consumed during the fight. `reconstructTeamAsPlayer()` creates a real opponent Player for champion/E4 fights — sets `team=RED_TEAM`, computes synergies/effects directly bypassing `updateSynergies()` side effects, restores dishes to `pokemon.dishes` so they're visible during PICK. `encodeSnapshotForClient()` encodes board preview strings including dishes alongside items. |
-| `app/services/champion-data.ts` | Elite Four & Champion persistence per difficulty using `TeamSnapshot` format (includes bench + Home Town region). JSON files (`champion-data.json`, `-easy`, `-hard`). `loadChampionData()`, `promoteNewChampion()`. Legacy format auto-migration. |
+| `app/services/run-save.ts` | Save/load/delete runs, run history recording, player stat counters. `restoreRunToState()` bypasses `updateSynergies()` to avoid duplicating synergy-spawned items (scarves, artificial items, TMs, wands). Preserves egg `evolution`, `stacks`, `stacksRequired` across save/restore. |
+| `app/services/team-snapshot.ts` | Universal team save/load. `SnapshotPokemon` includes: name, position, items, shiny, emotion, statBoosts, skill, dishes, evolution, stacks, stacksRequired. `snapshotPlayerTeam()` uses `_cookedDishes` fallback for dishes consumed during fight. `reconstructTeamAsPlayer()` bypasses `updateSynergies()` side effects for champion/E4 opponents. |
+| `app/services/champion-data.ts` | Elite Four & Champion persistence per difficulty. JSON files (`champion-data.json`, `-easy`, `-hard`). `promoteNewChampion()` returns `PromotionResult` with reign duration and longest reign info. Tracks `championSince` timestamp and `longestReign` record per difficulty. `formatDuration()` helper. |
+| `app/services/arceus-record.ts` | Arceus damage leaderboard — top 5 per difficulty. JSON files (`arceus-record.json`, `-easy`, `-hard`). Auto-migrates from old single-record format. `checkAndUpdateArceusRecord()` returns `{ isNewRecord, rank, previousRecord }`. `resetArceusLeaderboard()` for admin reset. |
 
 ### Client-Side
 | File | Purpose |
@@ -181,7 +183,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | `game-rest.tsx` | Pokemon Center: 3 choices using event-style UI (heal/ditto+item/dojo ticket). Uses `game-choice.css` styling. |
 | `game-event.tsx` | Mystery encounter choice buttons |
 | `game-relic-bar.tsx` | Shows passive items from `player.items` filtered by `PASSIVE_ITEMS` list. Item icons with tooltips. |
-| `game-run-end.tsx` | Victory/defeat screen with stats and "New Run" button |
+| `game-run-end.tsx` | Victory/defeat/Arceus end screen in a `DraggableWindow`. Shows stats grid + Arceus record info. Action buttons (Back to Lobby, Enter Elite Four, Challenge Arceus) rendered separately at bottom of screen. |
 | `game-opponent-synergies.tsx` | Enemy synergies panel during PICK/FIGHT. Uses server-computed `encounterSynergies` for snapshot encounters (champion/E4 — includes Dragon double-types etc.), falls back to client-side computation for other encounters. |
 | `game-opponent-items.tsx` | Shows opponent inventory items (gems, relics) during PICK/FIGHT. Reads from `encounterInventory` synced state. |
 | `game-experience.tsx` | Modified to include "Start Fight" button (red bubbly) next to level-up button during PICK phase |
@@ -206,8 +208,8 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 - `initializeFightingPhase()`: For PVE encounters, calls `cookDishesForPveBoard()` after computing synergies — auto-distributes Chef Hats and cooks dishes for PVE boards with Gourmet synergy (1 hat at count ≥3, 2 hats at count ≥5).
 - `cookDishesForPveBoard()`: Standalone function. Checks Gourmet synergy count on PVE board, distributes Chef Hats to strongest Gourmet Pokemon, synchronously cooks dishes using same adjacency/priority logic as `chefCookEffect` in `items.ts`.
 - `stopSpireFightingPhase()`: HP damage with passive item reduction. Cleans up simulations. On death: deletes saved run, saves run history, increments stats.
-- `endArceusFight()`: Ends Arceus boss fight, records damage dealt. Deletes save, saves history, increments stats.
-- `endChampionFight()`: Ends champion fight, promotes winner to champion data. Deletes save, saves history, increments stats.
+- `endArceusFight()`: Ends Arceus boss fight, records damage dealt, checks/updates Arceus leaderboard, triggers Discord announcement if new #1. Sets `isNewArceusRecord`/`previousArceusRecord`/`previousArceusHolder` synced state. Sets player map to "In the Nightmare" for Arceus fight tilemap.
+- `endChampionFight()`: Ends champion fight, calls `promoteNewChampion()` (which tracks reign), triggers Discord announcements for new champion and optionally longest reign. Deletes save, saves history, increments stats.
 - `checkRunDeath()`: Triggers when runHP <= 0 outside fight phase. Deletes save, saves history, increments stats.
 - `getDojoTicket()`: Returns difficulty-adjusted dojo ticket tier.
 - `initializeMapPhase()`: Clears encounter board, avatars, floating items. Resets player.map to "town".
@@ -216,7 +218,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 - AdditionalPicksStages logic removed (no more forced add-pick rounds)
 
 ### `app/rooms/states/game-state.ts`
-Synced fields: `currentAct`, `currentFloor`, `mapNodes`, `mapEdges`, `currentNodeId`, `runHP`, `runComplete`, `runFailed`, `spireEncounterBoard`, `encounterDifficulty`, `encounterBonusHP`, `encounterBonusAtk`, `encounterBonusDef`, `encounterBonusSpeDef`, `encounterBonusAP`, `encounterBonusPP`, `encounterSynergies`, `gameSpeed` (float32), `arceusDamageDealt`, `spireEventName`, `spireEventDescription`, `spireEventChoiceLabels`, `spireEventChoiceDescs`
+Synced fields: `currentAct`, `currentFloor`, `mapNodes`, `mapEdges`, `currentNodeId`, `runHP`, `runComplete`, `runFailed`, `spireEncounterBoard`, `encounterDifficulty`, `encounterBonusHP`, `encounterBonusAtk`, `encounterBonusDef`, `encounterBonusSpeDef`, `encounterBonusAP`, `encounterBonusPP`, `encounterSynergies`, `gameSpeed` (float32), `arceusDamageDealt`, `isNewArceusRecord`, `previousArceusRecord`, `previousArceusHolder`, `spireEventName`, `spireEventDescription`, `spireEventChoiceLabels`, `spireEventChoiceDescs`
 
 ### `app/core/mini-game.ts`
 - `shopMode` flag, `initializeShopCarousel()` with static positioning (radius 200x160)
@@ -392,44 +394,37 @@ To store new data in MongoDB:
 
 ### Overview
 
-When a player becomes Champion (beats the champion fight), a rich embed is posted to a Discord channel announcing the new champion with a generated team image.
+The Discord bot handles three categories of announcements plus admin commands.
 
 ### How It Works
 
-- **Bot client**: A Discord bot (`Client` with `GatewayIntentBits.Guilds`) is initialized at server startup from `DISCORD_BOT_TOKEN` and `DISCORD_CHAMPION_CHANNEL_ID` env vars. If either is missing, the feature is silently disabled.
-- **Trigger**: `endChampionFight()` in `game-commands.ts` calls `discordService.announceNewChampion()` after `promoteNewChampion()`. The call is fire-and-forget (non-blocking).
-- **Embed content**: Title shows who defeated whom and difficulty. Fields show the new Elite Four lineup, relics, and synergy gems.
-- **Generated image**: A composite PNG is created server-side with jimp containing:
-  - Centered "Champion {name}" header text (32px Open Sans white)
-  - Pokemon portraits (60px, resized from 40px source) with held item icons (18px) overlaid bottom-right
-  - Active synergy icons (30px, from pre-converted PNGs) with count numbers, sorted by count descending (matching the in-game synergy panel order)
-  - Canvas is always wide enough for 10 Pokemon (654px min width)
+- **Bot client**: A Discord bot (`Client` with `Guilds`, `GuildMessages`, `MessageContent` intents) is initialized at server startup from `DISCORD_BOT_TOKEN`. Requires at least one channel ID configured. Bot also requires **Message Content Intent** enabled in Discord Developer Portal.
+- **Champion announcements** (champion channel): New champion with team image, defeated champion's reign duration, E4 lineup. Triggered by `endChampionFight()`.
+- **Longest reign announcements** (champion channel): When a dethroned champion held the title longer than any previous champion on that difficulty.
+- **Arceus record announcements** (Arceus channel): New #1 damage record with team image, previous record holder. Triggered by `endArceusFight()`.
+- **Admin commands** (admin channel): `/reset-leaderboards` with confirmation step. Resets all Champion/E4 and Arceus leaderboards. Requires Discord Administrator permission.
+- **Generated image**: A composite PNG created server-side with jimp — player name header, Pokemon portraits with item icons, active synergy icons with counts.
 
 ### Key Files
 
 | File | Role |
 |---|---|
-| `app/services/discord.ts` | Discord webhook clients (bans, bots) + bot client for champion announcements. `generateTeamImage()` composites sprites. `computeSnapshotSynergies()` reconstructs synergies from a `TeamSnapshot`. |
-| `app/rooms/commands/game-commands.ts` | `endChampionFight()` loads previous champion data, calls `promoteNewChampion()`, then `discordService.announceNewChampion()` with snapshot, difficulty, defeated champion name, and new E4 names. |
-| `app/public/src/assets/types-png/` | Pre-converted PNG versions of synergy type icons (from SVGs in `types/`). Used by the image generator. |
+| `app/services/discord.ts` | Bot client + webhook clients. `announceNewChampion()` (with reign duration), `announceArceusRecord()`, `announceNewLongestReign()`. Admin command listener for `/reset-leaderboards`. `generateTeamImage()` composites sprites. |
+| `app/rooms/commands/game-commands.ts` | `endChampionFight()` calls `promoteNewChampion()` then Discord announcements with reign data. `endArceusFight()` calls `checkAndUpdateArceusRecord()` then Discord announcement if new #1. |
+| `app/public/src/assets/types-png/` | Pre-converted PNG versions of synergy type icons. Used by the image generator. |
 
 ### Environment Variables
 
 | Variable | Purpose |
 |---|---|
 | `DISCORD_BOT_TOKEN` | Bot token from Discord Developer Portal → Bot → Reset Token |
-| `DISCORD_CHAMPION_CHANNEL_ID` | Target channel ID (Developer Mode → right-click channel → Copy ID) |
-
-### Asset Dependencies
-
-- **Pokemon portraits**: `app/public/src/assets/portraits/{index}/Normal.png` (40x40, resized to 60x60)
-- **Item icons**: `app/public/src/assets/item{tps}/{ITEM_NAME}.png` (90x90, resized to 18x18)
-- **Synergy icons**: `app/public/src/assets/types-png/{SYNERGY}.png` (42x42, resized to 30x30)
-- **Fonts**: Bundled with `@jimp/plugin-print` at `node_modules/@jimp/plugin-print/fonts/open-sans/`
+| `DISCORD_CHAMPION_CHANNEL_ID` | Channel for champion + longest reign announcements |
+| `DISCORD_ARCEUS_CHANNEL_ID` | Channel for Arceus damage records (default: `1509158620430860349`) |
+| `DISCORD_ADMIN_CHANNEL_ID` | Channel for admin commands like `/reset-leaderboards` (default: `1509190218690068510`) |
 
 ### Existing Webhook Features (from upstream PAC)
 
-The same `discord.ts` file also has webhook-based announcements for bans and bot approvals using `DISCORD_WEBHOOK_URL` and `DISCORD_BAN_WEBHOOK_URL`. These are separate from the champion bot integration.
+The same `discord.ts` file also has webhook-based announcements for bans and bot approvals using `DISCORD_WEBHOOK_URL` and `DISCORD_BAN_WEBHOOK_URL`. These are separate from the bot integration.
 
 ## Known Issues / Incomplete Features
 
@@ -447,7 +442,8 @@ The same `discord.ts` file also has webhook-based announcements for bans and bot
 | `/api/saved-run/:uid` | GET | Fetch saved run summary for resume display |
 | `/api/saved-run/:uid` | DELETE | Delete saved run (abandon) |
 | `/api/run-history/:uid` | GET | Paginated run history (`?page=N`) |
-| `/api/champion-data/:difficulty` | GET | Elite Four & Champion data (0/1/2) for lobby display |
+| `/api/champion-data/:difficulty` | GET | Elite Four & Champion data (0/1/2) for lobby display. Includes `championSince` and `longestReign`. |
+| `/api/arceus-record/:difficulty` | GET | Arceus damage leaderboard (top 5) for lobby display |
 | `/api/spire-region/:uid` | GET | Player's Home Town region choice (returns `{ region: string }`) |
 | `/api/spire-region/:uid` | PUT | Save Home Town region (`{ region: string }` body) |
 | `/api/spire-stats/:uid` | GET | Per-difficulty player stats (runs, wins, champion, arceus damage) |
@@ -465,17 +461,19 @@ The same `discord.ts` file also has webhook-based announcements for bans and bot
 | 2 | Silver | Silver | Silver |
 | 3 | Gold | Gold | Silver |
 
+### Act 3 Item Class System (`spire-encounters.ts`)
+In Act 3, encounter Pokemon no longer receive random items/components. Instead, each Pokemon is assigned a class (Frontline, Physical, Special, Support) weighted by its base stats (ATK, DEF, SpeDEF, range), and receives 0-3 items (0-2 on easy) drawn from that class's item pool. This applies to all Act 3 encounters including elites, but NOT legendary bosses (which keep their fixed thematic items) or champion/E4 fights. `addHardModeItems` and `adjustEncounterItems` skip Act 3 entirely.
+
 ### Hard Mode Extra Items (`addHardModeItems` in `spire-encounters.ts`)
-Extra random item components added to each encounter Pokemon slot:
+Extra random item components added to each encounter Pokemon slot (Acts 1-2 only; Act 3 uses the class system above):
 - Act 1: 0.5x team size
 - Act 2: 1.25x team size
-- Act 3: 1.75x team size
 
 ### Hard Mode Boss Boost (`applyHardBossBoost`)
 Act 3 legendary bosses on hard get: +1 extra legendary Pokemon (random from Celebi/Jirachi/Victini/Manaphy/Shaymin/Phione) with Soul Dew, +200 HP, +5 ATK.
 
 ### Arceus (Act 5 Boss)
-14 items, +5000 HP, +100 ATK, +40 DEF, +40 SpDEF, +300 AP. Arceus fight always ends in "defeat" — score is damage dealt.
+14 items, +10000 HP, +150 ATK, +60 DEF, +60 SpDEF, +500 AP. Arceus fight always ends in "defeat" — score is damage dealt. Top 5 damage scores per difficulty tracked in `arceus-record*.json`. Tilemap set to "In the Nightmare" region. Can be challenged after winning OR losing the champion fight (guard: `currentAct === 4`, admin bypass).
 
 ### Game Speed
 Cycles through 0.5x → 1x → 2x → 3x. State field is `float32`. Server validates allowed values in `GAME_SPEED` handler.
