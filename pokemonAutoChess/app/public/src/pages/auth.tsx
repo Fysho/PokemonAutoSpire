@@ -47,7 +47,7 @@ export default function Auth() {
         </div>
       </main>
       <div className="media">
-        <span>V1.3</span>
+        <span>V1.4</span>
         <p>
           Made by a fan of a mod made by 2 fans, for fans
           <br />
