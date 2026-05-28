@@ -199,9 +199,9 @@ export const server = defineServer({
     app.get("/api/public-runs", async (req, res) => {
       try {
         const { matchMaker } = await import("colyseus")
-        const rooms = await matchMaker.query({ name: "game" })
+        const rooms = await matchMaker.query({})
         const runs = rooms
-          .filter((r) => r.clients > 0 && r.metadata?.ownerName)
+          .filter((r) => r.clients > 0 && r.metadata?.ownerName && r.metadata?.type === "game")
           .map((r) => ({
             roomId: r.roomId,
             ownerName: r.metadata?.ownerName ?? "Unknown",

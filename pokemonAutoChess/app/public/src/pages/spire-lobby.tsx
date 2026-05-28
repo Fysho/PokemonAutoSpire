@@ -470,12 +470,15 @@ function SpireLobbyContent({
   const { t } = useTranslation()
   const selectedAscension = ASCENSION_RANKS[ascensionIndex]
 
+  const uid = useAppSelector((state) => state.network.uid)
+  const isGuest = !uid || uid === "local-player"
+
   useEffect(() => {
+    if (isGuest) return
     const lastPatch = localStore.get(LocalStoreKeys.SPIRE_LAST_PATCH_SEEN)
     const lastVersion = localStore.get(LocalStoreKeys.SPIRE_LAST_VERSION_SEEN)
     if (lastPatch !== CURRENT_PATCH) {
       setShowPatchPopup(true)
-      localStore.set(LocalStoreKeys.SPIRE_LAST_PATCH_SEEN, CURRENT_PATCH)
     } else if (lastVersion !== CURRENT_VERSION) {
       setShowHotfixButton(true)
     }
@@ -1078,7 +1081,7 @@ function SpireLobbyContent({
             justifyContent: "center",
             zIndex: 9999
           }}
-          onClick={() => setShowPatchPopup(false)}
+          onClick={() => { setShowPatchPopup(false); localStore.set(LocalStoreKeys.SPIRE_LAST_PATCH_SEEN, CURRENT_PATCH); localStore.set(LocalStoreKeys.SPIRE_LAST_VERSION_SEEN, CURRENT_VERSION) }}
         >
           <div
             className="my-container my-box"
@@ -1098,7 +1101,7 @@ function SpireLobbyContent({
             </p>
             <button
               className="bubbly"
-              onClick={() => setShowPatchPopup(false)}
+              onClick={() => { setShowPatchPopup(false); localStore.set(LocalStoreKeys.SPIRE_LAST_PATCH_SEEN, CURRENT_PATCH); localStore.set(LocalStoreKeys.SPIRE_LAST_VERSION_SEEN, CURRENT_VERSION) }}
               style={{ backgroundColor: "#555" }}
             >
               Close
