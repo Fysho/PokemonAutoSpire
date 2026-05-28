@@ -639,6 +639,11 @@ export interface IGameMetadata {
   type: "game"
   tournamentId: string | null
   bracketId: string | null
+  difficultyMode?: number
+  currentAct?: number
+  currentFloor?: number
+  runHP?: number
+  spectatorCount?: number
 }
 
 export interface ISuggestionUser {

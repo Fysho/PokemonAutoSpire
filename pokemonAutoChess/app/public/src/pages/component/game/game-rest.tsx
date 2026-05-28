@@ -17,13 +17,15 @@ interface RestChoice {
 interface GameRestProps {
   runHP: number
   choices: RestChoice[]
+  readOnly?: boolean
 }
 
-export default function GameRest({ runHP, choices }: GameRestProps) {
+export default function GameRest({ runHP, choices, readOnly }: GameRestProps) {
   const { t } = useTranslation()
   const [visible, setVisible] = useState(true)
 
   const handleChoice = (index: number) => {
+    if (readOnly) return
     playSound(SOUNDS.BUTTON_CLICK)
     rooms.game?.send(Transfer.CHOICE, { choiceId: "rest", choiceIndex: index })
   }

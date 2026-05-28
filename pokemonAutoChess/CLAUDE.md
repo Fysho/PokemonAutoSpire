@@ -471,13 +471,14 @@ Extra random item components added to each encounter Pokemon slot (Acts 1-2 only
 - Act 1: 0.5x team size (hard), 0.75x team size (impossible, starts from floor 4 instead of floor 9)
 - Act 2: 1.25x team size (hard; impossible uses class items instead)
 
-### Impossible Mode Star Budget (`getStarBudgetOffset`)
-Impossible mode gets +1 star budget across all acts, resulting in slightly more evolved Pokemon in encounters.
+### Impossible Mode Encounter Scaling (`getDifficultyConfig`)
+- All acts: +1 star budget (via `getStarBudgetOffset`)
+- Act 3: +2 Pokemon count, +5 star budget (on top of the +1 above)
 
 ### Boss Boost (`applyBossBoost`)
 - **Hard Act 3**: +1 random legendary (from Celebi/Jirachi/Victini/Manaphy/Shaymin/Phione) with Soul Dew, +200 HP, +5 ATK.
 - **Impossible Act 2**: +150 HP, +3 ATK (stat boost only, no extra Pokemon).
-- **Impossible Act 3**: +Regidrago +Walking Wake (each with Soul Dew), +300 HP, +8 ATK, +3 DEF, +3 SpeDef, extra class item per Pokemon.
+- **Impossible Act 3**: +Mega Rayquaza +Roaring Moon (each with Soul Dew), +300 HP, +8 ATK, +3 DEF, +3 SpeDef, extra class item per Pokemon.
 
 ### Arceus (Act 5 Boss)
 14 items, +10000 HP, +150 ATK, +60 DEF, +60 SpDEF, +500 AP. Arceus fight always ends in "defeat" — score is damage dealt. Top 5 damage scores per difficulty tracked in `arceus-record*.json`. Tilemap set to "In the Nightmare" region. Can be challenged after winning OR losing the champion fight (guard: `currentAct === 4`, admin bypass).

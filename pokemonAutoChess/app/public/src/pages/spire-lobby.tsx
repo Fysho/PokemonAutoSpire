@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router"
 import { useTranslation } from "react-i18next"
-import { clearGameReconnection, client, getIdToken, joinGame } from "../network"
+import { clearGameReconnection, client, getIdToken, joinGame, spectateGame } from "../network"
 import { useAppSelector } from "../hooks"
 import { SynergyTriggers } from "../../../config"
 import { computeSynergies } from "../../../models/colyseus-models/synergies"
@@ -118,6 +118,16 @@ export default function SpireLobby() {
   const [confirmOverwrite, setConfirmOverwrite] = useState<number | null>(null)
   const [lostRunPopup, setLostRunPopup] = useState<"found" | "not-found" | "error" | "searching" | null>(null)
   const [hasHardWin, setHasHardWin] = useState(false)
+  const [publicRuns, setPublicRuns] = useState<{
+    roomId: string
+    ownerName: string
+    difficultyMode: number
+    currentAct: number
+    currentFloor: number
+    runHP: number
+    spectatorCount: number
+  }[]>([])
+  const [joiningSpectate, setJoiningSpectate] = useState(false)
 
   useEffect(() => {
     if (!uid) {
@@ -169,6 +179,15 @@ export default function SpireLobby() {
   }, [playerRegion])
 
   useEffect(() => { clearGameReconnection() }, [])
+
+  function refreshRuns() {
+    fetch("/api/public-runs")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setPublicRuns(data) })
+      .catch(() => {})
+  }
+
+  useEffect(() => { refreshRuns() }, [])
 
   useEffect(() => {
     if (!uid || uid === "local-player") {
@@ -303,6 +322,18 @@ export default function SpireLobby() {
       .catch(() => {})
   }
 
+  async function watchRun(roomId: string) {
+    if (joiningSpectate) return
+    setJoiningSpectate(true)
+    try {
+      const room = await spectateGame(roomId)
+      navigate("/game")
+    } catch (err) {
+      console.error("Failed to spectate:", err)
+      setJoiningSpectate(false)
+    }
+  }
+
   return (
     <main className="lobby">
       <MainSidebar
@@ -362,6 +393,10 @@ export default function SpireLobby() {
           isAdmin={isAdmin}
           nameWarning={nameWarning}
           setNameWarning={setNameWarning}
+          publicRuns={publicRuns}
+          joiningSpectate={joiningSpectate}
+          watchRun={watchRun}
+          refreshRuns={refreshRuns}
         />
       </div>
     </main>
@@ -391,7 +426,11 @@ function SpireLobbyContent({
   hasHardWin,
   isAdmin,
   nameWarning,
-  setNameWarning
+  setNameWarning,
+  publicRuns,
+  joiningSpectate,
+  watchRun,
+  refreshRuns
 }: {
   startRun: (difficultyMode: number) => void
   resumeRun: () => void
@@ -416,12 +455,16 @@ function SpireLobbyContent({
   isAdmin: boolean
   nameWarning: boolean
   setNameWarning: (v: boolean) => void
+  publicRuns: { roomId: string; ownerName: string; difficultyMode: number; currentAct: number; currentFloor: number; runHP: number; spectatorCount: number }[]
+  joiningSpectate: boolean
+  watchRun: (roomId: string) => void
+  refreshRuns: () => void
 }) {
   const [activeSection, setActive] = useState<string>("rooms")
   const [ascensionIndex, setAscensionIndex] = useState(0)
-  const [hatchIcon] = useState(() => pickRandFrom(HATCH_POOL))
-  const [uniqueIcon] = useState(() => pickRandFrom(UNIQUE_POOL))
-  const [legendaryIcon] = useState(() => pickRandFrom(LEGENDARY_POOL))
+  const [runSortBy, setRunSortBy] = useState<"stage" | "difficulty">("stage")
+  const [runSortAsc, setRunSortAsc] = useState(false)
+  const [runFilterDifficulty, setRunFilterDifficulty] = useState<number | null>(null)
   const [showPatchPopup, setShowPatchPopup] = useState(false)
   const [showHotfixButton, setShowHotfixButton] = useState(false)
   const { t } = useTranslation()
@@ -448,7 +491,7 @@ function SpireLobbyContent({
             className={cc({ active: activeSection === "leaderboard" })}
           >
             <img width={32} height={32} src={`assets/ui/meta.svg`} />
-            How to Play
+            Live Runs
           </li>
           <li
             onClick={() => setActive("rooms")}
@@ -472,82 +515,97 @@ function SpireLobbyContent({
           active: activeSection === "leaderboard"
         })}
       >
-        <div className="my-container custom-bg hidden-scrollable" style={{ padding: "12px 16px", fontSize: "14px", lineHeight: "1.6", color: "var(--color-fg-primary)" }}>
-          <h2 style={{ textAlign: "center", marginBottom: "8px" }}>How to Play</h2>
-
-          <p>
-            <strong>Pokemon Auto Spire</strong> is a single-player roguelike auto-battler.
-            Build a team of Pokemon, navigate a branching map across 3 acts, and defeat legendary bosses.
-          </p>
-
-          <h3 style={{ marginTop: "12px" }}>Map Nodes</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", margin: "4px 0" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "48px", height: "48px", flexShrink: 0, position: "relative" }}>
-                <img src="assets/types/FIRE.svg" style={{ width: "24px", height: "24px", position: "absolute", top: 0, left: "12px" }} />
-                <img src="assets/types/WATER.svg" style={{ width: "24px", height: "24px", position: "absolute", bottom: 0, left: 0 }} />
-                <img src="assets/types/GRASS.svg" style={{ width: "24px", height: "24px", position: "absolute", bottom: 0, right: 0 }} />
-              </div>
-              <span><strong>Wild Battle</strong> — Fight regional Pokemon. Shown as synergy type icons in a triangle.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <img src="assets/item/WATER_GEM.png" style={{ width: "48px", height: "48px", flexShrink: 0 }} />
-              <span><strong>Gym Leader</strong> — Themed synergy team. Win for a synergy gem + crafted item/tool.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "48px", height: "48px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img src={`assets/ui/elite-sprites-v2/${PkmIndex[Pkm.GYARADOS]}.png`} style={{ width: "48px", height: "48px", objectFit: "contain" as const, imageRendering: "pixelated", filter: "drop-shadow(0 0 3px rgba(192, 57, 43, 0.8)) drop-shadow(0 0 6px rgba(192, 57, 43, 0.5))" }} />
-              </div>
-              <span><strong>Elite</strong> — Tough themed encounters with unique rewards. Faint red glow on map.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "48px", height: "48px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img src={eliteSpriteSrc(hatchIcon)} style={{ width: "48px", height: "48px", objectFit: "contain" as const, imageRendering: "pixelated" }} />
-              </div>
-              <span><strong>Hatch Unlock</strong> (Act 1) — Win to get a pokemon egg. 8 stages to evolve.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "48px", height: "48px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img src={eliteSpriteSrc(uniqueIcon)} style={{ width: "48px", height: "48px", objectFit: "contain" as const, imageRendering: "pixelated" }} />
-              </div>
-              <span><strong>Unique Unlock</strong> (Act 2) — Win to recruit a unique Pokemon.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "48px", height: "48px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img src={eliteSpriteSrc(legendaryIcon)} style={{ width: "48px", height: "48px", objectFit: "contain" as const, imageRendering: "pixelated" }} />
-              </div>
-              <span><strong>Legendary Unlock</strong> (Act 3) — Win to recruit a legendary Pokemon.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <img src="assets/ui/pokemart-sprite.png" style={{ width: "48px", height: "48px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><strong>PokeMart</strong> — Walk-around shop to buy Pokemon and items with gold.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <img src="assets/ui/pokecenter-sprite.png" style={{ width: "48px", height: "48px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><strong>Pokemon Center</strong> — Heal 30 HP, get a Ditto, or take a Dojo Ticket.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <img src="assets/unown/unown-qm.png" style={{ width: "64px", height: "64px", imageRendering: "pixelated", flexShrink: 0, margin: "-8px -8px" }} />
-              <span><strong>Mystery</strong> — Random events with risk/reward choices.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "48px", height: "48px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img src={`assets/ui/elite-sprites-v2/${PkmIndex[Pkm.ARCEUS]}.png`} style={{ width: "48px", height: "48px", objectFit: "contain" as const, imageRendering: "pixelated" }} />
-              </div>
-              <span><strong>Boss</strong> — Act-ending legendary fight. Shown as large Pokemon sprites on the map.</span>
-            </div>
+        <div className="my-container custom-bg hidden-scrollable" style={{ padding: "12px 16px", color: "var(--color-fg-primary)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+            <h2 style={{ margin: 0, flex: 1 }}>Live Runs</h2>
+            <button
+              className="bubbly"
+              onClick={refreshRuns}
+              style={{ fontSize: "11px", padding: "3px 10px", background: "#555" }}
+            >
+              Refresh
+            </button>
           </div>
 
-          <h3 style={{ marginTop: "12px" }}>Things to Note</h3>
-          <ul style={{ paddingLeft: "20px", margin: "4px 0" }}>
-            <li>You only need 6 copies of a Pokemon to reach 3★ instead of 9.</li>
-            <li>Dojo Tickets work instantly and you can only use one per act on each Pokemon.</li>
-            <li>Winning a wild battle gives 1 extra reward choice and a Ditto chance.</li>
-            <li>Re-rolling a unique reward will give you the regular reward pool.</li>
-            <li>Egg Pokemon take 8 stages to evolve after hatching.</li>
-            <li>Pokemon Centers offer healing, Ditto, or Dojo Tickets for stat boosts.</li>
-            <li>Gym wins grant a synergy gem (+1 synergy level) plus a choice of rewards.</li>
-          </ul>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: "12px" }}>Sort:</label>
+            <select
+              value={runSortBy}
+              onChange={(e) => setRunSortBy(e.target.value as "stage" | "difficulty")}
+              style={{ padding: "2px 6px", fontSize: "12px", background: "rgba(0,0,0,0.3)", color: "white", border: "1px solid #555", borderRadius: "4px" }}
+            >
+              <option value="stage">Stage</option>
+              <option value="difficulty">Difficulty</option>
+            </select>
+            <button
+              onClick={() => setRunSortAsc((v) => !v)}
+              style={{ padding: "2px 6px", fontSize: "12px", background: "rgba(0,0,0,0.3)", color: "white", border: "1px solid #555", borderRadius: "4px", cursor: "pointer" }}
+            >
+              {runSortAsc ? "▲" : "▼"}
+            </button>
+            <label style={{ fontSize: "12px", marginLeft: "8px" }}>Filter:</label>
+            <select
+              value={runFilterDifficulty ?? "all"}
+              onChange={(e) => setRunFilterDifficulty(e.target.value === "all" ? null : Number(e.target.value))}
+              style={{ padding: "2px 6px", fontSize: "12px", background: "rgba(0,0,0,0.3)", color: "white", border: "1px solid #555", borderRadius: "4px" }}
+            >
+              <option value="all">All</option>
+              <option value="0">Easy</option>
+              <option value="1">Normal</option>
+              <option value="2">Hard</option>
+              <option value="3">Impossible</option>
+            </select>
+            <span style={{ marginLeft: "auto", fontSize: "12px", opacity: 0.6 }}>
+              {publicRuns.length} active
+            </span>
+          </div>
+
+          {(() => {
+            const filtered = publicRuns
+              .filter((r) => runFilterDifficulty === null || r.difficultyMode === runFilterDifficulty)
+              .sort((a, b) => {
+                const dir = runSortAsc ? 1 : -1
+                if (runSortBy === "difficulty") return (a.difficultyMode - b.difficultyMode) * dir
+                return ((a.currentAct * 100 + a.currentFloor) - (b.currentAct * 100 + b.currentFloor)) * dir
+              })
+            return filtered.length === 0 ? (
+              <span style={{ fontSize: "13px", opacity: 0.5 }}>
+                {publicRuns.length === 0 ? "No active runs" : "No runs match filter"}
+              </span>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {filtered.map((run) => (
+                  <div key={run.roomId} className="my-box" style={{
+                    display: "flex", alignItems: "center", gap: "8px", padding: "6px 10px", flexWrap: "wrap"
+                  }}>
+                    <span style={{ fontWeight: "bold", fontSize: "13px", minWidth: "90px", display: "inline-block" }}>{run.ownerName}</span>
+                    <span style={{ fontSize: "12px", color: "white", minWidth: "65px", display: "inline-block" }}>
+                      {DIFFICULTY_LABELS[run.difficultyMode] ?? "Normal"}
+                    </span>
+                    <span style={{ fontSize: "12px", opacity: 0.8, minWidth: "100px", display: "inline-block" }}>
+                      Act {run.currentAct} &middot; Floor {run.currentFloor}
+                    </span>
+                    <span style={{ fontSize: "12px", color: run.runHP <= 30 ? "#e74c3c" : "#2ecc71" }}>
+                      {run.runHP} HP
+                    </span>
+                    {run.spectatorCount > 0 && (
+                      <span style={{ fontSize: "11px", opacity: 0.5 }}>
+                        {run.spectatorCount} watching
+                      </span>
+                    )}
+                    <button
+                      className="bubbly blue"
+                      disabled={joiningSpectate}
+                      onClick={() => watchRun(run.roomId)}
+                      style={{ marginLeft: "auto", fontSize: "11px", padding: "3px 10px" }}
+                    >
+                      {joiningSpectate ? "Joining..." : "Watch"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       </section>
 
@@ -739,6 +797,7 @@ function SpireLobbyContent({
               </div>
             </li>
           </ul>
+
           <div className="my-box" style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", flexWrap: "wrap" }}>
             <img
               src={getPortraitSrc(avatarIndex)}
@@ -1116,10 +1175,10 @@ interface ChampionData {
 }
 
 const DIFF_ORDER: { mode: number; label: string; color: string }[] = [
-  { mode: 3, label: "Impossible", color: "#ffffff" },
-  { mode: 2, label: "Hard", color: "#ffffff" },
+  { mode: 0, label: "Easy", color: "#ffffff" },
   { mode: 1, label: "Normal", color: "#ffffff" },
-  { mode: 0, label: "Easy", color: "#ffffff" }
+  { mode: 2, label: "Hard", color: "#ffffff" },
+  { mode: 3, label: "Impossible", color: "#ffffff" }
 ]
 
 function formatDurationClient(ms: number): string {

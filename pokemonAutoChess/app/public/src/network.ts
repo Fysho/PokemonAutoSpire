@@ -128,6 +128,19 @@ export function joinGame(room: Room<GameState>) {
   } catch { /* localStorage unavailable */ }
 }
 
+export async function spectateGame(roomId: string): Promise<Room<GameState>> {
+  const idToken = await getIdToken()
+  const uid = store.getState().network.uid || "local-player"
+  const room = await client.joinById<GameState>(roomId, {
+    idToken,
+    odToken: uid,
+    isSpectator: true
+  })
+  leaveAllRooms()
+  rooms.game = room
+  return room
+}
+
 export function clearGameReconnection() {
   try { localStorage.removeItem("spire_reconnect") } catch { /* noop */ }
 }

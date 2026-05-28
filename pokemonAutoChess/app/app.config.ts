@@ -196,6 +196,28 @@ export const server = defineServer({
       }
     })
 
+    app.get("/api/public-runs", async (req, res) => {
+      try {
+        const { matchMaker } = await import("colyseus")
+        const rooms = await matchMaker.query({ name: "game" })
+        const runs = rooms
+          .filter((r) => r.clients > 0 && r.metadata?.ownerName)
+          .map((r) => ({
+            roomId: r.roomId,
+            ownerName: r.metadata?.ownerName ?? "Unknown",
+            difficultyMode: r.metadata?.difficultyMode ?? 1,
+            currentAct: r.metadata?.currentAct ?? 1,
+            currentFloor: r.metadata?.currentFloor ?? 0,
+            runHP: r.metadata?.runHP ?? 100,
+            spectatorCount: r.metadata?.spectatorCount ?? 0,
+            clients: r.clients ?? 1
+          }))
+        res.json(runs)
+      } catch (error) {
+        res.json([])
+      }
+    })
+
     app.get("/api/saved-run/:uid", async (req, res) => {
       try {
         const { getSavedRunSummary } = await import("./services/run-save")

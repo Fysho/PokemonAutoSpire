@@ -990,7 +990,7 @@ export default class BoardManager {
               pokemonSprite.x = coordinates[0]
               pokemonSprite.y = coordinates[1]
             },
-            this.scene.spectate ? 3000 : 0 // delay position update for spectators, see https://discord.com/channels/737230355039387749/1489057261593694318
+            0
           )
           store.dispatch(refreshShopUI(0))
           this.showSupportItemsVfx(
@@ -1011,7 +1011,7 @@ export default class BoardManager {
               pokemonSprite.x = coordinates[0]
               pokemonSprite.y = coordinates[1]
             },
-            this.scene.spectate ? 3000 : 0 // delay position update for spectators, see https://discord.com/channels/737230355039387749/1489057261593694318
+            0
           )
           const simulation = this.scene?.room?.state.simulations.get(
             this.player.simulationId

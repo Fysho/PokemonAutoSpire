@@ -15,6 +15,7 @@ interface GameEventProps {
   choices: EventChoice[]
   runHP: number
   gold: number
+  readOnly?: boolean
 }
 
 export default function GameEvent({
@@ -23,7 +24,8 @@ export default function GameEvent({
   portrait,
   choices,
   runHP,
-  gold
+  gold,
+  readOnly
 }: GameEventProps) {
   const handleChoice = (index: number) => {
     rooms.game?.send(Transfer.CHOICE, { choiceId: "event", choiceIndex: index })
@@ -68,12 +70,14 @@ export default function GameEvent({
             <button
               key={i}
               className="my-box clickable"
-              onClick={() => handleChoice(i)}
+              onClick={() => !readOnly && handleChoice(i)}
+              disabled={readOnly}
               style={{
                 padding: "10px 20px",
                 fontSize: "14px",
-                cursor: "pointer",
-                textAlign: "left"
+                cursor: readOnly ? "default" : "pointer",
+                textAlign: "left",
+                opacity: readOnly ? 0.6 : 1
               }}
             >
               <strong>{choice.label}</strong>

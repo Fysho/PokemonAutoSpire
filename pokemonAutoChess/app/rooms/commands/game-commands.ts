@@ -1153,6 +1153,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       }
       this.initializePickingPhase()
     }
+
+    this.room.updateSpectateMetadata()
   }
 
   generateWildRewardChoice(player: Player, node: any, won: boolean, rerolled = false) {

@@ -20,12 +20,15 @@ export default function HowToPlay() {
             <tr><th>Node</th><th>Description</th></tr>
           </thead>
           <tbody>
-            <tr><td>Wild Battle</td><td>Fight wild Pokemon from the region's synergy types. In Acts 2-3, encounters focus on one synergy from the region.</td></tr>
-            <tr><td>Gym Leader</td><td>Fight a gym leader team themed around a synergy type. No synergy repeats within the same act.</td></tr>
-            <tr><td>Elite</td><td>Challenging themed encounter with special Pokemon rewards on win.</td></tr>
+            <tr><td>Wild Battle</td><td>Fight wild Pokemon from the region's synergy types. In Acts 2-3, encounters focus on one synergy from the region. Shown as synergy type icons in a triangle on the map.</td></tr>
+            <tr><td>Gym Leader</td><td>Fight a gym leader team themed around a synergy type. No synergy repeats within the same act. Win for a synergy gem (+1 synergy level) plus a choice of rewards.</td></tr>
+            <tr><td>Elite</td><td>Challenging themed encounter with special Pokemon rewards on win. Shown with a faint red glow on the map.</td></tr>
+            <tr><td>Hatch Unlock (Act 1)</td><td>Win to get a Pokemon egg. 8 stages to evolve after hatching.</td></tr>
+            <tr><td>Unique Unlock (Act 2)</td><td>Win to recruit a unique Pokemon.</td></tr>
+            <tr><td>Legendary Unlock (Act 3)</td><td>Win to recruit a legendary Pokemon.</td></tr>
             <tr><td>PokeMart</td><td>Walk-around shop. Buy Pokemon and items with gold. Acts 1-2 include Pokemon Eggs (12g each).</td></tr>
-            <tr><td>Pokemon Center</td><td>Choose one: a random item component, a Ditto, or a Dojo Ticket (instant stat boost).</td></tr>
-            <tr><td>Mystery</td><td>Random event with 2-3 choices — items, gold, healing, or risk/reward trades.</td></tr>
+            <tr><td>Pokemon Center</td><td>Choose one: heal 30 HP, a Ditto, or a Dojo Ticket (instant stat boost).</td></tr>
+            <tr><td>Mystery</td><td>Random event with 2-4 choices — items, gold, healing, or risk/reward trades.</td></tr>
             <tr><td>Boss</td><td>Act-ending legendary boss fight. Choose 1 of 3 shiny items on win.</td></tr>
           </tbody>
         </table>
@@ -38,6 +41,9 @@ export default function HowToPlay() {
           <li>Dojo Tickets work instantly and you can only use one per act on each Pokemon.</li>
           <li>Winning a wild battle gives 1 extra reward choice and a Ditto chance.</li>
           <li>Re-rolling a unique reward will give you the regular reward pool.</li>
+          <li>Egg Pokemon take 8 stages to evolve after hatching.</li>
+          <li>Pokemon Centers offer healing, Ditto, or Dojo Tickets for stat boosts.</li>
+          <li>Gym wins grant a synergy gem (+1 synergy level) plus a choice of rewards.</li>
         </ul>
       </section>
 

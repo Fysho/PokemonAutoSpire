@@ -704,6 +704,12 @@ function getDifficultyConfig(act: number, floor: number, mode: DifficultyMode = 
       Math.max(config.pokemonCount, config.starBudget[1] + offset)
     ]
   }
+
+  if (mode === 3 && act >= 3) {
+    config.pokemonCount += 2
+    config.starBudget = [config.starBudget[0] + 5, config.starBudget[1] + 5]
+  }
+
   return config
 }
 
@@ -1496,7 +1502,7 @@ function applyBossBoost(encounter: SpireEncounter, act: number, mode: Difficulty
 
   // Hard Act 3: +1 random legendary with Soul Dew, +200 HP, +5 ATK
   // Impossible Act 2: +150 HP, +3 ATK (stat boost only, no extra legendary)
-  // Impossible Act 3: +Regidrago +Walking Wake with Soul Dew, +300 HP, +8 ATK, +3 DEF, +3 SpeDef, extra class items
+  // Impossible Act 3: +Mega Rayquaza +Roaring Moon with Soul Dew, +300 HP, +8 ATK, +3 DEF, +3 SpeDef, extra class items
   if (mode === 2 && act < 3) return encounter
   if (mode === 3 && act < 2) return encounter
 
@@ -1512,8 +1518,8 @@ function applyBossBoost(encounter: SpireEncounter, act: number, mode: Difficulty
   const findFreeX = (row: number) => [0, 1, 2, 3, 4, 5, 6, 7].find(x => !occupiedSlots.has(`${x},${row}`)) ?? 1
 
   if (mode === 3) {
-    // Impossible Act 3: add Regidrago and Walking Wake
-    const extras: [Pkm, Item][] = [[Pkm.REGIDRAGO, Item.SOUL_DEW], [Pkm.WALKING_WAKE, Item.SOUL_DEW]]
+    // Impossible Act 3: add Mega Rayquaza and Roaring Moon
+    const extras: [Pkm, Item][] = [[Pkm.MEGA_RAYQUAZA, Item.SOUL_DEW], [Pkm.ROARING_MOON, Item.SOUL_DEW]]
     for (const [pkm, item] of extras) {
       const freeX = findFreeX(1)
       adjusted.board.push([pkm, freeX, 1] as [Pkm, number, number])

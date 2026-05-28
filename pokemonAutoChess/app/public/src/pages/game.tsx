@@ -99,7 +99,7 @@ import {
   setRole
 } from "../stores/NetworkStore"
 import GameChoice from "./component/game/game-choice"
-import GameEvent from "./component/game/game-event"
+import GameEventOverlay from "./component/game/game-event"
 import GameOpponentItems from "./component/game/game-opponent-items"
 import GameRelicBar from "./component/game/game-relic-bar"
 import GameRunEnd from "./component/game/game-run-end"
@@ -199,7 +199,8 @@ export default function Game() {
   )
   const connectedPlayer = useAppSelector(selectConnectedPlayer)
   const spectatedPlayer = useAppSelector(selectSpectatedPlayer)
-  const spectate = spectatedPlayerId !== uid || !spectatedPlayer?.alive
+  const isSpectator = room?.state?.spectators?.has(uid) ?? false
+  const spectate = isSpectator || spectatedPlayerId !== uid || !spectatedPlayer?.alive
 
   const initialized = useRef<boolean>(false)
   const connecting = useRef<boolean>(false)
@@ -212,6 +213,7 @@ export default function Game() {
   const [loaded, setLoaded] = useState<boolean>(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState<boolean>(false)
   const [connectError, setConnectError] = useState<string>("")
+  const [spectatorCount, setSpectatorCount] = useState<number>(0)
   const [finalRank, setFinalRank] = useState<number>(0)
   enum FinalRankVisibility {
     HIDDEN,
@@ -731,7 +733,8 @@ export default function Game() {
         gameContainer.initializePlayer(player)
         const $player = $(player)
 
-        if (player.id == uid) {
+        const isViewedPlayer = () => player.id === uid || (room?.state?.spectators?.has(uid) ?? false)
+        if (isViewedPlayer()) {
           dispatch(setInterest(player.interest))
           dispatch(setMaxInterest(player.maxInterest))
           dispatch(setStreak(player.streak))
@@ -757,7 +760,6 @@ export default function Game() {
           $player.listen("money", (value, previousValue) => {
             dispatch(setMoney(value))
             if (value - previousValue >= 30) {
-              // show income toast for significant income only
               showMoneyToast(value - previousValue)
             }
           })
@@ -789,7 +791,7 @@ export default function Game() {
         })
         $player.listen("experienceManager", (experienceManager) => {
           const $experienceManager = $(experienceManager)
-          if (player.id === uid) {
+          if (isViewedPlayer()) {
             dispatch(updateExperienceManager(experienceManager))
             const fields = [
               "experience",
@@ -955,9 +957,27 @@ export default function Game() {
         setMapVersion((v) => v + 1)
       })
 
-      $state.spectators.onAdd((uid) => {
-        gameContainer.initializeSpectactor(uid)
+      $state.spectators.onAdd((spectatorUid) => {
+        gameContainer.initializeSpectactor(spectatorUid)
+        setSpectatorCount(room?.state?.spectators?.size ?? 0)
+        if (spectatorUid === uid) {
+          if (room?.state?.phase === GamePhaseState.MAP) {
+            setMapHidden(false)
+          }
+          const hostPlayer = room?.state?.players?.values().next().value
+          if (hostPlayer) {
+            dispatch(setMoney(hostPlayer.money))
+            dispatch(setInterest(hostPlayer.interest))
+            dispatch(setMaxInterest(hostPlayer.maxInterest))
+            dispatch(setStreak(hostPlayer.streak))
+            dispatch(updateExperienceManager(hostPlayer.experienceManager))
+          }
+        }
       })
+      $state.spectators.onRemove(() => {
+        setSpectatorCount(room?.state?.spectators?.size ?? 0)
+      })
+      setSpectatorCount(room?.state?.spectators?.size ?? 0)
     }
   }, [
     connected,
@@ -996,7 +1016,25 @@ export default function Game() {
       {loaded ? (
         <>
           <MainSidebar page="game" leave={leave} leaveLabel={t("leave_game")} />
-          <GameRelicBar items={Array.from(connectedPlayer?.items ?? [])} />
+          {spectatorCount > 0 && (
+            <div style={{
+              position: "absolute", top: "8px", left: "60px",
+              padding: "4px 10px", borderRadius: "8px", background: "rgba(0,0,0,0.5)",
+              color: "white", fontSize: "12px", zIndex: 200
+            }}>
+              {spectatorCount} watching
+            </div>
+          )}
+          {isSpectator && (
+            <div style={{
+              position: "absolute", top: "8px", left: spectatorCount > 0 ? "170px" : "60px",
+              padding: "4px 10px", borderRadius: "8px", background: "rgba(52,152,219,0.7)",
+              color: "white", fontSize: "12px", zIndex: 200, fontWeight: "bold"
+            }}>
+              Spectating
+            </div>
+          )}
+          <GameRelicBar items={Array.from((isSpectator ? spectatedPlayer : connectedPlayer)?.items ?? [])} />
           <GameOpponentItems />
           {(runComplete || runFailed) && (() => {
             const history = Array.from(connectedPlayer?.history ?? [])
@@ -1049,8 +1087,8 @@ export default function Game() {
               currentFloor={currentFloor}
               runHP={runHP}
               onHide={() => setMapHidden(true)}
-              readOnly={!isMapPhase && (connectedPlayer?.choices?.length ?? 0) > 0}
-              showRerollMap={connectedPlayer?.choices?.some((c: any) => c.type === "starter") ?? false}
+              readOnly={spectate || (!isMapPhase && (connectedPlayer?.choices?.length ?? 0) > 0)}
+              showRerollMap={!spectate && (connectedPlayer?.choices?.some((c: any) => c.type === "starter") ?? false)}
               hasChoicesPending={(connectedPlayer?.choices?.length ?? 0) > 0}
             />
           )}
@@ -1061,10 +1099,11 @@ export default function Game() {
                 label,
                 description: room.state.spireEventChoiceDescs?.[i] ?? ""
               }))}
+              readOnly={spectate}
             />
           )}
           {isEventPhase && room?.state && (
-            <GameEvent
+            <GameEventOverlay
               eventName={room.state.spireEventName}
               eventDescription={room.state.spireEventDescription}
               portrait={room.state.spireEventPortrait}
@@ -1074,12 +1113,13 @@ export default function Game() {
               }))}
               runHP={runHP}
               gold={money}
+              readOnly={spectate}
             />
           )}
           {isRewardPhase && (
             <GameReward runHP={runHP} gold={money} />
           )}
-          {!runComplete && !runFailed && isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
+          {!spectate && !runComplete && !runFailed && isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
             <div style={{
               position: "absolute",
               bottom: "170px",
@@ -1104,7 +1144,7 @@ export default function Game() {
               </button>
             </div>
           )}
-          {phase === GamePhaseState.PICK && (
+          {!spectate && phase === GamePhaseState.PICK && (
             <div style={{
               position: "absolute",
               bottom: "170px",
@@ -1129,7 +1169,7 @@ export default function Game() {
               </button>
             </div>
           )}
-          {isShopPhase && (
+          {!spectate && isShopPhase && (
             <div style={{
               position: "absolute", bottom: "200px", left: "50%", transform: "translateX(-50%)", zIndex: 50
             }}>
@@ -1157,7 +1197,7 @@ export default function Game() {
             position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
             display: "flex", flexDirection: "column", gap: "8px", zIndex: 300
           }}>
-            {isAdmin && (
+            {isAdmin && !spectate && (
               <>
                 <button
                   onClick={() => { setRunComplete(true); setEliteFourAvailable(true) }}

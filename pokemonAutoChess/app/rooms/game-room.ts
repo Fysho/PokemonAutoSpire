@@ -136,7 +136,12 @@ export default class GameRoom extends Room<{ state: GameState }> {
       stageLevel: 0,
       type: "game",
       tournamentId,
-      bracketId
+      bracketId,
+      difficultyMode: difficultyMode ?? 1,
+      currentAct: 1,
+      currentFloor: 0,
+      runHP: 100,
+      spectatorCount: 0
     })
     // logger.debug(options);
     this.state = new GameState(
@@ -281,7 +286,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     }, MAX_LOADING_TIME)
 
     this.onMessage(Transfer.SHOP, (client, message) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         try {
           this.dispatcher.dispatch(new OnBuyPokemonCommand(), {
             playerId: client.auth.uid,
@@ -294,7 +299,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.REMOVE_FROM_SHOP, (client, index) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         try {
           this.dispatcher.dispatch(new OnRemoveFromShopCommand(), {
             playerId: client.auth.uid,
@@ -309,7 +314,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.onMessage(
       Transfer.CHOICE,
       (client, message: { choiceId: string; choiceIndex: number }) => {
-        if (!this.state.gameFinished && client.auth) {
+        if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
           try {
             if (message.choiceId === "event") {
               const cmd = new OnUpdatePhaseCommand()
@@ -342,7 +347,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     )
 
     this.onMessage(Transfer.REROLL_REWARD, (client) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
         if (!player || player.money < 1) return
         const choiceIdx = player.choices.findIndex((c) => c.type === "wildReward")
@@ -363,7 +368,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.REROLL_BOSS_REWARD, (client) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
         if (!player || player.money < 20) return
         const choiceIdx = player.choices.findIndex((c) => c.type === "item")
@@ -384,7 +389,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.REROLL_STARTER, (client) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
         if (!player) return
         const choiceIdx = player.choices.findIndex((c) => c.type === "starter")
@@ -419,7 +424,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.REROLL_MAP, (client) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
         if (!player) return
         if (!player.choices.some((c) => c.type === "starter")) return
@@ -431,7 +436,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.PASS_REWARD, (client) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
         if (!player) return
         const choiceIdx = player.choices.findIndex((c) => c.type === "gymReward" || c.type === "eliteReward")
@@ -446,7 +451,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.DRAG_DROP, (client, message: IDragDropMessage) => {
-      if (!this.state.gameFinished) {
+      if (!this.state.gameFinished && this.isPlayer(client)) {
         try {
           this.dispatcher.dispatch(new OnDragDropPokemonCommand(), {
             client: client,
@@ -466,7 +471,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.onMessage(
       Transfer.DRAG_DROP_ITEM,
       (client, message: IDragDropItemMessage) => {
-        if (!this.state.gameFinished) {
+        if (!this.state.gameFinished && this.isPlayer(client)) {
           try {
             this.dispatcher.dispatch(new OnDragDropItemCommand(), {
               client: client,
@@ -487,7 +492,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.onMessage(
       Transfer.DRAG_DROP_COMBINE,
       (client, message: IDragDropCombineMessage) => {
-        if (!this.state.gameFinished) {
+        if (!this.state.gameFinished && this.isPlayer(client)) {
           try {
             this.dispatcher.dispatch(new OnDragDropCombineCommand(), {
               client: client,
@@ -509,7 +514,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
       Transfer.VECTOR,
       (client, message: { x: number; y: number }) => {
         try {
-          if (client.auth) {
+          if (client.auth && this.isPlayer(client)) {
             this.miniGame.applyVector(client.auth.uid, message.x, message.y)
           }
         } catch (error) {
@@ -519,7 +524,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     )
 
     this.onMessage(Transfer.SELL_POKEMON, (client, pokemonId: string) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         try {
           this.dispatcher.dispatch(new OnSellPokemonCommand(), {
             client,
@@ -532,7 +537,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.SELL_ITEM, (client, itemId: string) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
         if (!player || !player.alive) return
         const idx = player.items.findIndex((i: any) => i === itemId)
@@ -543,7 +548,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.REFRESH, (client, message) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         try {
           this.dispatcher.dispatch(new OnShopRerollCommand(), client.auth.uid)
         } catch (error) {
@@ -553,7 +558,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.LOCK, (client, message) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         try {
           this.dispatcher.dispatch(new OnLockCommand(), client.auth.uid)
         } catch (error) {
@@ -565,7 +570,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.onMessage(
       Transfer.SWITCH_BENCH_AND_BOARD,
       (client, pokemonId: string) => {
-        if (!this.state.gameFinished && client.auth) {
+        if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
           try {
             this.dispatcher.dispatch(new OnSwitchBenchAndBoardCommand(), {
               client,
@@ -594,7 +599,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.LEVEL_UP, (client, message) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         try {
           this.dispatcher.dispatch(new OnLevelUpCommand(), client.auth.uid)
         } catch (error) {
@@ -615,7 +620,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.onMessage(
       Transfer.WANDERER_CLICKED,
       async (client, msg: { id: string }) => {
-        if (client.auth) {
+        if (client.auth && this.isPlayer(client)) {
           try {
             this.dispatcher.dispatch(new OnPokemonCatchCommand(), {
               client,
@@ -630,7 +635,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     )
 
     this.onMessage(Transfer.PICK_BERRY, async (client, index) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         try {
           this.dispatcher.dispatch(new OnPickBerryCommand(), {
             playerId: client.auth.uid,
@@ -694,7 +699,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     )
 
     this.onMessage(Transfer.SELECT_MAP_NODE, (client, nodeId: string) => {
-      if (!this.state.gameFinished && client.auth) {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
         if (player?.choices?.some((c: any) => c.type === "starter")) return
         try {
@@ -704,6 +709,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
           cmd.state = this.state
           cmd.clock = this.clock
           cmd.onSelectMapNode(nodeId)
+          this.updateSpectateMetadata()
         } catch (error) {
           logger.error("select map node error", error)
         }
@@ -711,7 +717,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.SKIP_REWARD, (client) => {
-      if (!this.state.gameFinished && client.auth &&
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client) &&
         this.state.phase !== GamePhaseState.FIGHT &&
         this.state.phase !== GamePhaseState.MAP) {
         this.state.updatePhaseNeeded = true
@@ -720,13 +726,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.GAME_SPEED, (client, { speed }: { speed: number }) => {
-      if (client.auth && (speed === 0.5 || speed === 1 || speed === 2 || speed === 3)) {
+      if (client.auth && this.isPlayer(client) && (speed === 0.5 || speed === 1 || speed === 2 || speed === 3)) {
         this.state.gameSpeed = speed
       }
     })
 
     this.onMessage(Transfer.ENTER_ELITE_FOUR, (client) => {
-      if (client.auth && !this.state.gameFinished) {
+      if (client.auth && this.isPlayer(client) && !this.state.gameFinished) {
         const { generateActMap } = require("../core/map-generator")
         this.state.runComplete = false
         this.state.runFailed = false
@@ -748,9 +754,10 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     this.onMessage(Transfer.ENTER_ACT_5, (client) => {
-      const player = client.auth ? this.state.players.get(client.auth.uid) : null
+      if (!client.auth || !this.isPlayer(client)) return
+      const player = this.state.players.get(client.auth.uid)
       const isAdmin = player?.role === Role.ADMIN
-      if (client.auth && (this.state.currentAct === 4 || isAdmin)) {
+      if (this.state.currentAct === 4 || isAdmin) {
         const { generateActMap } = require("../core/map-generator")
         this.state.runComplete = false
         this.state.runFailed = false
@@ -967,9 +974,17 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
   async onJoin(client: Client) {
     this.dispatcher.dispatch(new OnJoinCommand(), { client })
+    this.updateSpectateMetadata()
   }
 
   async onLeave(client: Client, code: number) {
+    if (client.auth && this.state.spectators.has(client.auth.uid)) {
+      this.state.spectators.delete(client.auth.uid)
+      this.updateSpectateMetadata()
+      logger.info(`Spectator ${client.auth.uid} left game ${this.roomId}`)
+      return
+    }
+
     const player = this.state.players.get(client.auth?.uid)
     const name = player?.name || client.auth?.uid || "Unknown"
     const location = `act: ${this.state.currentAct} floor: ${this.state.currentFloor}`
@@ -996,6 +1011,20 @@ export default class GameRoom extends Room<{ state: GameState }> {
     }
 
     this.dispatcher.stop()
+  }
+
+  updateSpectateMetadata() {
+    this.setMetadata({
+      ...this.metadata,
+      currentAct: this.state.currentAct,
+      currentFloor: this.state.currentFloor,
+      runHP: this.state.runHP,
+      spectatorCount: this.state.spectators.size
+    })
+  }
+
+  isPlayer(client: Client): boolean {
+    return !!client.auth && this.state.players.has(client.auth.uid)
   }
 
   transformToSimplePlayer(player: Player): IGameHistorySimplePlayer {

@@ -649,6 +649,15 @@ class GameContainer {
     if (this.uid === uid) {
       this.spectate = true
       if (this.room.state.players.size > 0) {
+        const hostPlayer = this.room.state.players.values().next().value
+        if (hostPlayer && !this.player) {
+          this.room.send(Transfer.SPECTATE, hostPlayer.id)
+          this.setPlayer(hostPlayer)
+          const simulation = this.room.state.simulations.get(hostPlayer.simulationId)
+          if (simulation) {
+            this.setSimulation(simulation)
+          }
+        }
         this.initializeGame()
       }
     }
