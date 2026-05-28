@@ -7,6 +7,10 @@ import admin from "firebase-admin"
 import mongoose from "mongoose"
 import { logger } from "colyseus"
 import { server as app } from "./app.config"
+import pkg from "../package.json"
+import UserMetadata from "./models/mongo-models/user-metadata"
+import { RunHistory } from "./models/mongo-models/run-history"
+import { SavedRun } from "./models/mongo-models/saved-run"
 
 Encoder.BUFFER_SIZE = 512 * 1024
 
@@ -30,7 +34,18 @@ async function main() {
   }
 
   await listen(app, process.env.PORT ? parseInt(process.env.PORT) : 9000)
-  logger.info("PokemonAutoSpire server started")
+  const port = process.env.PORT || 9000
+  logger.info(`PokemonAutoSpire v${pkg.version} server started on port ${port}`)
+  logger.info(`Colyseus monitor: http://localhost:${port}/colyseus`)
+
+  if (mongoUri) {
+    const [accounts, runs, activeRuns] = await Promise.all([
+      UserMetadata.countDocuments(),
+      RunHistory.countDocuments(),
+      SavedRun.countDocuments()
+    ])
+    logger.info(`Database: ${accounts} accounts, ${runs} completed runs, ${activeRuns} active saves`)
+  }
 }
 
 main()

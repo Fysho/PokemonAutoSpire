@@ -14,20 +14,21 @@ export interface ArceusLeaderboard {
   records: ArceusRecord[]
 }
 
-export type DifficultyMode = 0 | 1 | 2
+export type DifficultyMode = 0 | 1 | 2 | 3
 
 const MAX_RECORDS = 5
 
 const DIFFICULTY_LABELS: Record<DifficultyMode, string> = {
   0: "Easy",
   1: "Normal",
-  2: "Hard"
+  2: "Hard",
+  3: "Impossible"
 }
 
 const DATA_DIR = path.resolve(__dirname, "../../")
 
 function getDataFile(mode: DifficultyMode): string {
-  const suffix = mode === 0 ? "-easy" : mode === 2 ? "-hard" : ""
+  const suffix = mode === 0 ? "-easy" : mode === 2 ? "-hard" : mode === 3 ? "-impossible" : ""
   return path.join(DATA_DIR, `arceus-record${suffix}.json`)
 }
 
@@ -45,7 +46,7 @@ export function resetArceusLeaderboard(mode?: DifficultyMode): void {
       const file = getDataFile(mode)
       if (fs.existsSync(file)) fs.unlinkSync(file)
     } else {
-      for (const m of [0, 1, 2] as DifficultyMode[]) {
+      for (const m of [0, 1, 2, 3] as DifficultyMode[]) {
         const file = getDataFile(m)
         if (fs.existsSync(file)) fs.unlinkSync(file)
       }
@@ -122,6 +123,7 @@ export function getArceusLeaderboardForClient(mode: DifficultyMode = 1): {
   avatar: string
   damage: number
   pokemon: { name: string; items: string[] }[]
+  inventory: string[]
 }[] {
   const lb = loadArceusLeaderboard(mode)
   return lb.records.map((r) => ({
@@ -130,6 +132,7 @@ export function getArceusLeaderboardForClient(mode: DifficultyMode = 1): {
     damage: r.damage,
     pokemon: r.team.pokemon
       .filter((p) => p.y > 0)
-      .map((p) => ({ name: p.name, items: [...p.items] }))
+      .map((p) => ({ name: p.name, items: [...p.items] })),
+    inventory: r.team.inventory ? [...r.team.inventory] : []
   }))
 }

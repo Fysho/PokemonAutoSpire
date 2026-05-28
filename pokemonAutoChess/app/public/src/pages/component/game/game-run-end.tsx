@@ -23,13 +23,15 @@ interface GameRunEndProps {
 const DIFFICULTY_LABELS: Record<number, string> = {
   0: "Easy",
   1: "Normal",
-  2: "Hard"
+  2: "Hard",
+  3: "Impossible"
 }
 
 const DIFFICULTY_COLORS: Record<number, string> = {
   0: "#27ae60",
   1: "#f39c12",
-  2: "#e74c3c"
+  2: "#e74c3c",
+  3: "#6a0dad"
 }
 
 export default function GameRunEnd({

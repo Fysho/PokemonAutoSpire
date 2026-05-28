@@ -1,5 +1,3 @@
-import { BOTS_ENABLED } from ".."
-
 export const GADGETS_NAMES = [
   "trainer_card",
   "bag",
@@ -8,11 +6,8 @@ export const GADGETS_NAMES = [
   "certificate",
   "palette",
   "synergy_wheel",
-  "gameboy",
   "pokeguesser",
-  "bot_builder",
-  "tier_list_maker",
-  "sprite_tracker"
+  "tier_list_maker"
 ] as const
 
 export type GadgetName = (typeof GADGETS_NAMES)[number]
@@ -33,58 +28,42 @@ export const GADGETS: Record<GadgetName, Gadget> = {
   bag: {
     name: "bag",
     icon: "school-bag",
-    levelRequired: 1
+    levelRequired: 0
   },
   team_planner: {
     name: "team_planner",
     icon: "team-builder",
-    levelRequired: 2
+    levelRequired: 0
   },
   jukebox: {
     name: "jukebox",
     icon: "compact-disc",
-    levelRequired: 3
+    levelRequired: 0
   },
   palette: {
     name: "palette",
     icon: "palette",
-    levelRequired: 5
+    levelRequired: 0
   },
   certificate: {
     name: "certificate",
     icon: "certificate",
-    levelRequired: 10
+    levelRequired: 0
   },
   synergy_wheel: {
     name: "synergy_wheel",
     icon: "synergy-wheel",
-    levelRequired: 15
-  },
-  gameboy: {
-    name: "gameboy",
-    icon: "gameboy",
-    levelRequired: 20
+    levelRequired: 0
   },
   pokeguesser: {
     name: "pokeguesser",
     icon: "pokeguesser",
-    levelRequired: 30
-  },
-  bot_builder: {
-    name: "bot_builder",
-    icon: "bot",
-    levelRequired: 40,
-    disabled: !BOTS_ENABLED
+    levelRequired: 0
   },
   tier_list_maker: {
     name: "tier_list_maker",
     icon: "tier-list",
-    levelRequired: 50
-  },
-  sprite_tracker: {
-    name: "sprite_tracker",
-    icon: "pokemon-sprite",
-    levelRequired: 60
+    levelRequired: 0
   }
 } as const
 

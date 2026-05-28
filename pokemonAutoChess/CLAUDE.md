@@ -85,16 +85,16 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | Phase rendering in Phaser | `app/public/src/game/scenes/game-scene.ts` → `updatePhase()` |
 | Room creation & lifecycle | `app/rooms/game-room.ts` |
 | State schema (synced fields) | `app/rooms/states/game-state.ts` |
-| Player schema | `app/models/colyseus-models/player.ts` |
+| Player schema | `app/models/colyseus-models/player.ts` — Added `gameState` ref, `addRunHP()`, `getRunHP()`. See "Player Health" section. |
 | Starter selection & reroll | `app/rooms/game-room.ts` → `startGame()`, `REROLL_STARTER` handler |
 | Home Town (region choice) | `user-metadata.ts` (DB), `spire-lobby.tsx` (UI), `app.config.ts` (API), `team-snapshot.ts` (region field), `game-commands.ts` (E4/Champion map) |
 | Run history / stats | `app/services/run-save.ts` → `saveRunHistory()`, `incrementRunStarted()`, `incrementRunEnd()` |
 | Champion/E4 data | `app/services/champion-data.ts` → `loadChampionData()`, `promoteNewChampion()`. Tracks `championSince` timestamp and `longestReign` per difficulty. |
 | Arceus damage leaderboard | `app/services/arceus-record.ts` → Top 5 per difficulty. JSON files (`arceus-record.json`, `-easy`, `-hard`). `checkAndUpdateArceusRecord()`, `getArceusLeaderboardForClient()`. |
 | Discord announcements | `app/services/discord.ts` → `discordService.announceNewChampion()`, `announceArceusRecord()`, `announceNewLongestReign()`. Bot also listens for admin commands in `DISCORD_ADMIN_CHANNEL_ID`. |
-| Difficulty balancing | `spire-encounters.ts` → `addHardModeItems()`, `applyHardBossBoost()`, `adjustEncounterItems()` |
+| Difficulty balancing | `spire-encounters.ts` → `addHardModeItems()`, `applyBossBoost()`, `adjustEncounterItems()`, `getStarBudgetOffset()` |
 | Dojo ticket tier | `game-commands.ts` → `getDojoTicket()` |
-| Lobby UI | `app/public/src/pages/spire-lobby.tsx` |
+| Lobby UI | `app/public/src/pages/spire-lobby.tsx` — 3 tabs: How to Play, Rooms, Dev Notes + PAC Diversions. Server status (CCU/accounts) is admin-only. Patch popup on new major.minor version, hotfix badge on patch-only bumps. Name validation blocks "Player"/"Username"/empty. |
 | Profile / run history UI | `app/public/src/pages/component/profile/player-box.tsx`, `game-history.tsx` |
 | API endpoints | `app/app.config.ts` |
 | Admin cheats (game) | `game-room.ts` (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `RESET_CHAMPION`), `game.tsx` (button panel, right side). Gated by `Role.ADMIN` on both server and client. |
@@ -114,7 +114,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 - **Unlock**: Same floors as Elite (50/50 split). Proc-gen encounters that reward a specific Pokemon. Act 1: hatch mon eggs (12 families), Act 2: unique Pokemon, Act 3: legendary Pokemon.
 - **PokeMart**: Walk-around shop. 6 Pokemon + 6 items + 2 eggs (Acts 1-2, 12g each). Ditto 3x weighted.
 - **Pokemon Center**: Floor 10 + Floor 19 guaranteed, ~10% random. Choose: item component | Ditto | Dojo ticket (instant stats).
-- **Mystery Encounter**: Random event with 2-3 choices.
+- **Mystery Encounter**: Random event with 2-4 choices. 11 encounters, each with a Pokemon portrait sprite (Kecleon default). No timeout — player must pick a choice.
 - **Legendary Boss**: Floor 20 of each act. Boss randomly selected from act pool.
 
 ### Boss Encounters
@@ -166,7 +166,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | `app/core/relic-effects.ts` | 15 passive items (PASSIVE_ITEMS list). Helpers: `getRelicBonusGold()`, `getRelicPostBattleHeal()`, `getRelicDamageReduction()`, `getRelicPokemonOfferCount()`, `getRelicBonusXP()`, `getRelicRestHealBonus()`, `getRandomItemChoices()` |
 | `app/models/colyseus-models/map-node.ts` | `MapNode` (id, type, x, y, region, gymLeaderSynergy, eliteEncounterIndex, displayName) and `MapEdge` schemas. `MapNodeType` enum (includes ELITE and UNLOCK). |
 | `app/models/spire-encounters.ts` | Regional wild encounters via `getRegionalWildEncounter()` with difficulty scaling (`getDifficultyConfig()`). Dynamic gym generation via `generateGymEncounter()` with 27 synergy types and `GYM_LEADER_POKEMON` map. Elite encounter templates with act-specific tiers. Multiple boss options per act via `LEGENDARY_BOSSES` arrays. `getGoldReward()`. |
-| `app/models/spire-events.ts` | Mystery encounter templates with choices. `getRandomEvent()`, `getEventItems()`, `getEventBerries()` |
+| `app/models/spire-events.ts` | 11 mystery encounter templates with per-event portrait sprites. `getRandomEvent()`, `getEventItems()`, `getEventBerries()` |
 | `app/models/spire-shops.ts` | 6 Pokemon + 2 eggs (Acts 1-2, 12g) + 6 items. Ditto weighted 3x. Pricing: `RARITY_BASE_PRICE` + `STAR_BONUS_PRICE`. `generateShopItems(act)` |
 | `app/models/mongo-models/run-history.ts` | Mongoose model for completed run history. Stores: odToken, time, act, floor, difficulty, HP, arceusDamage, victory, team Pokemon with items. |
 | `app/models/mongo-models/saved-run.ts` | Mongoose model for save/resume. Stores full game state snapshot for mid-run persistence. |
@@ -181,7 +181,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | `game-map.tsx` | SVG map with synergy icons (triangle layout for wild), gem icons (gym), pokeball (mart), unown-qm (mystery), chansey (center). Non-crossing edges. Background image from PAC poster `assets/posters/hd/6.6.png` at 20% opacity. |
 | `game-reward.tsx` | Shows "Continue to Map" button only when no choices remain (auto-transition handles most cases) |
 | `game-rest.tsx` | Pokemon Center: 3 choices using event-style UI (heal/ditto+item/dojo ticket). Uses `game-choice.css` styling. |
-| `game-event.tsx` | Mystery encounter choice buttons |
+| `game-event.tsx` | Mystery encounter dialog with Pokemon portrait sprite and choice buttons |
 | `game-relic-bar.tsx` | Shows passive items from `player.items` filtered by `PASSIVE_ITEMS` list. Item icons with tooltips. |
 | `game-run-end.tsx` | Victory/defeat/Arceus end screen in a `DraggableWindow`. Shows stats grid + Arceus record info. Action buttons (Back to Lobby, Enter Elite Four, Challenge Arceus) rendered separately at bottom of screen. |
 | `game-opponent-synergies.tsx` | Enemy synergies panel during PICK/FIGHT. Uses server-computed `encounterSynergies` for snapshot encounters (champion/E4 — includes Dragon double-types etc.), falls back to client-side computation for other encounters. |
@@ -218,7 +218,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 - AdditionalPicksStages logic removed (no more forced add-pick rounds)
 
 ### `app/rooms/states/game-state.ts`
-Synced fields: `currentAct`, `currentFloor`, `mapNodes`, `mapEdges`, `currentNodeId`, `runHP`, `runComplete`, `runFailed`, `spireEncounterBoard`, `encounterDifficulty`, `encounterBonusHP`, `encounterBonusAtk`, `encounterBonusDef`, `encounterBonusSpeDef`, `encounterBonusAP`, `encounterBonusPP`, `encounterSynergies`, `gameSpeed` (float32), `arceusDamageDealt`, `isNewArceusRecord`, `previousArceusRecord`, `previousArceusHolder`, `spireEventName`, `spireEventDescription`, `spireEventChoiceLabels`, `spireEventChoiceDescs`
+Synced fields: `currentAct`, `currentFloor`, `mapNodes`, `mapEdges`, `currentNodeId`, `runHP`, `runComplete`, `runFailed`, `spireEncounterBoard`, `encounterDifficulty`, `encounterBonusHP`, `encounterBonusAtk`, `encounterBonusDef`, `encounterBonusSpeDef`, `encounterBonusAP`, `encounterBonusPP`, `encounterSynergies`, `gameSpeed` (float32), `arceusDamageDealt`, `isNewArceusRecord`, `previousArceusRecord`, `previousArceusHolder`, `spireEventName`, `spireEventDescription`, `spireEventPortrait`, `spireEventChoiceLabels`, `spireEventChoiceDescs`
 
 ### `app/core/mini-game.ts`
 - `shopMode` flag, `initializeShopCarousel()` with static positioning (radius 200x160)
@@ -403,6 +403,7 @@ The Discord bot handles three categories of announcements plus admin commands.
 - **Longest reign announcements** (champion channel): When a dethroned champion held the title longer than any previous champion on that difficulty.
 - **Arceus record announcements** (Arceus channel): New #1 damage record with team image, previous record holder. Triggered by `endArceusFight()`.
 - **Admin commands** (admin channel): `/reset-leaderboards` with confirmation step. Resets all Champion/E4 and Arceus leaderboards. Requires Discord Administrator permission.
+- **Environment tag**: Bot messages are prefixed with `[development]`, `[staging]`, etc. based on `SERVER_ENV`. Production messages have no prefix.
 - **Generated image**: A composite PNG created server-side with jimp — player name header, Pokemon portraits with item icons, active synergy icons with counts.
 
 ### Key Files
@@ -433,7 +434,8 @@ The same `discord.ts` file also has webhook-based announcements for bans and bot
 3. **Act transition UI**: No "Act Complete" overlay — map regenerates silently.
 4. **Meta-progression**: No unlocks between runs.
 5. **Ascension system**: Ranks defined in lobby UI but all say "Coming soon". No gameplay modifiers implemented yet.
-6. **Version number**: Displayed in two places — `auth.tsx` (login screen) and `spire-lobby.tsx` (lobby "Play" panel title). Must be updated manually in both.
+6. **Version number**: RESOLVED — single source of truth in `package.json` `"version"` field. All UI and server startup read from it. Patch popup and hotfix badge derived automatically in `spire-lobby.tsx`.
+7. **`player.life` vs `state.runHP`**: Any upstream PAC ability/item/effect that modifies `player.life` directly will be broken in Spire — it must use `player.addRunHP()` / `player.getRunHP()` instead. See "Player Health" section above. When porting new PAC abilities, grep for `player.life` and convert.
 
 ## API Endpoints (`app/app.config.ts`)
 
@@ -455,28 +457,60 @@ The same `discord.ts` file also has webhook-based announcements for bans and bot
 ## Difficulty Balancing
 
 ### Dojo Tickets by Difficulty
-| Act | Easy | Normal | Hard |
-|---|---|---|---|
-| 1 | Silver | Bronze | Bronze |
-| 2 | Silver | Silver | Silver |
-| 3 | Gold | Gold | Silver |
+| Act | Easy | Normal | Hard | Impossible |
+|---|---|---|---|---|
+| 1 | Silver | Bronze | Bronze | Bronze |
+| 2 | Silver | Silver | Silver | Silver |
+| 3 | Gold | Gold | Silver | Silver |
 
 ### Act 3 Item Class System (`spire-encounters.ts`)
 In Act 3, encounter Pokemon no longer receive random items/components. Instead, each Pokemon is assigned a class (Frontline, Physical, Special, Support) weighted by its base stats (ATK, DEF, SpeDEF, range), and receives 0-3 items (0-2 on easy) drawn from that class's item pool. This applies to all Act 3 encounters including elites, but NOT legendary bosses (which keep their fixed thematic items) or champion/E4 fights. `addHardModeItems` and `adjustEncounterItems` skip Act 3 entirely.
 
-### Hard Mode Extra Items (`addHardModeItems` in `spire-encounters.ts`)
+### Hard/Impossible Mode Extra Items (`addHardModeItems` in `spire-encounters.ts`)
 Extra random item components added to each encounter Pokemon slot (Acts 1-2 only; Act 3 uses the class system above):
-- Act 1: 0.5x team size
-- Act 2: 1.25x team size
+- Act 1: 0.5x team size (hard), 0.75x team size (impossible, starts from floor 4 instead of floor 9)
+- Act 2: 1.25x team size (hard; impossible uses class items instead)
 
-### Hard Mode Boss Boost (`applyHardBossBoost`)
-Act 3 legendary bosses on hard get: +1 extra legendary Pokemon (random from Celebi/Jirachi/Victini/Manaphy/Shaymin/Phione) with Soul Dew, +200 HP, +5 ATK.
+### Impossible Mode Star Budget (`getStarBudgetOffset`)
+Impossible mode gets +1 star budget across all acts, resulting in slightly more evolved Pokemon in encounters.
+
+### Boss Boost (`applyBossBoost`)
+- **Hard Act 3**: +1 random legendary (from Celebi/Jirachi/Victini/Manaphy/Shaymin/Phione) with Soul Dew, +200 HP, +5 ATK.
+- **Impossible Act 2**: +150 HP, +3 ATK (stat boost only, no extra Pokemon).
+- **Impossible Act 3**: +Regidrago +Walking Wake (each with Soul Dew), +300 HP, +8 ATK, +3 DEF, +3 SpeDef, extra class item per Pokemon.
 
 ### Arceus (Act 5 Boss)
 14 items, +10000 HP, +150 ATK, +60 DEF, +60 SpDEF, +500 AP. Arceus fight always ends in "defeat" — score is damage dealt. Top 5 damage scores per difficulty tracked in `arceus-record*.json`. Tilemap set to "In the Nightmare" region. Can be challenged after winning OR losing the champion fight (guard: `currentAct === 4`, admin bypass).
 
 ### Game Speed
 Cycles through 0.5x → 1x → 2x → 3x. State field is `float32`. Server validates allowed values in `GAME_SPEED` handler.
+
+### Balance Changes from PAC v6.9
+All balance diversions from upstream are listed in the lobby's **PAC Diversions** panel (`spire-lobby.tsx`, events section). The panel uses colored tags (buffed/nerfed/changed/removed) with inline item/pokemon/synergy icons.
+
+**Items:**
+- Gold Bottle Cap (`items.ts`): Crit power bonus capped at 200 gold (was uncapped)
+- Tea (`dishes.ts`): PP reduced from 80 to 40
+- Smoked Filet (`dishes.ts`): ATK 5→3, AP 10→5
+- Rainbow Swirl (`abilities.ts`, `DecorateStrategy`): PP buff 60→30, AP scaling 1→0.5
+- Dojo Tickets: Apply instantly (not after 3 fights), one per Pokemon per act
+- Repeat Ball: Removed (commented out of shiny item pool)
+- Red Scale: Removed (commented out of shiny item pool)
+
+**Pokemon:**
+- Snorlax/Munchlax (`Passive.GLUTTON`): Berry/Gourmet HP gains halved
+- Misdreavus/Mismagius (`Ability.NIGHT_SHADE`): Damage capped at 150
+- Alcremie Rainbow Swirl (`Ability.DECORATE`): PP buff 60→30, AP scaling halved
+
+**Synergies:**
+- Light (`synergies.ts`): Triggers raised from 2/3/4/5 to 3/4/5/6
+- Amorphous (`simulation.ts`): Speed and HP bonuses per active synergy halved
+- Fishing Rods (`items.ts`, `FishingRodEffect`): Only proc after wild battle encounters
+- Gyms removed: Amorphous, Light, Gourmet, Artificial (commented out in `GYM_LEADER_POKEMON`)
+
+**General:**
+- Evolution: 6 copies for 3★ instead of 9
+- Hatch mons: 5 stages to hatch, 8 stages to evolve
 
 ## Run End Paths
 
@@ -530,13 +564,45 @@ Server modifies schema objects → Colyseus broadcasts to clients → Client lis
 
 **Important Colyseus gotcha:** `MapSchema.onChange` fires when existing elements change, but `onAdd`/`onRemove` are needed for push/pop. React components reading Colyseus state directly won't re-render — use Redux dispatch or React state triggered by Colyseus listeners.
 
+## Player Health: `state.runHP` vs `player.life` (IMPORTANT)
+
+Spire has **two separate health fields** — confusing them is a common source of bugs:
+
+- **`state.runHP`** (`game-state.ts`, `@type("int16")`) — The **authoritative** Spire run health. Synced to all clients, shown on the HP bar, used for death checks and run-ending logic. This is the one that matters.
+- **`player.life`** (`player.ts`, `@type("int16")`) — Legacy PAC multiplayer health. In Spire, this is a **read-only mirror** of `state.runHP`, updated at phase boundaries by `syncRunHPToPlayers()`. Direct modifications to `player.life` are invisible to the Spire HP bar and game logic.
+
+**How to modify run HP from abilities/items/effects:**
+- Use `player.addRunHP(value)` — safely modifies `state.runHP`, clamps to 0-100, and syncs to `player.life`. Works because Player stores a `gameState` reference (set in constructor).
+- Use `player.getRunHP()` — reads from `state.runHP` when available, falls back to `player.life`.
+- **NEVER** write `player.life += X` or `player.life -= X` directly in ability/item/effect code. It won't affect the actual run HP.
+
+**How run HP flows:**
+```
+state.runHP (source of truth)
+    ↓ syncRunHPToPlayers() — called at phase transitions
+player.life (mirror for client rendering / legacy code)
+```
+
+**Where `state.runHP` is legitimately modified:**
+- Battle loss damage: `stopSpireFightingPhase()` in `game-commands.ts`
+- Post-battle healing: `initializeRewardPhase()` (passive item heal)
+- Pokemon Center / Rest: `initializeRestPhase()`
+- Mystery events: event choice handlers
+- `player.addRunHP()`: helper method for abilities/items/effects
+
+**Key files:**
+- `player.ts`: `gameState` field, `addRunHP()`, `getRunHP()` methods
+- `game-commands.ts`: `syncRunHPToPlayers()` (state→player sync), all direct `state.runHP` modifications
+
 ## Login Page (`auth.tsx`)
 
 - Logo: `assets/ui/AutoSpire.png`
 - Title: "Pokemon Auto Spire"
 - Login via PAC's `StyledFirebaseAuth` component (Google + Email providers)
 - "Play as Guest" button bypasses auth and uses mock `"local-player"` uid
-- Footer: version (currently V1.3), fan credit line, PAC credit, upstream version note, Discord link
+- Footer: version (from `package.json`), fan credit line, PAC credit, upstream version note, Discord link
+- After sign-in, shows "Authenticated as: Click to reveal" (hides real name/email until clicked)
+- Player name defaults to "Username" — Google display name is NOT auto-filled
 - Built on Pokemon Auto Chess v6.9 (`master@01c2ebe`)
 
 ## Map Visuals (`game-map.tsx`)

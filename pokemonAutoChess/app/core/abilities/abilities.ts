@@ -893,9 +893,9 @@ export class TimeTravelStrategy extends AbilityStrategy {
     if (
       pokemon.player &&
       !pokemon.isGhostOpponent &&
-      pokemon.player.life < 100
+      pokemon.player.getRunHP() < 100
     ) {
-      pokemon.player.life += 1
+      pokemon.player.addRunHP(1)
     }
   }
 }
@@ -12556,7 +12556,7 @@ export class DecorateStrategy extends AbilityStrategy {
       } else if (pokemon.name === Pkm.ALCREMIE_CARAMEL_SWIRL) {
         strongestNearestAlly.addCritPower(80, pokemon, 1, crit)
       } else if (pokemon.name === Pkm.ALCREMIE_RAINBOW_SWIRL) {
-        strongestNearestAlly.addPP(60, pokemon, 1, crit)
+        strongestNearestAlly.addPP(30, pokemon, 0.5, crit)
       }
     }
   }

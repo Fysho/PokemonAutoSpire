@@ -565,6 +565,9 @@ export default class GameScene extends Scene {
           }
         } else if (gameObject instanceof ItemContainer) {
           this.itemDragged = gameObject
+          if (this.sellZone) {
+            this.sellZone.showForItem()
+          }
         }
       }
     )
@@ -694,6 +697,10 @@ export default class GameScene extends Scene {
               id: gameObject.name
             })
           }
+          // Item -> SELL-ZONE = SELL ITEM
+          else if (dropZone.name === "sell-zone") {
+            this.room?.send(Transfer.SELL_ITEM, gameObject.name)
+          }
           // RETURN TO ORIGINAL SPOT
           else {
             const player = this.room?.state.players.get(this.uid!)
@@ -789,9 +796,8 @@ export default class GameScene extends Scene {
 
         if (
           dropZone.name === "sell-zone" &&
-          gameObject instanceof PokemonSprite
+          (gameObject instanceof PokemonSprite || gameObject instanceof ItemContainer)
         ) {
-          // pokemon dragged above sell zone: highlight the sell zone
           this.sellZone?.onDragEnter()
         }
       },
@@ -817,7 +823,7 @@ export default class GameScene extends Scene {
 
         if (
           dropZone.name === "sell-zone" &&
-          gameObject instanceof PokemonSprite
+          (gameObject instanceof PokemonSprite || gameObject instanceof ItemContainer)
         ) {
           this.sellZone?.onDragLeave()
         }

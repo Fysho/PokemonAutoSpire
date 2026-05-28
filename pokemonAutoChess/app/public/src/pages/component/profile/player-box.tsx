@@ -139,8 +139,9 @@ export default function PlayerBox(props: {
 const DEFAULT_DIFF: ISpireDiffStats = { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 }
 
 function SpireStatsTable({ stats }: { stats?: ISpireStats }) {
-  const s = stats ?? { easy: DEFAULT_DIFF, normal: DEFAULT_DIFF, hard: DEFAULT_DIFF }
+  const s = stats ?? { easy: DEFAULT_DIFF, normal: DEFAULT_DIFF, hard: DEFAULT_DIFF, impossible: DEFAULT_DIFF }
   const rows: { label: string; color: string; data: ISpireDiffStats }[] = [
+    { label: "Impossible", color: "#6a0dad", data: s.impossible ?? DEFAULT_DIFF },
     { label: "Hard", color: "#e74c3c", data: s.hard ?? DEFAULT_DIFF },
     { label: "Normal", color: "#f39c12", data: s.normal ?? DEFAULT_DIFF },
     { label: "Easy", color: "#27ae60", data: s.easy ?? DEFAULT_DIFF }
@@ -163,7 +164,7 @@ function SpireStatsTable({ stats }: { stats?: ISpireStats }) {
             <td style={{ textAlign: "center", padding: "2px 6px" }}>{r.data.runsStarted}</td>
             <td style={{ textAlign: "center", padding: "2px 6px" }}>{r.data.wins}</td>
             <td style={{ textAlign: "center", padding: "2px 6px" }}>{r.data.champion}</td>
-            <td style={{ textAlign: "center", padding: "2px 6px" }}>{r.data.arceusDamage.toLocaleString()}</td>
+            <td style={{ textAlign: "center", padding: "2px 6px" }}>{(r.data.arceusDamage ?? 0).toLocaleString()}</td>
           </tr>
         ))}
       </tbody>

@@ -121,7 +121,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     difficultyMode?: number
     resume?: boolean
   }) {
-    const diffLabel = difficultyMode === 0 ? "Easy" : difficultyMode === 2 ? "Hard" : "Normal"
+    const diffLabel = difficultyMode === 0 ? "Easy" : difficultyMode === 2 ? "Hard" : difficultyMode === 3 ? "Impossible" : "Normal"
     const playerName = ownerName || Object.values(users || {})[0]?.name || "Unknown"
     logger.info(`Create Game ${this.roomId} | player: ${playerName} | difficulty: ${diffLabel}`)
 
@@ -148,7 +148,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
       maxRank,
       specialGameRule
     )
-    if (difficultyMode === 0 || difficultyMode === 2) {
+    if (difficultyMode === 0 || difficultyMode === 2 || difficultyMode === 3) {
       this.state.difficultyMode = difficultyMode
     }
     this.isResume = !!resume
@@ -374,8 +374,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const { pickNRandomIn } = require("../utils/random")
         const { ShinyItems, Tools } = require("../types/enum/Item")
         const { PlayerChoice } = require("../models/colyseus-models/player-choice")
-        const isHard = this.state.difficultyMode === 2
-        const fullPool = isHard && this.state.currentAct === 1 ? [...Tools] : [...ShinyItems]
+        const isHardOrImpossible = this.state.difficultyMode >= 2
+        const fullPool = isHardOrImpossible && this.state.currentAct === 1 ? [...Tools] : [...ShinyItems]
         const filteredPool = fullPool.filter((i: Item) => !currentItems.includes(i))
         const pool = filteredPool.length >= 3 ? filteredPool : fullPool
         const newItems = pickNRandomIn(pool, 3)
@@ -394,14 +394,20 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const { ItemComponentsNoFossilOrScarf } = require("../types/enum/Item")
         const { getPokemonData } = require("../models/precomputed/precomputed-pokemon-data")
         const { PlayerChoice } = require("../models/colyseus-models/player-choice")
-        const allOneStars = [
-          ...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON,
-          ...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON,
-          ...PRECOMPUTED_POKEMONS_PER_RARITY.RARE,
-          ...PRECOMPUTED_POKEMONS_PER_RARITY.EPIC
-        ].filter((p: Pkm) => getPokemonData(p).stars === 1)
-        const starterOptions = pickNRandom(allOneStars, 3)
-        const starterItems = starterOptions.map(() => pickRandom(ItemComponentsNoFossilOrScarf))
+        const isImpossibleReroll = this.state.difficultyMode === 3
+        const allOneStars = (isImpossibleReroll
+          ? [...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON]
+          : [
+            ...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON,
+            ...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON,
+            ...PRECOMPUTED_POKEMONS_PER_RARITY.RARE,
+            ...PRECOMPUTED_POKEMONS_PER_RARITY.EPIC
+          ]
+        ).filter((p: Pkm) => getPokemonData(p).stars === 1)
+        const starterOptions = pickNRandom(allOneStars, 5)
+        const starterItems = isImpossibleReroll
+          ? []
+          : starterOptions.map(() => pickRandom(ItemComponentsNoFossilOrScarf))
         player.choices.push(
           new PlayerChoice({
             type: "starter",
@@ -409,6 +415,18 @@ export default class GameRoom extends Room<{ state: GameState }> {
             items: starterItems
           })
         )
+      }
+    })
+
+    this.onMessage(Transfer.REROLL_MAP, (client) => {
+      if (!this.state.gameFinished && client.auth) {
+        const player = this.state.players.get(client.auth.uid)
+        if (!player) return
+        if (!player.choices.some((c) => c.type === "starter")) return
+        const { generateActMap } = require("../core/map-generator")
+        this.state.mapNodes.clear()
+        this.state.mapEdges.splice(0, this.state.mapEdges.length)
+        generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3)
       }
     })
 
@@ -510,6 +528,17 @@ export default class GameRoom extends Room<{ state: GameState }> {
         } catch (error) {
           logger.error("sell drop error", pokemonId)
         }
+      }
+    })
+
+    this.onMessage(Transfer.SELL_ITEM, (client, itemId: string) => {
+      if (!this.state.gameFinished && client.auth) {
+        const player = this.state.players.get(client.auth.uid)
+        if (!player || !player.alive) return
+        const idx = player.items.findIndex((i: any) => i === itemId)
+        if (idx < 0) return
+        player.items.splice(idx, 1)
+        player.addMoney(1, false, null)
       }
     })
 
@@ -666,6 +695,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     this.onMessage(Transfer.SELECT_MAP_NODE, (client, nodeId: string) => {
       if (!this.state.gameFinished && client.auth) {
+        const player = this.state.players.get(client.auth.uid)
+        if (player?.choices?.some((c: any) => c.type === "starter")) return
         try {
           const cmd = new OnUpdatePhaseCommand()
           cmd.setPayload({})
@@ -705,7 +736,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
         this.state.currentFloor = 0
         this.state.mapNodes.clear()
         this.state.mapEdges.clear()
-        generateActMap(4, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2)
+        generateActMap(4, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3)
         this.state.players.forEach((p: Player) => {
           p.dojoFamilies.clear()
           if (!p.isBot) { p.alive = true }
@@ -730,7 +761,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
         this.state.currentFloor = 0
         this.state.mapNodes.clear()
         this.state.mapEdges.clear()
-        generateActMap(5, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2)
+        generateActMap(5, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3)
         this.state.players.forEach((p: Player) => {
           p.dojoFamilies.clear()
           if (!p.isBot) { p.alive = true }
@@ -761,7 +792,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
       this.state.currentFloor = 0
       this.state.mapNodes.clear()
       this.state.mapEdges.clear()
-      generateActMap(act, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2)
+      generateActMap(act, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3)
       this.state.players.forEach((p: Player) => {
         p.dojoFamilies.clear()
         if (!p.isBot) { p.alive = true }
@@ -824,7 +855,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.state.phase = GamePhaseState.MAP
     this.state.time = 999 * 1000
     this.state.roundTime = 999
-    generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2)
+    generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3)
     logger.info(`Map generated: ${this.state.mapNodes.size} nodes, ${this.state.mapEdges.length} edges`)
 
     this.state.players.forEach((player: Player) => {
@@ -842,14 +873,20 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const { pickRandomIn: pickRandom } = require("../utils/random")
         const { ItemComponentsNoFossilOrScarf } = require("../types/enum/Item")
         const { getPokemonData } = require("../models/precomputed/precomputed-pokemon-data")
-        const allOneStars = [
-          ...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON,
-          ...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON,
-          ...PRECOMPUTED_POKEMONS_PER_RARITY.RARE,
-          ...PRECOMPUTED_POKEMONS_PER_RARITY.EPIC
-        ].filter((p: Pkm) => getPokemonData(p).stars === 1)
-        const starterOptions = pickNRandomIn(allOneStars, 3)
-        const starterItems = starterOptions.map(() => pickRandom(ItemComponentsNoFossilOrScarf))
+        const isImpossible = this.state.difficultyMode === 3
+        const allOneStars = (isImpossible
+          ? [...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON]
+          : [
+            ...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON,
+            ...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON,
+            ...PRECOMPUTED_POKEMONS_PER_RARITY.RARE,
+            ...PRECOMPUTED_POKEMONS_PER_RARITY.EPIC
+          ]
+        ).filter((p: Pkm) => getPokemonData(p).stars === 1)
+        const starterOptions = pickNRandomIn(allOneStars, 5)
+        const starterItems = isImpossible
+          ? []
+          : starterOptions.map(() => pickRandom(ItemComponentsNoFossilOrScarf))
         player.choices.push(
           new PlayerChoice({
             type: "starter",
@@ -921,6 +958,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
         displayName: user.displayName || options.displayName || "Player"
       }
     }
+    console.log("Guest has connected")
     return {
       uid: options.odToken || "local-player",
       displayName: options.displayName || "Player"

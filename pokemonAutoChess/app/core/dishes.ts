@@ -331,8 +331,8 @@ export const DishEffects: Record<(typeof Dishes)[number], Effect[]> = {
     new OnDishConsumedEffect(({ pokemon, entity, player }) => {
       if (entity) {
         entity.addMaxHP(-5, entity, 0, false, true)
-        entity.addAttack(5, entity, 0, false, true)
-        entity.addAbilityPower(10, entity, 0, false, true)
+        entity.addAttack(3, entity, 0, false, true)
+        entity.addAbilityPower(5, entity, 0, false, true)
       }
     })
   ],
@@ -379,7 +379,7 @@ export const DishEffects: Record<(typeof Dishes)[number], Effect[]> = {
   ],
   TEA: [
     new OnSpawnEffect((entity) => {
-      entity.addPP(80, entity, 0, false)
+      entity.addPP(40, entity, 0, false)
     })
   ],
   TINY_MUSHROOM: [

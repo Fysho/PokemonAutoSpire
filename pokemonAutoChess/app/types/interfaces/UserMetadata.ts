@@ -12,6 +12,7 @@ export interface ISpireStats {
   easy: ISpireDiffStats
   normal: ISpireDiffStats
   hard: ISpireDiffStats
+  impossible: ISpireDiffStats
 }
 
 interface IUserMetadata {

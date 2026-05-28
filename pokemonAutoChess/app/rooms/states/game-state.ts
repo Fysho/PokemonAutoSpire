@@ -54,7 +54,7 @@ export default class GameState extends Schema {
   @type("string") townEncounter: TownEncounter | null = null
 
   // Spire fields
-  @type("uint8") difficultyMode: number = 1 // 0=easy, 1=normal, 2=hard
+  @type("uint8") difficultyMode: number = 1 // 0=easy, 1=normal, 2=hard, 3=impossible
   @type("uint8") currentAct: number = 1
   @type("uint8") currentFloor: number = 0
   @type({ map: MapNode }) mapNodes = new MapSchema<MapNode>()
@@ -89,6 +89,7 @@ export default class GameState extends Schema {
   @type("string") previousArceusHolder: string = ""
   @type("string") spireEventName: string = ""
   @type("string") spireEventDescription: string = ""
+  @type("string") spireEventPortrait: string = ""
   @type(["string"]) spireEventChoiceLabels = new ArraySchema<string>()
   @type(["string"]) spireEventChoiceDescs = new ArraySchema<string>()
   time = StageDuration[0] * 1000

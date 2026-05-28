@@ -677,10 +677,10 @@ export const ItemEffects: { [i in Item]?: (Effect | (() => Effect))[] } = {
 
   [Item.GOLD_BOTTLE_CAP]: [
     new OnItemGainedEffect((pokemon) => {
-      pokemon.addCritPower(pokemon.player?.money ?? 0, pokemon, 0, false)
+      pokemon.addCritPower(Math.min(pokemon.player?.money ?? 0, 200), pokemon, 0, false)
     }),
     new OnItemRemovedEffect((pokemon) => {
-      pokemon.addCritPower(-(pokemon.player?.money ?? 0), pokemon, 0, false)
+      pokemon.addCritPower(-Math.min(pokemon.player?.money ?? 0, 200), pokemon, 0, false)
     }),
     new OnKillEffect(({ attacker, target, board }) => {
       if (attacker.player) {
@@ -1117,10 +1117,10 @@ export const ItemEffects: { [i in Item]?: (Effect | (() => Effect))[] } = {
 
   [Item.FIRE_SHARD]: [
     new OnItemDroppedEffect(({ pokemon, player, item }) => {
-      if (pokemon.types.has(Synergy.FIRE) && player.life > 3) {
+      if (pokemon.types.has(Synergy.FIRE) && player.getRunHP() > 3) {
         pokemon.atk += 3
         pokemon.speed += 3
-        player.life = min(1)(player.life - 3)
+        player.addRunHP(-3)
         removeInArray(player.items, item)
       }
 

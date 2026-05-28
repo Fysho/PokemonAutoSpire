@@ -1049,7 +1049,9 @@ export default function Game() {
               currentFloor={currentFloor}
               runHP={runHP}
               onHide={() => setMapHidden(true)}
-              readOnly={!isMapPhase}
+              readOnly={!isMapPhase && (connectedPlayer?.choices?.length ?? 0) > 0}
+              showRerollMap={connectedPlayer?.choices?.some((c: any) => c.type === "starter") ?? false}
+              hasChoicesPending={(connectedPlayer?.choices?.length ?? 0) > 0}
             />
           )}
           {isRestPhase && room?.state && (
@@ -1065,6 +1067,7 @@ export default function Game() {
             <GameEvent
               eventName={room.state.spireEventName}
               eventDescription={room.state.spireEventDescription}
+              portrait={room.state.spireEventPortrait}
               choices={Array.from(room.state.spireEventChoiceLabels ?? []).map((label, i) => ({
                 label,
                 description: room.state.spireEventChoiceDescs?.[i] ?? ""

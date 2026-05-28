@@ -262,24 +262,6 @@ export function MainSidebar(props: MainSidebarProps) {
           </NavLink>
         )}
 
-        {page !== "game" &&
-          ((!GADGETS.bot_builder.disabled &&
-            profileLevel >= GADGETS.bot_builder.levelRequired) ||
-            profile?.role === Role.ADMIN) && (
-            <NavLink svg="bot" onClick={() => navigate("/bot-builder")}>
-              {t("bot_builder")}
-            </NavLink>
-          )}
-
-        {page !== "game" &&
-          ((!GADGETS.gameboy.disabled &&
-            profileLevel >= GADGETS.gameboy.levelRequired) ||
-            profile?.role === Role.ADMIN) && (
-            <NavLink svg="gameboy" onClick={() => navigate("/gameboy")}>
-              {t("gadget.gameboy")}
-            </NavLink>
-          )}
-
         {((!GADGETS.tier_list_maker.disabled &&
           profileLevel >= GADGETS.tier_list_maker.levelRequired) ||
           profile?.role === Role.ADMIN) && (
@@ -289,18 +271,6 @@ export function MainSidebar(props: MainSidebarProps) {
             handleClick={changeModal}
           >
             {t("gadget.tier_list_maker")}
-          </NavLink>
-        )}
-
-        {((!GADGETS.sprite_tracker.disabled &&
-          profileLevel >= GADGETS.sprite_tracker.levelRequired) ||
-          profile?.role === Role.ADMIN) && (
-          <NavLink
-            svg="pokemon-sprite"
-            location="sprite-tracker"
-            handleClick={changeModal}
-          >
-            {t("gadget.sprite_tracker")}
           </NavLink>
         )}
 

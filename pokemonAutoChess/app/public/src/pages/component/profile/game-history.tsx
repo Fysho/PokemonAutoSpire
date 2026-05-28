@@ -138,7 +138,8 @@ type RunHistoryRowData = {
 const DIFFICULTY_LABELS: Record<number, string> = {
   0: "Easy",
   1: "Normal",
-  2: "Hard"
+  2: "Hard",
+  3: "Impossible"
 }
 
 function RunHistoryRow({

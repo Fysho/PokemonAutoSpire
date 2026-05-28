@@ -36,22 +36,23 @@ interface LegacyChampionSlotData {
   bonusAP: number
 }
 
-export type DifficultyMode = 0 | 1 | 2
+export type DifficultyMode = 0 | 1 | 2 | 3
 
 const DIFFICULTY_LABELS: Record<DifficultyMode, string> = {
   0: "Easy",
   1: "Normal",
-  2: "Hard"
+  2: "Hard",
+  3: "Impossible"
 }
 
 const DATA_DIR = path.resolve(__dirname, "../../")
 
 function getDataFile(mode: DifficultyMode): string {
-  const suffix = mode === 0 ? "-easy" : mode === 2 ? "-hard" : ""
+  const suffix = mode === 0 ? "-easy" : mode === 2 ? "-hard" : mode === 3 ? "-impossible" : ""
   return path.join(DATA_DIR, `champion-data${suffix}.json`)
 }
 
-const DEFAULT_SNAPSHOT: TeamSnapshot = {
+export const DEFAULT_SNAPSHOT: TeamSnapshot = {
   name: "Fish",
   avatar: "0129/Normal",
   pokemon: [
@@ -114,7 +115,7 @@ export function resetChampionData(mode?: DifficultyMode): void {
       if (fs.existsSync(file)) fs.unlinkSync(file)
       console.log(`Champion/E4 data reset to default Fish for ${DIFFICULTY_LABELS[mode]} mode.`)
     } else {
-      for (const m of [0, 1, 2] as DifficultyMode[]) {
+      for (const m of [0, 1, 2, 3] as DifficultyMode[]) {
         const file = getDataFile(m)
         if (fs.existsSync(file)) fs.unlinkSync(file)
       }

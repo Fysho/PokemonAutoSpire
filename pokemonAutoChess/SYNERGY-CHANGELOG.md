@@ -164,3 +164,25 @@ Template for recording changes:
 **Rationale**: Baby synergy was non-functional in Spire's all-PVE context. Enabling it makes the synergy a viable build option.
 **Files changed**:
 - `app/rooms/commands/game-commands.ts` — Added `this.spawnBabyEggs(player, false)` call in `stopSpireFightingPhase()`
+
+### 2026-05-28 — Halve Tea dish PP gain
+
+**Synergy**: GOURMET (dish: TEA)
+**Type**: effect change
+**Before**: Tea granted 80 PP at the start of the next fight.
+**After**: Tea grants 40 PP at the start of the next fight.
+**Rationale**: 80 PP on spawn was too strong — many Pokemon could cast their ability immediately or near-immediately.
+**Files changed**:
+- `app/core/dishes.ts` — `TEA` OnSpawnEffect: `addPP(80)` → `addPP(40)`
+- `app/public/dist/client/locales/*/translation.json` — Updated TEA description in all locales
+
+### 2026-05-28 — Halve Smoked Filet dish stat gains (keep HP cost)
+
+**Synergy**: GOURMET (dish: SMOKED_FILET)
+**Type**: effect change
+**Before**: Permanently lose 5 max HP to gain 5 ATK and 10 AP.
+**After**: Permanently lose 5 max HP to gain 3 ATK and 5 AP.
+**Rationale**: The stat-for-HP trade was too efficient. Halving the gains (rounded up) while keeping the full HP cost makes it a riskier trade-off.
+**Files changed**:
+- `app/core/dishes.ts` — `SMOKED_FILET` OnDishConsumedEffect: ATK `5→3`, AP `10→5`, HP loss unchanged at `-5`
+- `app/public/dist/client/locales/*/translation.json` — Updated SMOKED_FILET description in all locales

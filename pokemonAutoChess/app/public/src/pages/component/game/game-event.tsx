@@ -1,5 +1,6 @@
 import React from "react"
 import { Transfer } from "../../../../../types"
+import { getPortraitSrc } from "../../../../../utils/avatar"
 import { rooms } from "../../../network"
 
 interface EventChoice {
@@ -10,6 +11,7 @@ interface EventChoice {
 interface GameEventProps {
   eventName: string
   eventDescription: string
+  portrait: string
   choices: EventChoice[]
   runHP: number
   gold: number
@@ -18,6 +20,7 @@ interface GameEventProps {
 export default function GameEvent({
   eventName,
   eventDescription,
+  portrait,
   choices,
   runHP,
   gold
@@ -48,7 +51,10 @@ export default function GameEvent({
         textAlign: "center",
         maxWidth: "500px"
       }}>
-        <div style={{ fontSize: "36px", marginBottom: "8px" }}>?</div>
+        <img
+          src={getPortraitSrc(portrait || "0352")}
+          style={{ width: "80px", height: "80px", imageRendering: "pixelated", marginBottom: "8px" }}
+        />
         <h2 style={{ margin: "0 0 8px" }}>{eventName}</h2>
         <p style={{ fontSize: "14px", opacity: 0.7, margin: "0 0 20px" }}>
           {eventDescription}

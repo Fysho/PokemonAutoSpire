@@ -541,7 +541,7 @@ export async function getRunHistory(odToken: string, page: number = 1, pageSize:
     .lean()
 }
 
-const DIFF_KEY: Record<number, string> = { 0: "easy", 1: "normal", 2: "hard" }
+const DIFF_KEY: Record<number, string> = { 0: "easy", 1: "normal", 2: "hard", 3: "impossible" }
 
 export async function incrementRunStarted(uid: string, difficultyMode: number): Promise<void> {
   if (uid === "local-player") return

@@ -176,6 +176,7 @@ export default class Player extends Schema implements IPlayer {
     ticketLevel: number
   }[] = []
   specialGameRule: SpecialGameRule | null = null // its easier to duplicate this here and in gamestate than passing gamestate everywhere we need it
+  gameState: GameState | null = null
   shopsSinceLastUnownShop: number = 0
   regions: DungeonPMDO[] = []
   unownReminiscences: number = 0
@@ -206,6 +207,7 @@ export default class Player extends Schema implements IPlayer {
     this.role = role
     this.pokemonCustoms = new PokemonCustoms(pokemonCollection)
     this.specialGameRule = state.specialGameRule
+    this.gameState = state
     this.flowerPots = initFlowerPots(this)
     const avatarCustom = getPokemonCustomFromAvatar(avatar)
     const avatarInCollection = pokemonCollection.get(
@@ -254,6 +256,19 @@ export default class Player extends Schema implements IPlayer {
     ) {
       this.completeMissionOrder(Item.MISSION_ORDER_BLUE)
     }
+  }
+
+  addRunHP(value: number) {
+    if (this.gameState) {
+      this.gameState.runHP = Math.max(0, Math.min(100, this.gameState.runHP + value))
+      this.life = this.gameState.runHP
+    } else {
+      this.life = Math.max(0, Math.min(100, this.life + value))
+    }
+  }
+
+  getRunHP(): number {
+    return this.gameState ? this.gameState.runHP : this.life
   }
 
   addMoney(

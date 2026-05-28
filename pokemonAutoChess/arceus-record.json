@@ -1,0 +1,175 @@
+{
+  "records": [
+    {
+      "playerName": "Fish",
+      "damage": 40274,
+      "team": {
+        "name": "Fish",
+        "avatar": "0042/Normal",
+        "pokemon": [
+          {
+            "name": "BINACLE",
+            "x": 3,
+            "y": 2,
+            "items": [],
+            "evolution": "BARBARACLE"
+          },
+          {
+            "name": "MEWTWO",
+            "x": 0,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 3500,
+              "atk": 1400,
+              "def": 700,
+              "speDef": 700,
+              "ap": 1400,
+              "speed": 0
+            }
+          },
+          {
+            "name": "MEWTWO",
+            "x": 1,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 3000,
+              "atk": 1200,
+              "def": 600,
+              "speDef": 600,
+              "ap": 1200,
+              "speed": 0
+            }
+          },
+          {
+            "name": "MEWTWO",
+            "x": 2,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 2500,
+              "atk": 1000,
+              "def": 500,
+              "speDef": 500,
+              "ap": 1000,
+              "speed": 0
+            }
+          },
+          {
+            "name": "MEWTWO",
+            "x": 3,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 2000,
+              "atk": 800,
+              "def": 400,
+              "speDef": 400,
+              "ap": 800,
+              "speed": 0
+            }
+          },
+          {
+            "name": "MEWTWO",
+            "x": 4,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 1500,
+              "atk": 600,
+              "def": 300,
+              "speDef": 300,
+              "ap": 600,
+              "speed": 0
+            }
+          },
+          {
+            "name": "MEWTWO",
+            "x": 5,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 1000,
+              "atk": 400,
+              "def": 200,
+              "speDef": 200,
+              "ap": 400,
+              "speed": 0
+            }
+          },
+          {
+            "name": "MEWTWO",
+            "x": 6,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 500,
+              "atk": 200,
+              "def": 100,
+              "speDef": 100,
+              "ap": 200,
+              "speed": 0
+            }
+          }
+        ],
+        "inventory": [
+          "GOLD_DOJO_TICKET"
+        ],
+        "groundHoles": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "lightX": 3,
+        "lightY": 3
+      },
+      "date": "2026-05-28T09:46:38.370Z"
+    }
+  ]
+}

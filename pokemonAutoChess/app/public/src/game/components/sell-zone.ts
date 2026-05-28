@@ -63,6 +63,14 @@ export class SellZone extends GameObjects.Container {
     this.setVisible(true)
   }
 
+  showForItem() {
+    this.text.setText(
+      `${t("drop_here_to_sell")} ${t("for_price_gold", { price: 1 })}`
+    )
+    this.rectangle.setFillStyle(this.bgColor)
+    this.setVisible(true)
+  }
+
   hide() {
     this.rectangle.setFillStyle(this.bgColor).setAlpha(0.8)
     this.setVisible(false)

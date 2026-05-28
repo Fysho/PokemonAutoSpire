@@ -124,12 +124,19 @@ const userMetadataSchema = new Schema({
         wins: { type: Number, default: 0 },
         champion: { type: Number, default: 0 },
         arceusDamage: { type: Number, default: 0 }
+      },
+      impossible: {
+        runsStarted: { type: Number, default: 0 },
+        wins: { type: Number, default: 0 },
+        champion: { type: Number, default: 0 },
+        arceusDamage: { type: Number, default: 0 }
       }
     },
     default: {
       easy: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
       normal: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
-      hard: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 }
+      hard: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
+      impossible: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 }
     }
   },
   pokemonCollection: {

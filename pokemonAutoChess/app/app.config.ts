@@ -254,7 +254,8 @@ export const server = defineServer({
         res.json(user?.spireStats ?? {
           easy: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
           normal: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
-          hard: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 }
+          hard: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
+          impossible: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 }
         })
       } catch (error) {
         logger.error("Error fetching spire stats:", error)
@@ -265,8 +266,8 @@ export const server = defineServer({
     app.get("/api/champion-data/:difficulty", async (req, res) => {
       try {
         const { loadChampionData } = await import("./services/champion-data")
-        const mode = parseInt(req.params.difficulty) as 0 | 1 | 2
-        if (mode !== 0 && mode !== 1 && mode !== 2) {
+        const mode = parseInt(req.params.difficulty) as 0 | 1 | 2 | 3
+        if (mode !== 0 && mode !== 1 && mode !== 2 && mode !== 3) {
           return res.status(400).json({ error: "Invalid difficulty" })
         }
         const data = loadChampionData(mode)
@@ -276,7 +277,8 @@ export const server = defineServer({
           pokemon: snap.pokemon.filter((p: any) => p.y > 0).map((p: any) => ({
             name: p.name,
             items: p.items || []
-          }))
+          })),
+          inventory: snap.inventory || []
         })
         res.json({
           champion: simplify(data.champion),
@@ -295,8 +297,8 @@ export const server = defineServer({
     app.get("/api/arceus-record/:difficulty", async (req, res) => {
       try {
         const { getArceusLeaderboardForClient } = await import("./services/arceus-record")
-        const mode = parseInt(req.params.difficulty) as 0 | 1 | 2
-        if (mode !== 0 && mode !== 1 && mode !== 2) {
+        const mode = parseInt(req.params.difficulty) as 0 | 1 | 2 | 3
+        if (mode !== 0 && mode !== 1 && mode !== 2 && mode !== 3) {
           return res.status(400).json({ error: "Invalid difficulty" })
         }
         res.json(getArceusLeaderboardForClient(mode))

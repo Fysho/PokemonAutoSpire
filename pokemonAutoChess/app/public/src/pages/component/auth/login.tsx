@@ -19,6 +19,7 @@ export default function Login() {
   const displayName = useAppSelector((state) => state.network.displayName)
   const email = useAppSelector((state) => state.network.email)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [showIdentity, setShowIdentity] = useState(false)
 
   const uiConfig = {
     signInFlow: "popup",
@@ -66,9 +67,16 @@ export default function Login() {
       <div id="play-panel">
         <p>
           {t("auth.authenticated_as")}:{" "}
-          <span title={`${displayName}${email ? ` (${email})` : ""}`}>
-            {t("auth.hover_to_reveal")}
-          </span>
+          {showIdentity ? (
+            <span>{displayName}{email ? ` (${email})` : ""}</span>
+          ) : (
+            <span
+              onClick={() => setShowIdentity(true)}
+              style={{ cursor: "pointer", color: "#3498db", textDecoration: "underline" }}
+            >
+              Click to reveal
+            </span>
+          )}
         </p>
         <ul className="actions">
           <li>

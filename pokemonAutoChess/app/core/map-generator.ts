@@ -318,15 +318,21 @@ export function generateActMap(
     }
 
     // Randomly drop some optional edges to add variety (keep at least the base connections)
-    // Build set of edges that are the sole outgoing edge for a node — these are protected
+    // Protect edges that are the sole outgoing for a source OR sole incoming for a target
     const outgoingCount = new Map<number, number>()
-    kept.forEach((e) => outgoingCount.set(e.from, (outgoingCount.get(e.from) ?? 0) + 1))
+    const incomingCount = new Map<number, number>()
+    kept.forEach((e) => {
+      outgoingCount.set(e.from, (outgoingCount.get(e.from) ?? 0) + 1)
+      incomingCount.set(e.to, (incomingCount.get(e.to) ?? 0) + 1)
+    })
     const baseCount = Math.max(current.length, next.length)
     const finalEdges = kept.filter((edge, i) => {
       if (i < baseCount) return true
       if ((outgoingCount.get(edge.from) ?? 0) <= 1) return true
+      if ((incomingCount.get(edge.to) ?? 0) <= 1) return true
       if (Math.random() < 0.7) return true
       outgoingCount.set(edge.from, (outgoingCount.get(edge.from) ?? 1) - 1)
+      incomingCount.set(edge.to, (incomingCount.get(edge.to) ?? 1) - 1)
       return false
     })
 

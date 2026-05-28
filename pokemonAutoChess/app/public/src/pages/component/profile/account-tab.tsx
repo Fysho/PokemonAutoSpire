@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useAppSelector } from "../../../hooks"
 import { firebase } from "../../../network"
@@ -13,6 +14,7 @@ export function AccountTab() {
   const displayName = useAppSelector((state) => state.network.displayName)
   const email = useAppSelector((state) => state.network.email)
   const isGuest = !uid || uid === "local-player"
+  const [showDetails, setShowDetails] = useState(false)
 
   return (
     <div>
@@ -21,11 +23,22 @@ export function AccountTab() {
         <p>Playing as guest. Sign in to save your progress.</p>
       ) : (
         <>
-          <p>
-            Signed in as <strong>{displayName}</strong>
-            {email ? ` (${email})` : ""}
-          </p>
           <p style={{ opacity: 0.7, fontSize: "12px" }}>UID: {uid}</p>
+          {showDetails ? (
+            <p>
+              <strong>{displayName}</strong>
+              {email ? ` (${email})` : ""}
+            </p>
+          ) : (
+            <p>
+              <span
+                onClick={() => setShowDetails(true)}
+                style={{ cursor: "pointer", color: "#3498db", textDecoration: "underline", fontSize: "13px" }}
+              >
+                Click to reveal account details
+              </span>
+            </p>
+          )}
         </>
       )}
       <div style={{ marginTop: "12px" }}>

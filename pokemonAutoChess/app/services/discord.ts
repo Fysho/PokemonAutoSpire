@@ -108,8 +108,8 @@ if (process.env.DISCORD_BOT_TOKEN && (championChannelId || arceusChannelId || ad
   })
 }
 
-const DIFFICULTY_LABEL: Record<number, string> = { 0: "Easy", 1: "Normal", 2: "Hard" }
-const DIFFICULTY_COLOR: Record<number, number> = { 0: 0x44bb44, 1: 0xffbb33, 2: 0xff4444 }
+const DIFFICULTY_LABEL: Record<number, string> = { 0: "Easy", 1: "Normal", 2: "Hard", 3: "Impossible" }
+const DIFFICULTY_COLOR: Record<number, number> = { 0: 0x44bb44, 1: 0xffbb33, 2: 0xff4444, 3: 0x6a0dad }
 
 const PORTRAITS_DIR = path.resolve(process.cwd(), "app/public/src/assets/portraits")
 const ITEMS_DIR = path.resolve(process.cwd(), "app/public/src/assets/item{tps}")

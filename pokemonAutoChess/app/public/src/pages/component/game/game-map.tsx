@@ -64,6 +64,8 @@ interface GameMapProps {
   runHP: number
   onHide: () => void
   readOnly?: boolean
+  showRerollMap?: boolean
+  hasChoicesPending?: boolean
 }
 
 export default function GameMap({
@@ -73,19 +75,35 @@ export default function GameMap({
   currentFloor,
   runHP,
   onHide,
-  readOnly = false
+  readOnly = false,
+  showRerollMap = false,
+  hasChoicesPending = false
 }: GameMapProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
+  const [warningText, setWarningText] = useState<string | null>(null)
+  const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDragging = useRef(false)
   const dragStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 })
 
+  const showWarning = (msg: string) => {
+    if (warningTimer.current) clearTimeout(warningTimer.current)
+    setWarningText(msg)
+    warningTimer.current = setTimeout(() => setWarningText(null), 2000)
+  }
+
   const handleNodeClick = (nodeId: string) => {
-    if (readOnly) return
     const node = mapNodes.get(nodeId)
-    if (node && node.available) {
-      rooms.game?.send(Transfer.SELECT_MAP_NODE, nodeId)
+    if (!node || !node.available) return
+    if (readOnly) {
+      showWarning("Clear this floor first")
+      return
     }
+    if (hasChoicesPending) {
+      showWarning("Select a reward first")
+      return
+    }
+    rooms.game?.send(Transfer.SELECT_MAP_NODE, nodeId)
   }
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
@@ -469,21 +487,44 @@ export default function GameMap({
       </div>
 
       <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-        <button
-          onClick={onHide}
-          style={{
-            padding: "8px 24px",
-            fontSize: "14px",
-            borderRadius: "6px",
-            border: "1px solid #666",
-            background: "#333",
-            color: "#ccc",
-            cursor: "pointer"
-          }}
-        >
-          Hide Map (View Board)
-        </button>
-        {!readOnly && (
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={onHide}
+            style={{
+              padding: "8px 24px",
+              fontSize: "14px",
+              borderRadius: "6px",
+              border: "1px solid #666",
+              background: "#333",
+              color: "#ccc",
+              cursor: "pointer"
+            }}
+          >
+            Hide Map
+          </button>
+          {showRerollMap && (
+            <button
+              onClick={() => rooms.game?.send(Transfer.REROLL_MAP)}
+              style={{
+                padding: "8px 24px",
+                fontSize: "14px",
+                borderRadius: "6px",
+                border: "1px solid #666",
+                background: "#333",
+                color: "#ccc",
+                cursor: "pointer"
+              }}
+            >
+              Reroll Map
+            </button>
+          )}
+        </div>
+        {warningText && (
+          <span style={{ fontSize: "14px", color: "#e74c3c", fontWeight: "bold" }}>
+            {warningText}
+          </span>
+        )}
+        {!readOnly && !warningText && (
           <span style={{ fontSize: "12px", color: "#888" }}>
             Click an available node to proceed
           </span>

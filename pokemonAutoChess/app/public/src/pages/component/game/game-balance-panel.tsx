@@ -2,8 +2,8 @@ import React from "react"
 import { GamePhaseState } from "../../../../../types/enum/Game"
 import { useAppSelector } from "../../../hooks"
 
-const MODE_LABELS: Record<number, string> = { 0: "Easy", 1: "Normal", 2: "Hard" }
-const MODE_COLORS: Record<number, string> = { 0: "#27ae60", 1: "#f39c12", 2: "#e74c3c" }
+const MODE_LABELS: Record<number, string> = { 0: "Easy", 1: "Normal", 2: "Hard", 3: "Impossible" }
+const MODE_COLORS: Record<number, string> = { 0: "#27ae60", 1: "#f39c12", 2: "#e74c3c", 3: "#6a0dad" }
 
 function getStarBudgetRange(act: number, floor: number): [number, number] {
   const progress = (act - 1) * 20 + floor
@@ -24,7 +24,7 @@ function getStarBudgetRange(act: number, floor: number): [number, number] {
 }
 
 function getStarOffset(act: number, floor: number, mode: number): number {
-  if (mode === 1 || mode === 2) return 0
+  if (mode >= 1) return 0
   const progress = (act - 1) * 20 + floor
   if (progress <= 8) return 0
   if (act === 1) return -2
@@ -56,33 +56,29 @@ export default function GameBalancePanel() {
   const offsetStr = offset === 0 ? "" : offset > 0 ? ` (+${offset}★)` : ` (${offset}★)`
 
   return (
-    <div style={{
+    <div className="my-container" style={{
       position: "absolute",
       bottom: "10px",
       right: "10px",
-      background: "rgba(0, 0, 0, 0.85)",
-      border: "2px solid #f39c12",
-      borderRadius: "8px",
-      padding: "10px 14px",
-      color: "white",
-      fontFamily: "monospace",
-      fontSize: "13px",
+      padding: "8px 12px",
+      fontSize: "12px",
       zIndex: 200,
-      minWidth: "180px",
-      lineHeight: "1.6"
+      minWidth: "170px",
+      lineHeight: "1.5",
+      opacity: 0.9
     }}>
-      <div style={{ color: "#f39c12", fontWeight: "bold", fontSize: "14px", marginBottom: "6px", borderBottom: "1px solid #555", paddingBottom: "4px" }}>
+      <header style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: "4px" }}>
         Balance Info
-      </div>
-      <div>Mode: <span style={{ color: modeColor, fontWeight: "bold" }}>{modeLabel}{offsetStr}</span></div>
-      <div>Act <span style={{ color: "#3498db" }}>{currentAct}</span> Floor <span style={{ color: "#3498db" }}>{currentFloor}</span></div>
-      <div>Progress: <span style={{ color: "#3498db" }}>{progress}</span>/60</div>
-      <div style={{ marginTop: "4px", borderTop: "1px solid #333", paddingTop: "4px" }}>
-        <div>Difficulty: <span style={{ color: "#e74c3c", fontWeight: "bold", fontSize: "16px" }}>{encounterDifficulty}</span></div>
-        <div>Pokemon: <span style={{ color: "#2ecc71" }}>{encounterPokemonCount}</span></div>
-        <div>Star Range: <span style={{ color: "#f1c40f" }}>{starMin}–{starMax}</span></div>
-        <div>Total Stars: <span style={{ color: "#f1c40f" }}>{encounterTotalStars}</span></div>
-        <div>Total Items: <span style={{ color: "#9b59b6" }}>{encounterTotalItems}</span></div>
+      </header>
+      <div>Mode: <strong>{modeLabel}</strong>{offsetStr}</div>
+      <div>Act {currentAct} Floor {currentFloor}</div>
+      <div>Progress: {progress}/60</div>
+      <div style={{ marginTop: "4px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "4px" }}>
+        <div>Difficulty: <strong>{encounterDifficulty}</strong></div>
+        <div>Pokemon: {encounterPokemonCount}</div>
+        <div>Star Range: {starMin}–{starMax}</div>
+        <div>Total Stars: {encounterTotalStars}</div>
+        <div>Total Items: {encounterTotalItems}</div>
       </div>
     </div>
   )

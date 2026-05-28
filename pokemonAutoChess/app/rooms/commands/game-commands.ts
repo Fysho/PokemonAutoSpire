@@ -64,7 +64,7 @@ import {
   getWildEncounter,
   SpireEncounter
 } from "../../models/spire-encounters"
-import { loadChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, type DifficultyMode } from "../../services/champion-data"
+import { loadChampionData, saveChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, DEFAULT_SNAPSHOT, type DifficultyMode } from "../../services/champion-data"
 import { discordService } from "../../services/discord"
 import { snapshotPlayerTeam, reconstructTeamAsPlayer, encodeSnapshotForClient } from "../../services/team-snapshot"
 import { getEventBerries, getEventItems, getRandomEvent } from "../../models/spire-events"
@@ -1316,7 +1316,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       case MapNodeType.ARCEUS_BOSS: {
         this.state.stageLevel = (this.state.currentAct - 1) * 15 + node.floor
         let encounter: SpireEncounter | null = null
-        const mode = this.state.difficultyMode as 0 | 1 | 2
+        const mode = this.state.difficultyMode as 0 | 1 | 2 | 3
         if (node.nodeType === MapNodeType.ARCEUS_BOSS) {
           encounter = getArceusEncounter()
         } else if (node.nodeType === MapNodeType.WILD_BATTLE) {
@@ -1365,7 +1365,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         if (this.state.encounterSnapshot) {
           const snap = this.state.encounterSnapshot
           let displaySnap = snap
-          if (this.state.encounterCrownedAt && this.state.difficultyMode !== 2) {
+          if (this.state.encounterCrownedAt && this.state.difficultyMode < 2) {
             const elapsedMs = Date.now() - new Date(this.state.encounterCrownedAt).getTime()
             const isEasy = this.state.difficultyMode === 0
             const hpDecay = Math.floor(elapsedMs / ((isEasy ? 2.5 : 5) * 60 * 1000))
@@ -1518,6 +1518,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   getDojoTicket(): Item {
     const act = this.state.currentAct
     const mode = this.state.difficultyMode
+    if (mode === 3) {
+      return act <= 2 ? Item.BRONZE_DOJO_TICKET : Item.SILVER_DOJO_TICKET
+    }
     if (act === 1) {
       return mode === 0 ? Item.SILVER_DOJO_TICKET : Item.BRONZE_DOJO_TICKET
     } else if (act === 2) {
@@ -1529,13 +1532,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
   initializeEventPhase() {
     this.state.phase = GamePhaseState.EVENT
-    this.state.time = 60 * 1000
-    this.state.roundTime = 60
+    this.state.time = 999 * 1000
+    this.state.roundTime = 999
     this.autoSaveRun()
 
     const event = getRandomEvent()
     this.state.spireEventName = event.name
     this.state.spireEventDescription = event.description
+    this.state.spireEventPortrait = event.portrait
     resetArraySchema(this.state.spireEventChoiceLabels, event.choices.map(c => c.label))
     resetArraySchema(this.state.spireEventChoiceDescs, event.choices.map(c => c.description))
 
@@ -1550,9 +1554,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     if (label.includes("egg")) {
       giveRandomEgg(player)
-    } else if (label.includes("search") || label.includes("explore")) {
-      const items = getEventItems(2)
-      items.forEach(item => player.items.push(item))
+    } else if (label.includes("dojo ticket")) {
+      player.items.push(this.getDojoTicket())
     } else if (label.includes("pick all berries")) {
       if (player.money >= 6) {
         player.addMoney(-6, false, null)
@@ -1589,15 +1592,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       this.syncRunHPToPlayers()
       const items = getEventItems(1)
       items.forEach(item => player.items.push(item))
-    } else if (label.includes("mine for gems")) {
-      player.addMoney(6, true, null)
-    } else if (label.includes("rest under") || label.includes("heal")) {
-      this.state.runHP = Math.min(100, this.state.runHP + 10)
-    } else if (label.includes("chat")) {
-      player.experienceManager.addExperience(4)
+    } else if (label.includes("dig for gems")) {
+      player.items.push(pickRandomIn(SynergyStones))
+    } else if (label.includes("search for fossils")) {
+      player.items.push(Item.FOSSIL_STONE)
     } else if (label.includes("rob")) {
-      this.state.runHP = Math.max(0, this.state.runHP - 30)
-      player.addMoney(15, true, null)
+      this.state.runHP = Math.max(0, this.state.runHP - 40)
+      this.syncRunHPToPlayers()
+      const items = getEventItems(2)
+      items.forEach(item => player.items.push(item))
     } else if (label.includes("rocky helmet challenge")) {
       this.state.challengeItem = Item.ROCKY_HELMET
     } else if (label.includes("assault vest challenge")) {
@@ -1610,12 +1613,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       this.state.challengeItem = Item.BLUE_ORB
     } else if (label.includes("green orb challenge")) {
       this.state.challengeItem = Item.GREEN_ORB
-    } else if (label.includes("exchange ticket")) {
+    } else if (label.includes("2 exchange tickets")) {
       player.items.push(Item.EXCHANGE_TICKET)
-    } else if (label.includes("recycle ticket")) {
+      player.items.push(Item.EXCHANGE_TICKET)
+    } else if (label.includes("1 exchange + 1 recycle")) {
+      player.items.push(Item.EXCHANGE_TICKET)
       player.items.push(Item.RECYCLE_TICKET)
-    } else if (label === "trash") {
-      player.items.push(Item.TRASH)
+    } else if (label.includes("2 recycle tickets")) {
+      player.items.push(Item.RECYCLE_TICKET)
+      player.items.push(Item.RECYCLE_TICKET)
     } else if (label.includes("take a carp")) {
       this.room.spawnOnBench(player, Pkm.MAGIKARP)
     } else if (label.includes("buy a feebas")) {
@@ -1640,21 +1646,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     } else if (label.includes("berries for the road")) {
       if (player.money >= 3) {
         player.addMoney(-3, false, null)
-        for (let i = 0; i < 3; i++) player.items.push(Item.ORAN_BERRY)
-      }
-    } else if (label.includes("gamble 10 gold")) {
-      if (player.money >= 10) {
-        player.addMoney(-10, false, null)
-        if (Math.random() < 0.5) {
-          player.addMoney(20, true, null)
-        }
-      }
-    } else if (label.includes("gamble 5 gold")) {
-      if (player.money >= 5) {
-        player.addMoney(-5, false, null)
-        if (Math.random() < 0.5) {
-          player.addMoney(10, true, null)
-        }
+        for (let i = 0; i < 5; i++) player.items.push(Item.ORAN_BERRY)
       }
     }
 
@@ -1700,7 +1692,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         humanPlayer.name,
         totalDamageDealt,
         snapshot,
-        this.state.difficultyMode as 0 | 1 | 2
+        this.state.difficultyMode as 0 | 1 | 2 | 3
       )
       if (isNewRecord) {
         this.state.isNewArceusRecord = true
@@ -1711,7 +1703,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         discordService.announceArceusRecord(
           snapshot,
           totalDamageDealt,
-          this.state.difficultyMode as 0 | 1 | 2,
+          this.state.difficultyMode as 0 | 1 | 2 | 3,
           previousRecord
         )
       } else if (previousRecord) {
@@ -1773,7 +1765,25 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     } else {
       this.state.runFailed = true
       this.state.players.forEach((p: Player) => {
-        if (!p.isBot) { p.life = 0; p.alive = false }
+        if (!p.isBot) {
+          p.life = 0
+          p.alive = false
+          const loserSnapshot = snapshotPlayerTeam(p, { includeBench: true })
+          loserSnapshot.region = this.state.playerSpireRegion || "town"
+          if (loserSnapshot.pokemon.length > 0) {
+            const data = loadChampionData(this.state.difficultyMode as DifficultyMode)
+            // Find highest Fish slot (search from index 3 down to 0)
+            let placed = false
+            for (let i = 3; i >= 0; i--) {
+              if (data.eliteFour[i].name === DEFAULT_SNAPSHOT.name) {
+                data.eliteFour[i] = loserSnapshot
+                saveChampionData(data, this.state.difficultyMode as DifficultyMode)
+                placed = true
+                break
+              }
+            }
+          }
+        }
       })
       this.syncRunHPToPlayers()
     }
@@ -1819,7 +1829,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         const lastHistory = player.history.at(-1)
         const won = lastHistory?.result === BattleResult.WIN
         const modeLabel = ["Easy", "Normal", "Hard"][this.state.difficultyMode] ?? "Normal"
-        logger.info(`Player: ${player.name.padEnd(20)} stage ${String(this.state.stageLevel).padStart(2)} ${won ? "win " : "loss"}, hp: ${String(this.state.runHP).padStart(3)}, difficulty: ${modeLabel.padEnd(10)}`)
+        const guestTag = player.id === "local-player" ? " - guest" : ""
+        logger.info(`Player: ${player.name.padEnd(20)} stage ${String(this.state.stageLevel).padStart(2)} ${won ? "win " : "loss"}, hp: ${String(this.state.runHP).padStart(3)}, difficulty: ${modeLabel.padEnd(10)}${guestTag}`)
 
         const baseGold = getGoldReward(node.nodeType, this.state.currentAct)
         const bonusGold = getPassiveItemBonusGold(player.items)
@@ -2028,13 +2039,17 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           }
         }
         if (node.nodeType === MapNodeType.LEGENDARY_BOSS && this.state.currentAct < 3) {
-          const isHard = this.state.difficultyMode === 2
-          const rewardPool = isHard && this.state.currentAct === 1 ? [...Tools] : [...ShinyItems]
-          const count = won ? 3 : 1
-          const goldItemChoices = pickNRandomIn(rewardPool, count)
-          player.choices.push(
-            new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
-          )
+          const isHardOrAbove = this.state.difficultyMode >= 2
+          const isImpossible = this.state.difficultyMode === 3
+          // Impossible Act 2: no shiny item reward
+          if (!(isImpossible && this.state.currentAct === 2)) {
+            const rewardPool = isHardOrAbove && this.state.currentAct === 1 ? [...Tools] : [...ShinyItems]
+            const count = won ? 3 : 1
+            const goldItemChoices = pickNRandomIn(rewardPool, count)
+            player.choices.push(
+              new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
+            )
+          }
         }
       }
     })
@@ -2145,8 +2160,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             pokemon.action = PokemonActionState.IDLE
           }
         })
-
-        this.spawnBabyEggs(player, false)
 
         player.updateSynergies()
       }
@@ -2300,14 +2313,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     if (
       getSynergyStep(player.synergies, Synergy.FIRE) === 4 &&
       player.items.includes(Item.FIRE_SHARD) === false &&
-      player.life > 2
+      player.getRunHP() > 2
     ) {
       player.items.push(Item.FIRE_SHARD)
     }
 
     if (
       player.items.includes(Item.TREASURE_BOX) &&
-      player.life <= TREASURE_BOX_LIFE_THRESHOLD
+      player.getRunHP() <= TREASURE_BOX_LIFE_THRESHOLD
     ) {
       removeInArray(player.items, Item.TREASURE_BOX)
 
@@ -2775,7 +2788,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       // Snapshot-based encounter (champion/E4/saved teams): full Player reconstruction
       const opponentPlayer = reconstructTeamAsPlayer(snapshot, this.state)
 
-      if (this.state.encounterCrownedAt && this.state.difficultyMode !== 2) {
+      if (this.state.encounterCrownedAt && this.state.difficultyMode < 2) {
         const elapsedMs = Date.now() - new Date(this.state.encounterCrownedAt).getTime()
         const isEasy = this.state.difficultyMode === 0
         const hpDecay = Math.floor(elapsedMs / ((isEasy ? 2.5 : 5) * 60 * 1000))

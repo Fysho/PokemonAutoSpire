@@ -47,10 +47,8 @@ export default function Auth() {
         </div>
       </main>
       <div className="media">
-        <span>V1.4</span>
+        <span>V{pkg.version}</span>
         <p>
-          Made by a fan of a mod made by 2 fans, for fans
-          <br />
           {t("auth.non_profit")} / {t("auth.open_source")}
           <br />
           {t("auth.copyright")}

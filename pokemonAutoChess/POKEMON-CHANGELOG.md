@@ -32,4 +32,12 @@ Template for recording changes:
 - `path/to/file.ts` — description of change
 -->
 
-(No changes yet)
+### 2026-05-28 — Add Ogerpon forms to Act 3 legendary unlock pool
+
+**Pokemon**: OGERPON_WELLSPRING, OGERPON_HEARTHFLAME, OGERPON_CORNERSTONE
+**Type**: pool change
+**Before**: Only OGERPON_TEAL was in the Act 3 legendary unlock encounter list. The other 3 base forms were inaccessible from legendary encounters.
+**After**: All 4 base Ogerpon forms (Teal, Wellspring, Hearthflame, Cornerstone) are now in the legendary unlock pool. Mask forms remain excluded by design.
+**Rationale**: 3 of 4 Ogerpon forms were missing from the legendary encounter pool — unintentional omission.
+**Files changed**:
+- `app/models/spire-encounters.ts` — Added OGERPON_WELLSPRING, OGERPON_HEARTHFLAME, OGERPON_CORNERSTONE to `LEGENDARY_ELITE_ENCOUNTERS`
