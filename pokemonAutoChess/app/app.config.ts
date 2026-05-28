@@ -196,12 +196,22 @@ export const server = defineServer({
       }
     })
 
+    app.get("/api/public-runs-debug", async (req, res) => {
+      try {
+        const { matchMaker } = await import("colyseus")
+        const rooms = await matchMaker.query({})
+        res.json(rooms.map((r) => ({ roomId: r.roomId, clients: r.clients, name: r.name, metadata: r.metadata })))
+      } catch (error) {
+        res.json({ error: String(error) })
+      }
+    })
+
     app.get("/api/public-runs", async (req, res) => {
       try {
         const { matchMaker } = await import("colyseus")
         const rooms = await matchMaker.query({})
         const runs = rooms
-          .filter((r) => r.clients > 0 && r.metadata?.ownerName && r.metadata?.type === "game")
+          .filter((r) => r.clients > 0 && r.metadata?.ownerName)
           .map((r) => ({
             roomId: r.roomId,
             ownerName: r.metadata?.ownerName ?? "Unknown",
