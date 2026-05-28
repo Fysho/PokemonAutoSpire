@@ -380,7 +380,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const { ShinyItems, Tools } = require("../types/enum/Item")
         const { PlayerChoice } = require("../models/colyseus-models/player-choice")
         const isHardOrImpossible = this.state.difficultyMode >= 2
-        const fullPool = isHardOrImpossible && this.state.currentAct === 1 ? [...Tools] : [...ShinyItems]
+        const isImpossible = this.state.difficultyMode === 3
+        const fullPool = (isHardOrImpossible && this.state.currentAct === 1) || isImpossible ? [...Tools] : [...ShinyItems]
         const filteredPool = fullPool.filter((i: Item) => !currentItems.includes(i))
         const pool = filteredPool.length >= 3 ? filteredPool : fullPool
         const newItems = pickNRandomIn(pool, 3)

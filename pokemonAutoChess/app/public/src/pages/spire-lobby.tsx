@@ -597,10 +597,9 @@ function SpireLobbyContent({
                       </span>
                     )}
                     <button
-                      className="bubbly blue"
                       disabled={joiningSpectate}
                       onClick={() => watchRun(run.roomId)}
-                      style={{ marginLeft: "auto", fontSize: "11px", padding: "3px 10px" }}
+                      style={{ marginLeft: "auto", fontSize: "11px", padding: "3px 6px", background: "none", border: "none", color: "white", cursor: "pointer" }}
                     >
                       {joiningSpectate ? "Joining..." : "Watch"}
                     </button>

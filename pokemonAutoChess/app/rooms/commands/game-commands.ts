@@ -2043,15 +2043,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         if (node.nodeType === MapNodeType.LEGENDARY_BOSS && this.state.currentAct < 3) {
           const isHardOrAbove = this.state.difficultyMode >= 2
           const isImpossible = this.state.difficultyMode === 3
-          // Impossible Act 2: no shiny item reward
-          if (!(isImpossible && this.state.currentAct === 2)) {
-            const rewardPool = isHardOrAbove && this.state.currentAct === 1 ? [...Tools] : [...ShinyItems]
-            const count = won ? 3 : 1
-            const goldItemChoices = pickNRandomIn(rewardPool, count)
-            player.choices.push(
-              new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
-            )
-          }
+          const rewardPool = (isHardOrAbove && this.state.currentAct === 1) || isImpossible ? [...Tools] : [...ShinyItems]
+          const count = won ? 3 : 1
+          const goldItemChoices = pickNRandomIn(rewardPool, count)
+          player.choices.push(
+            new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
+          )
         }
       }
     })
