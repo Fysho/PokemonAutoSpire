@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises"
 import { monitor } from "@colyseus/monitor"
-import { defineRoom, defineServer, ServerOptions } from "colyseus"
+import { defineRoom, defineServer, matchMaker, ServerOptions } from "colyseus"
 import { WebSocketTransport } from "@colyseus/ws-transport"
 import cors from "cors"
 import express from "express"
@@ -184,7 +184,6 @@ export const server = defineServer({
 
     app.get("/status", async (req, res) => {
       try {
-        const { matchMaker } = await import("colyseus")
         const rooms = await matchMaker.query({})
         const ccu = rooms.reduce((sum, r) => sum + (r.clients ?? 0), 0)
         const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
@@ -198,7 +197,6 @@ export const server = defineServer({
 
     app.get("/api/public-runs-debug", async (req, res) => {
       try {
-        const { matchMaker } = await import("colyseus")
         const rooms = await matchMaker.query({})
         res.json(rooms.map((r) => ({ roomId: r.roomId, clients: r.clients, name: r.name, metadataType: typeof r.metadata, metadata: r.metadata })))
       } catch (error) {
@@ -208,7 +206,6 @@ export const server = defineServer({
 
     app.get("/api/public-runs", async (req, res) => {
       try {
-        const { matchMaker } = await import("colyseus")
         const rooms = await matchMaker.query({})
         const runs = rooms
           .filter((r) => r.clients > 0)
