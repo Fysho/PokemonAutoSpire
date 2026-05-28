@@ -200,7 +200,7 @@ export const server = defineServer({
       try {
         const { matchMaker } = await import("colyseus")
         const rooms = await matchMaker.query({})
-        res.json(rooms.map((r) => ({ roomId: r.roomId, clients: r.clients, name: r.name, metadata: r.metadata })))
+        res.json(rooms.map((r) => ({ roomId: r.roomId, clients: r.clients, name: r.name, metadataType: typeof r.metadata, metadata: r.metadata })))
       } catch (error) {
         res.json({ error: String(error) })
       }
@@ -211,17 +211,21 @@ export const server = defineServer({
         const { matchMaker } = await import("colyseus")
         const rooms = await matchMaker.query({})
         const runs = rooms
-          .filter((r) => r.clients > 0 && r.metadata?.ownerName)
-          .map((r) => ({
-            roomId: r.roomId,
-            ownerName: r.metadata?.ownerName ?? "Unknown",
-            difficultyMode: r.metadata?.difficultyMode ?? 1,
-            currentAct: r.metadata?.currentAct ?? 1,
-            currentFloor: r.metadata?.currentFloor ?? 0,
-            runHP: r.metadata?.runHP ?? 100,
-            spectatorCount: r.metadata?.spectatorCount ?? 0,
-            clients: r.clients ?? 1
-          }))
+          .filter((r) => r.clients > 0)
+          .map((r) => {
+            const meta = typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
+            return meta?.ownerName ? {
+              roomId: r.roomId,
+              ownerName: meta.ownerName ?? "Unknown",
+              difficultyMode: meta.difficultyMode ?? 1,
+              currentAct: meta.currentAct ?? 1,
+              currentFloor: meta.currentFloor ?? 0,
+              runHP: meta.runHP ?? 100,
+              spectatorCount: meta.spectatorCount ?? 0,
+              clients: r.clients ?? 1
+            } : null
+          })
+          .filter(Boolean)
         res.json(runs)
       } catch (error) {
         res.json([])
