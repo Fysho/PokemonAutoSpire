@@ -937,6 +937,10 @@ function SpireLobbyContent({
           <h3 style={{ marginTop: "8px", fontSize: "13px" }}>Items</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "4px", margin: "4px 0" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src="assets/item/PUNCHING_GLOVE.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="nerfed" /> <strong>Punching Glove</strong> — On-hit bonus damage capped at 200.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src="assets/item/GOLD_BOTTLE_CAP.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
               <span><PacTag type="nerfed" /> <strong>Gold Bottle Cap</strong> — Crit power bonus now caps at 200 gold.</span>
             </div>

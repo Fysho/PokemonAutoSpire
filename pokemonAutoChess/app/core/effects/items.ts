@@ -572,7 +572,7 @@ export const ItemEffects: { [i in Item]?: (Effect | (() => Effect))[] } = {
   [Item.PUNCHING_GLOVE]: [
     new OnHitEffect(({ attacker, target, board }) => {
       target.handleDamage({
-        damage: Math.round(0.08 * target.maxHP),
+        damage: Math.min(200, Math.round(0.08 * target.maxHP)),
         board,
         attackType: AttackType.PHYSICAL,
         attacker,

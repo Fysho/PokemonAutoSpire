@@ -402,7 +402,10 @@ The Discord bot handles three categories of announcements plus admin commands.
 - **Champion announcements** (champion channel): New champion with team image, defeated champion's reign duration, E4 lineup. Triggered by `endChampionFight()`.
 - **Longest reign announcements** (champion channel): When a dethroned champion held the title longer than any previous champion on that difficulty.
 - **Arceus record announcements** (Arceus channel): New #1 damage record with team image, previous record holder. Triggered by `endArceusFight()`.
-- **Admin commands** (admin channel): `/reset-leaderboards` with confirmation step. Resets all Champion/E4 and Arceus leaderboards. Requires Discord Administrator permission.
+- **Admin commands** (admin channel, requires Discord Administrator permission, all with `/confirm-reset` confirmation step):
+  - `/reset-leaderboards` — Resets all Champion/E4 and Arceus leaderboards for all difficulties.
+  - `/reset-arceus [difficulty]` — Resets Arceus damage leaderboard. Optional difficulty: easy/normal/hard/impossible. Omit for all.
+  - `/reset-champions [difficulty]` — Resets Champion/E4 data. Optional difficulty: easy/normal/hard/impossible. Omit for all.
 - **Environment tag**: Bot messages are prefixed with `[development]`, `[staging]`, etc. based on `SERVER_ENV`. Production messages have no prefix.
 - **Generated image**: A composite PNG created server-side with jimp — player name header, Pokemon portraits with item icons, active synergy icons with counts.
 
@@ -410,7 +413,7 @@ The Discord bot handles three categories of announcements plus admin commands.
 
 | File | Role |
 |---|---|
-| `app/services/discord.ts` | Bot client + webhook clients. `announceNewChampion()` (with reign duration), `announceArceusRecord()`, `announceNewLongestReign()`. Admin command listener for `/reset-leaderboards`. `generateTeamImage()` composites sprites. |
+| `app/services/discord.ts` | Bot client + webhook clients. `announceNewChampion()` (with reign duration), `announceArceusRecord()`, `announceNewLongestReign()`. Admin commands: `/reset-leaderboards`, `/reset-arceus [difficulty]`, `/reset-champions [difficulty]`. `generateTeamImage()` composites sprites. |
 | `app/rooms/commands/game-commands.ts` | `endChampionFight()` calls `promoteNewChampion()` then Discord announcements with reign data. `endArceusFight()` calls `checkAndUpdateArceusRecord()` then Discord announcement if new #1. |
 | `app/public/src/assets/types-png/` | Pre-converted PNG versions of synergy type icons. Used by the image generator. |
 

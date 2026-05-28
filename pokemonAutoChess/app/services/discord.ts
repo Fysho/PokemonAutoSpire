@@ -49,7 +49,17 @@ const envTag = serverEnv === "production" ? "" : `[${serverEnv}] `
 let cachedChannel: TextChannel | undefined
 let cachedArceusChannel: TextChannel | undefined
 
-const pendingResets = new Map<string, NodeJS.Timeout>()
+const DIFFICULTY_NAMES: Record<string, DifficultyMode> = { easy: 0, normal: 1, hard: 2, impossible: 3 }
+
+type PendingReset = { timeout: NodeJS.Timeout; action: "all" | "arceus" | "champions"; mode?: DifficultyMode }
+const pendingResets = new Map<string, PendingReset>()
+
+function setPendingReset(userId: string, action: PendingReset["action"], mode?: DifficultyMode) {
+  const existing = pendingResets.get(userId)
+  if (existing) clearTimeout(existing.timeout)
+  const timeout = setTimeout(() => pendingResets.delete(userId), 30000)
+  pendingResets.set(userId, { timeout, action, mode })
+}
 
 if (process.env.DISCORD_BOT_TOKEN && (championChannelId || arceusChannelId || adminChannelId)) {
   discordBot = new Client({
@@ -70,14 +80,41 @@ if (process.env.DISCORD_BOT_TOKEN && (championChannelId || arceusChannelId || ad
     }
 
     const content = message.content.trim().toLowerCase()
+    const parts = content.split(/\s+/)
+    const command = parts[0]
+    const diffArg = parts[1]
+    const mode = diffArg ? DIFFICULTY_NAMES[diffArg] : undefined
 
-    if (content === "/reset-leaderboards") {
-      const timeout = setTimeout(() => {
-        pendingResets.delete(message.author.id)
-      }, 30000)
-      pendingResets.set(message.author.id, timeout)
+    if (command === "/reset-leaderboards") {
+      setPendingReset(message.author.id, "all")
       message.reply(
         `${envTag}Are you sure you want to reset **all** Champion/E4 and Arceus damage leaderboards for all difficulties? Type \`/confirm-reset\` within 30 seconds to proceed.`
+      )
+      return
+    }
+
+    if (command === "/reset-arceus") {
+      if (diffArg && mode === undefined) {
+        message.reply(`${envTag}Unknown difficulty \`${diffArg}\`. Use: easy, normal, hard, impossible.`)
+        return
+      }
+      const scope = mode !== undefined ? `**${DIFFICULTY_LABEL[mode]}**` : "**all difficulties**"
+      setPendingReset(message.author.id, "arceus", mode)
+      message.reply(
+        `${envTag}Are you sure you want to reset the Arceus damage leaderboard for ${scope}? Type \`/confirm-reset\` within 30 seconds to proceed.`
+      )
+      return
+    }
+
+    if (command === "/reset-champions") {
+      if (diffArg && mode === undefined) {
+        message.reply(`${envTag}Unknown difficulty \`${diffArg}\`. Use: easy, normal, hard, impossible.`)
+        return
+      }
+      const scope = mode !== undefined ? `**${DIFFICULTY_LABEL[mode]}**` : "**all difficulties**"
+      setPendingReset(message.author.id, "champions", mode)
+      message.reply(
+        `${envTag}Are you sure you want to reset the Champion/E4 data for ${scope}? Type \`/confirm-reset\` within 30 seconds to proceed.`
       )
       return
     }
@@ -85,19 +122,30 @@ if (process.env.DISCORD_BOT_TOKEN && (championChannelId || arceusChannelId || ad
     if (content === "/confirm-reset") {
       const pending = pendingResets.get(message.author.id)
       if (!pending) {
-        message.reply(`${envTag}No pending reset. Use \`/reset-leaderboards\` first.`)
+        message.reply(`${envTag}No pending reset. Use \`/reset-leaderboards\`, \`/reset-arceus\`, or \`/reset-champions\` first.`)
         return
       }
-      clearTimeout(pending)
+      clearTimeout(pending.timeout)
       pendingResets.delete(message.author.id)
 
       const { resetChampionData } = require("./champion-data")
       const { resetArceusLeaderboard } = require("./arceus-record")
-      resetChampionData()
-      resetArceusLeaderboard()
+      const modeLabel = pending.mode !== undefined ? DIFFICULTY_LABEL[pending.mode] : "all difficulties"
 
-      message.reply(`${envTag}All Champion/E4 and Arceus damage leaderboards have been reset for all difficulties.`)
-      logger.info(`Leaderboards reset by Discord user ${message.author.tag}`)
+      if (pending.action === "all") {
+        resetChampionData()
+        resetArceusLeaderboard()
+        message.reply(`${envTag}All Champion/E4 and Arceus damage leaderboards have been reset for all difficulties.`)
+        logger.info(`All leaderboards reset by Discord user ${message.author.tag}`)
+      } else if (pending.action === "arceus") {
+        resetArceusLeaderboard(pending.mode)
+        message.reply(`${envTag}Arceus damage leaderboard has been reset for ${modeLabel}.`)
+        logger.info(`Arceus leaderboard reset (${modeLabel}) by Discord user ${message.author.tag}`)
+      } else if (pending.action === "champions") {
+        resetChampionData(pending.mode)
+        message.reply(`${envTag}Champion/E4 data has been reset for ${modeLabel}.`)
+        logger.info(`Champion data reset (${modeLabel}) by Discord user ${message.author.tag}`)
+      }
       return
     }
   })
