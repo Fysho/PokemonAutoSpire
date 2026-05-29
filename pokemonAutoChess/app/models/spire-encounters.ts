@@ -94,6 +94,9 @@ export type SpireEncounter = {
   bonusSpeDef?: number
   bonusAP?: number
   bonusPP?: number
+  mainBonusHP?: number
+  mainBonusAtk?: number
+  mainBonusAP?: number
 }
 
 export type SpireEncounterTemplate = {
@@ -252,13 +255,11 @@ const GYM_LEADER_NAMES: Partial<Record<Synergy, string[]>> = {
 
 // ─── Adding a new Elite Encounter ───────────────────────────────
 // 1. Add the template to the appropriate ACT*_ELITE_ENCOUNTERS array below.
-//    - `avatar`: the Pokemon whose sprite shows on the map node.
-//    - `board`: positions use x=2-6, y=1 (back) / y=2 (mid) / y=3 (front).
-//    - `rewards`: Pokemon offered to the player on win.
-// 2. If items are needed, add a named handler in getEliteEncounterBase()
-//    (search for "Cursed Grotto" for an example). Items array indices must
-//    match the board array order.
-// 3. Create a map-node sprite for the avatar Pokemon:
+//    - `mainPokemon`: appears on the map icon and gets a dojo ticket (BRONZE/SILVER/GOLD by act).
+//    - `validPicks`: pool of pokemon to fill remaining slots via star budget. Repeats allowed.
+// 2. Team is proc-gen'd: mainPokemon + validPicks fill to difficulty's pokemonCount using star budget.
+//    Positioning uses range-based rows (melee front, ranged back), same as wild encounters.
+// 3. Create a map-node sprite for the mainPokemon:
 //    - Open the spritesheet JSON at app/public/src/assets/pokemons/<PkmIndex>.json
 //    - Find frame "Normal/Idle/Anim/7/0001" (direction 7 = southwest / down-left)
 //    - Extract that frame, place it on a transparent canvas at sourceSize, scale 2x
@@ -268,6 +269,12 @@ const GYM_LEADER_NAMES: Partial<Record<Synergy, string[]>> = {
 
 export type EliteEncounterTemplate = {
   name: string
+  mainPokemon: Pkm
+  validPicks: Pkm[]
+}
+
+type UnlockEncounterTemplate = {
+  name: string
   avatar: Pkm
   pokemon: Pkm[]
   rewards: Pkm[]
@@ -275,158 +282,37 @@ export type EliteEncounterTemplate = {
   eliteType?: "legendary" | "unique" | "hatch"
 }
 
-// Act 1: Baby/basic Pokemon fights, reward 1-star Pokemon
+// Act 1: Baby/basic Pokemon fights
 const ACT1_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
-  {
-    name: "Eeveelution Squad",
-    avatar: Pkm.EEVEE,
-    pokemon: [Pkm.VAPOREON, Pkm.JOLTEON, Pkm.FLAREON, Pkm.ESPEON, Pkm.UMBREON, Pkm.LEAFEON, Pkm.GLACEON, Pkm.SYLVEON],
-    rewards: [Pkm.EEVEE],
-    board: []
-  },
-  {
-    name: "Psychic Circle",
-    avatar: Pkm.KADABRA,
-    pokemon: [Pkm.KADABRA, Pkm.KIRLIA, Pkm.DROWZEE, Pkm.MR_MIME, Pkm.JYNX],
-    rewards: [Pkm.ABRA, Pkm.RALTS, Pkm.DROWZEE, Pkm.MIME_JR, Pkm.SMOOCHUM],
-    board: []
-  },
-  {
-    name: "Rival Flames",
-    avatar: Pkm.ELECTABUZZ,
-    pokemon: [Pkm.ELECTABUZZ, Pkm.MAGMAR],
-    rewards: [Pkm.ELEKID, Pkm.MAGBY],
-    board: [[Pkm.ELECTABUZZ, 3, 2], [Pkm.MAGMAR, 5, 2]]
-  },
-  {
-    name: "Bat Cave",
-    avatar: Pkm.GOLBAT,
-    pokemon: [Pkm.GOLBAT, Pkm.NOIBAT, Pkm.SWOOBAT],
-    rewards: [Pkm.ZUBAT, Pkm.WOOBAT, Pkm.NOIBAT],
-    board: []
-  },
-  {
-    name: "Rock Tunnel",
-    avatar: Pkm.LAIRON,
-    pokemon: [Pkm.LAIRON, Pkm.GRAVELER, Pkm.ONIX],
-    rewards: [Pkm.LAIRON, Pkm.GRAVELER, Pkm.ONIX],
-    board: []
-  }
+  { name: "Eeveelution Squad", mainPokemon: Pkm.EEVEE, validPicks: [Pkm.VAPOREON, Pkm.JOLTEON, Pkm.FLAREON, Pkm.ESPEON, Pkm.UMBREON, Pkm.LEAFEON, Pkm.GLACEON, Pkm.SYLVEON] },
+  { name: "Psychic Circle", mainPokemon: Pkm.KADABRA, validPicks: [Pkm.KIRLIA, Pkm.DROWZEE, Pkm.MR_MIME, Pkm.JYNX] },
+  { name: "Rival Flames", mainPokemon: Pkm.ELECTABUZZ, validPicks: [Pkm.MAGMAR, Pkm.ELEKID, Pkm.MAGBY] },
+  { name: "Bat Cave", mainPokemon: Pkm.GOLBAT, validPicks: [Pkm.WOOBAT, Pkm.SWOOBAT, Pkm.NOIBAT, Pkm.ZUBAT] },
+  { name: "Rock Tunnel", mainPokemon: Pkm.LAIRON, validPicks: [Pkm.GRAVELER, Pkm.ONIX, Pkm.ARON, Pkm.GEODUDE] }
 ]
 
-// Act 2: Mid evolutions, reward 2-star Pokemon
+// Act 2: Mid evolutions
 const ACT2_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
-  {
-    name: "Iron Defense",
-    avatar: Pkm.METAGROSS,
-    pokemon: [Pkm.METAGROSS, Pkm.AGGRON, Pkm.LUCARIO, Pkm.SCIZOR],
-    rewards: [Pkm.BELDUM, Pkm.RIOLU, Pkm.SCYTHER],
-    board: [[Pkm.METAGROSS, 4, 2], [Pkm.AGGRON, 2, 1], [Pkm.LUCARIO, 6, 1], [Pkm.SCIZOR, 4, 1]]
-  },
-  {
-    name: "Psychic Conclave",
-    avatar: Pkm.ALAKAZAM,
-    pokemon: [Pkm.GARDEVOIR, Pkm.ALAKAZAM, Pkm.DELPHOX, Pkm.HYPNO],
-    rewards: [Pkm.ABRA, Pkm.RALTS, Pkm.DROWZEE, Pkm.FENNEKIN],
-    board: [[Pkm.GARDEVOIR, 3, 2], [Pkm.ALAKAZAM, 5, 2], [Pkm.DELPHOX, 2, 1], [Pkm.HYPNO, 6, 1]]
-  },
-  {
-    name: "Sleeping Giant",
-    avatar: Pkm.SNORLAX,
-    pokemon: [Pkm.SNORLAX, Pkm.SLAKING],
-    rewards: [Pkm.SNORLAX, Pkm.SLAKOTH],
-    board: [[Pkm.SNORLAX, 3, 2], [Pkm.SLAKING, 5, 2]]
-  },
-  {
-    name: "Poltergeist",
-    avatar: Pkm.ROTOM,
-    pokemon: [Pkm.ROTOM_WASH, Pkm.ROTOM_HEAT, Pkm.ROTOM_FROST, Pkm.ROTOM_FAN, Pkm.ROTOM_MOW, Pkm.ROTOM_DRONE],
-    rewards: [],
-    board: []
-  },
-  {
-    name: "Dark Omen",
-    avatar: Pkm.DARKRAI,
-    pokemon: [Pkm.ABSOL, Pkm.SPIRITOMB, Pkm.MEGA_SABLEYE, Pkm.DARKRAI],
-    rewards: [Pkm.ABSOL, Pkm.SPIRITOMB, Pkm.SABLEYE],
-    board: [[Pkm.ABSOL, 3, 2], [Pkm.SPIRITOMB, 5, 2], [Pkm.MEGA_SABLEYE, 4, 3], [Pkm.DARKRAI, 4, 1]],
-    items: [[], [], [Item.RED_ORB], []]
-  },
-  {
-    name: "Masquerade",
-    avatar: Pkm.MIMIKYU,
-    pokemon: [Pkm.MIMIKYU, Pkm.ZOROARK, Pkm.DITTO],
-    rewards: [Pkm.MIMIKYU, Pkm.DITTO, Pkm.ZORUA],
-    board: [
-      [Pkm.MIMIKYU, 3, 2],
-      [Pkm.ZOROARK, 4, 1],
-      [Pkm.MEOWSCARADA, 2, 2], [Pkm.MEOWSCARADA, 5, 2],
-      [Pkm.DITTO, 0, 3], [Pkm.DITTO, 1, 3], [Pkm.DITTO, 2, 3], [Pkm.DITTO, 3, 3],
-      [Pkm.DITTO, 4, 3], [Pkm.DITTO, 5, 3], [Pkm.DITTO, 6, 3], [Pkm.DITTO, 7, 3]
-    ]
-  },
-  {
-    name: "Cursed Grotto",
-    avatar: Pkm.HOUNDOOM,
-    pokemon: [Pkm.HOUNDOOM, Pkm.BANETTE, Pkm.GRAVELER, Pkm.BOLDORE, Pkm.LAIRON, Pkm.PUPITAR],
-    rewards: [Pkm.HOUNDOUR, Pkm.SHUPPET],
-    board: [
-      [Pkm.GRAVELER, 2, 3], [Pkm.BOLDORE, 4, 3], [Pkm.LAIRON, 5, 3], [Pkm.PUPITAR, 6, 3],
-      [Pkm.HOUNDOOM, 3, 1], [Pkm.BANETTE, 5, 1]
-    ]
-  }
+  { name: "Iron Defense", mainPokemon: Pkm.METAGROSS, validPicks: [Pkm.AGGRON, Pkm.LUCARIO, Pkm.SCIZOR] },
+  { name: "Psychic Conclave", mainPokemon: Pkm.ALAKAZAM, validPicks: [Pkm.GARDEVOIR, Pkm.DELPHOX, Pkm.HYPNO] },
+  { name: "Sleeping Giant", mainPokemon: Pkm.SNORLAX, validPicks: [Pkm.SLAKING] },
+  { name: "Poltergeist", mainPokemon: Pkm.ROTOM, validPicks: [Pkm.ROTOM_WASH, Pkm.ROTOM_HEAT, Pkm.ROTOM_FROST, Pkm.ROTOM_FAN, Pkm.ROTOM_MOW, Pkm.ROTOM_DRONE] },
+  { name: "Dark Omen", mainPokemon: Pkm.DARKRAI, validPicks: [Pkm.ABSOL, Pkm.SPIRITOMB, Pkm.MEGA_SABLEYE] },
+  { name: "Masquerade", mainPokemon: Pkm.MIMIKYU, validPicks: [Pkm.ZOROARK, Pkm.DITTO, Pkm.MEOWSCARADA] },
+  { name: "Cursed Grotto", mainPokemon: Pkm.HOUNDOOM, validPicks: [Pkm.BANETTE, Pkm.GRAVELER, Pkm.BOLDORE, Pkm.LAIRON, Pkm.PUPITAR] }
 ]
 
-// Act 3: Fully evolved, reward 3-star Pokemon
+// Act 3: Fully evolved
 const ACT3_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
-  {
-    name: "Dragon's Den",
-    avatar: Pkm.SALAMENCE,
-    pokemon: [Pkm.SALAMENCE, Pkm.GARCHOMP, Pkm.DRAGONITE, Pkm.FLYGON, Pkm.GOODRA, Pkm.CHARIZARD, Pkm.KINGDRA, Pkm.HYDREIGON],
-    rewards: [Pkm.SHELGON, Pkm.GABITE, Pkm.DRAGONAIR, Pkm.VIBRAVA, Pkm.GOOMY, Pkm.CHARMELEON, Pkm.SEADRA, Pkm.ZWEILOUS],
-    board: []
-  },
-  {
-    name: "Tyrant's Court",
-    avatar: Pkm.TYRANITAR,
-    pokemon: [Pkm.TYRANITAR, Pkm.AERODACTYL, Pkm.GOLEM, Pkm.AGGRON, Pkm.RHYPERIOR, Pkm.STEELIX],
-    rewards: [Pkm.PUPITAR, Pkm.AERODACTYL, Pkm.GRAVELER, Pkm.LAIRON, Pkm.RHYHORN, Pkm.ONIX],
-    board: [
-      [Pkm.TYRANITAR, 4, 3], [Pkm.AERODACTYL, 2, 3], [Pkm.GOLEM, 6, 2],
-      [Pkm.AGGRON, 2, 1], [Pkm.RHYPERIOR, 6, 1], [Pkm.STEELIX, 4, 1]
-    ]
-  },
-  {
-    name: "Celestial Court",
-    avatar: Pkm.TOGEKISS,
-    pokemon: [Pkm.TOGEKISS, Pkm.GARDEVOIR, Pkm.FLORGES, Pkm.CLEFABLE, Pkm.SYLVEON, Pkm.AZUMARILL, Pkm.WIGGLYTUFF, Pkm.GRANBULL, Pkm.PRIMARINA, Pkm.HATTERENE, Pkm.TAPU_FINI, Pkm.TAPU_LELE, Pkm.XERNEAS, Pkm.DIANCIE],
-    rewards: [Pkm.TOGEPI, Pkm.RALTS, Pkm.FLABEBE, Pkm.CLEFFA, Pkm.EEVEE, Pkm.MARILL, Pkm.IGGLYBUFF, Pkm.POPPLIO, Pkm.HATENNA],
-    board: []
-  },
-  {
-    name: "Mother's Fury",
-    avatar: Pkm.KANGASKHAN,
-    pokemon: [Pkm.KANGASKHAN, Pkm.KANGASKHAN, Pkm.KANGASKHAN, Pkm.KANGASKHAN, Pkm.BLISSEY, Pkm.BLISSEY, Pkm.MAUSHOLD_FOUR],
-    rewards: [Pkm.KANGASKHAN],
-    board: [[Pkm.KANGASKHAN, 3, 3], [Pkm.KANGASKHAN, 5, 3], [Pkm.KANGASKHAN, 2, 2], [Pkm.KANGASKHAN, 6, 2], [Pkm.BLISSEY, 2, 1], [Pkm.BLISSEY, 6, 1], [Pkm.MAUSHOLD_FOUR, 4, 1]]
-  },
-  {
-    name: "Luchador Ring",
-    avatar: Pkm.HAWLUCHA,
-    pokemon: [Pkm.HAWLUCHA, Pkm.TAUROS, Pkm.KANGASKHAN],
-    rewards: [Pkm.HAWLUCHA, Pkm.TAUROS, Pkm.KANGASKHAN],
-    board: [[Pkm.HAWLUCHA, 4, 3], [Pkm.TAUROS, 2, 2], [Pkm.KANGASKHAN, 6, 2], [Pkm.HAWLUCHA, 3, 1]]
-  },
-  {
-    name: "Weather Report",
-    avatar: Pkm.CASTFORM,
-    pokemon: [Pkm.CASTFORM_SUN, Pkm.CASTFORM_RAIN, Pkm.CASTFORM_HAIL, Pkm.CASTFORM],
-    rewards: [Pkm.CASTFORM_SUN, Pkm.CASTFORM_RAIN, Pkm.CASTFORM_HAIL],
-    board: [[Pkm.CASTFORM_SUN, 2, 2], [Pkm.CASTFORM_RAIN, 6, 2], [Pkm.CASTFORM_HAIL, 4, 2], [Pkm.CASTFORM, 3, 1], [Pkm.CASTFORM, 5, 1]]
-  }
+  { name: "Dragon's Den", mainPokemon: Pkm.SALAMENCE, validPicks: [Pkm.GARCHOMP, Pkm.DRAGONITE, Pkm.FLYGON, Pkm.GOODRA, Pkm.CHARIZARD, Pkm.KINGDRA, Pkm.HYDREIGON] },
+  { name: "Tyrant's Court", mainPokemon: Pkm.TYRANITAR, validPicks: [Pkm.AERODACTYL, Pkm.GOLEM, Pkm.AGGRON, Pkm.RHYPERIOR, Pkm.STEELIX] },
+  { name: "Celestial Court", mainPokemon: Pkm.TOGEKISS, validPicks: [Pkm.GARDEVOIR, Pkm.FLORGES, Pkm.CLEFABLE, Pkm.SYLVEON, Pkm.AZUMARILL, Pkm.WIGGLYTUFF, Pkm.GRANBULL, Pkm.PRIMARINA, Pkm.HATTERENE] },
+  { name: "Mother's Fury", mainPokemon: Pkm.KANGASKHAN, validPicks: [Pkm.BLISSEY, Pkm.MAUSHOLD_FOUR] },
+  { name: "Luchador Ring", mainPokemon: Pkm.HAWLUCHA, validPicks: [Pkm.TAUROS, Pkm.KANGASKHAN] },
+  { name: "Weather Report", mainPokemon: Pkm.CASTFORM, validPicks: [Pkm.CASTFORM_SUN, Pkm.CASTFORM_RAIN, Pkm.CASTFORM_HAIL] }
 ]
 
-const LEGENDARY_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
+const LEGENDARY_ELITE_ENCOUNTERS: UnlockEncounterTemplate[] = [
   Pkm.KYUREM, Pkm.RESHIRAM, Pkm.ZEKROM, Pkm.STAKATAKA, Pkm.GENESECT,
   Pkm.GUZZLORD, Pkm.ETERNATUS, Pkm.MELOETTA, Pkm.MEW, Pkm.MEWTWO,
   Pkm.ENTEI, Pkm.SUICUNE, Pkm.RAIKOU, Pkm.REGIDRAGO, Pkm.REGIELEKI,
@@ -452,7 +338,7 @@ const LEGENDARY_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
   eliteType: "legendary" as const
 }))
 
-const UNIQUE_ELITE_ENCOUNTERS: EliteEncounterTemplate[] = [
+const UNIQUE_ELITE_ENCOUNTERS: UnlockEncounterTemplate[] = [
   Pkm.ABSOL, Pkm.AERODACTYL, Pkm.APPLIN, Pkm.ARCTOVISH, Pkm.ARCTOZOLT,
   Pkm.AUDINO, Pkm.AZELF, Pkm.BASCULIN_WHITE, Pkm.BRUXISH, Pkm.CARNIVINE,
   Pkm.CASTFORM, Pkm.CHARCADET, Pkm.CHATOT, Pkm.CHINGLING, Pkm.COMFEY,
@@ -504,7 +390,7 @@ const HATCH_EVOLUTIONS: Partial<Record<Pkm, Pkm>> = {
   [Pkm.SCATTERBUG]: Pkm.SPEWPA
 }
 
-const HATCH_UNLOCK_ENCOUNTERS: EliteEncounterTemplate[] = HATCH_BASES.map(pkm => ({
+const HATCH_UNLOCK_ENCOUNTERS: UnlockEncounterTemplate[] = HATCH_BASES.map(pkm => ({
   name: getPokemonData(pkm).name.replace(/_/g, " "),
   avatar: pkm,
   pokemon: [],
@@ -519,7 +405,7 @@ const ELITE_ENCOUNTERS_BY_ACT: { [act: number]: EliteEncounterTemplate[] } = {
   3: ACT3_ELITE_ENCOUNTERS
 }
 
-const UNLOCK_ENCOUNTERS_BY_ACT: { [act: number]: EliteEncounterTemplate[] } = {
+const UNLOCK_ENCOUNTERS_BY_ACT: { [act: number]: UnlockEncounterTemplate[] } = {
   1: HATCH_UNLOCK_ENCOUNTERS,
   2: UNIQUE_ELITE_ENCOUNTERS,
   3: LEGENDARY_ELITE_ENCOUNTERS
@@ -773,6 +659,42 @@ function selectWithStarBudget(
   return selected
 }
 
+function positionByRange(pokemon: Pkm[], act: number): [Pkm, number, number][] {
+  const board: [Pkm, number, number][] = []
+  if (act === 1) {
+    const allPositions = [
+      [2, 1], [3, 1], [4, 1], [5, 1], [6, 1],
+      [2, 2], [3, 2], [4, 2], [5, 2], [6, 2]
+    ]
+    const shuffled = pickNRandomIn(allPositions, Math.min(pokemon.length, allPositions.length))
+    pokemon.forEach((pkm, i) => {
+      board.push([pkm, shuffled[i][0], shuffled[i][1]])
+    })
+  } else {
+    const frontRow: [number, number][] = [[2, 3], [3, 3], [4, 3], [5, 3], [6, 3]]
+    const midRow: [number, number][] = [[2, 2], [3, 2], [4, 2], [5, 2], [6, 2]]
+    const backRow: [number, number][] = [[2, 1], [3, 1], [4, 1], [5, 1], [6, 1]]
+    let fi = 0, mi = 0, bi = 0
+    pokemon.forEach((pkm) => {
+      const range = getPokemonData(pkm).range
+      if (range <= 1 && fi < frontRow.length) {
+        board.push([pkm, frontRow[fi][0], frontRow[fi][1]]); fi++
+      } else if (range === 2 && mi < midRow.length) {
+        board.push([pkm, midRow[mi][0], midRow[mi][1]]); mi++
+      } else if (range >= 3 && bi < backRow.length) {
+        board.push([pkm, backRow[bi][0], backRow[bi][1]]); bi++
+      } else if (fi < frontRow.length) {
+        board.push([pkm, frontRow[fi][0], frontRow[fi][1]]); fi++
+      } else if (mi < midRow.length) {
+        board.push([pkm, midRow[mi][0], midRow[mi][1]]); mi++
+      } else if (bi < backRow.length) {
+        board.push([pkm, backRow[bi][0], backRow[bi][1]]); bi++
+      }
+    })
+  }
+  return board
+}
+
 export function getRegionalWildEncounter(act: number, floor: number, region: string, mode: DifficultyMode = 1): SpireEncounter {
   const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
   if (synergies.length === 0) {
@@ -830,44 +752,7 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
     ? selectWithStarBudget(candidatePool, primaryPool, secondaryPool, difficulty)
     : selectWithStarBudget(candidatePool, candidatePool, [], difficulty)
 
-  const board: [Pkm, number, number][] = []
-  if (act === 1) {
-    const allPositions = [
-      [2, 1], [3, 1], [4, 1], [5, 1], [6, 1],
-      [2, 2], [3, 2], [4, 2], [5, 2], [6, 2]
-    ]
-    const shuffled = pickNRandomIn(allPositions, Math.min(selected.length, allPositions.length))
-    selected.forEach((pkm, i) => {
-      board.push([pkm, shuffled[i][0], shuffled[i][1]])
-    })
-  } else {
-    const frontRow: [number, number][] = [[2, 3], [3, 3], [4, 3], [5, 3], [6, 3]]
-    const midRow: [number, number][] = [[2, 2], [3, 2], [4, 2], [5, 2], [6, 2]]
-    const backRow: [number, number][] = [[2, 1], [3, 1], [4, 1], [5, 1], [6, 1]]
-    let fi = 0, mi = 0, bi = 0
-    selected.forEach((pkm) => {
-      const range = getPokemonData(pkm).range
-      if (range <= 1 && fi < frontRow.length) {
-        board.push([pkm, frontRow[fi][0], frontRow[fi][1]])
-        fi++
-      } else if (range === 2 && mi < midRow.length) {
-        board.push([pkm, midRow[mi][0], midRow[mi][1]])
-        mi++
-      } else if (range >= 3 && bi < backRow.length) {
-        board.push([pkm, backRow[bi][0], backRow[bi][1]])
-        bi++
-      } else if (fi < frontRow.length) {
-        board.push([pkm, frontRow[fi][0], frontRow[fi][1]])
-        fi++
-      } else if (mi < midRow.length) {
-        board.push([pkm, midRow[mi][0], midRow[mi][1]])
-        mi++
-      } else if (bi < backRow.length) {
-        board.push([pkm, backRow[bi][0], backRow[bi][1]])
-        bi++
-      }
-    })
-  }
+  const board = positionByRange(selected, act)
 
   const useClassItems = act >= 3 || (act >= 2 && mode === 3)
   const items = useClassItems
@@ -1265,220 +1150,108 @@ export function getUnlockEncounterPokemon(index: number, act: number): Pkm[] {
 }
 
 export function getEliteEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
-  const base = getEliteEncounterBase(index, act, floor)
-  if (act >= 3 || (act >= 2 && mode === 3)) {
-    base.items = generateClassItems(base.board, mode)
-  }
-  return addHardModeItems(adjustEncounterItems(base, mode, act), act, floor, mode)
-}
-
-function getEliteEncounterBase(index: number, act: number, floor: number): SpireEncounter {
   const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
   const template = encounters[index % encounters.length]
+  const difficulty = getDifficultyConfig(act, floor, mode)
 
-  if (template.eliteType) {
-    return generateLegendaryEliteEncounter(template.avatar, act, floor)
-  }
+  const mainPkm = template.mainPokemon
+  const mainStars = getPokemonData(mainPkm).stars
+  const dojoLevel = act === 1 ? 1 : act === 2 ? 2 : 3
 
-  if (template.name === "Eeveelution Squad") {
-    const count = floor <= 8 ? 3 : floor <= 14 ? 4 : 5
-    const eeveelutions = pickNRandomIn(template.pokemon, count)
-    const positions: [number, number][] = [[4, 1], [2, 1], [6, 1], [3, 2], [5, 2]]
-    const board: [Pkm, number, number][] = eeveelutions.map((pkm, i) =>
-      [pkm, positions[i][0], positions[i][1]]
+  const remainingCount = Math.max(0, difficulty.pokemonCount - 1)
+  const picks: Pkm[] = []
+
+  if (remainingCount > 0 && template.validPicks.length > 0) {
+    const filteredPicks = template.validPicks.filter(p =>
+      getPokemonData(p).stars <= difficulty.maxStarsPerPokemon
     )
-    return { name: template.name, avatar: eeveelutions[0], board }
-  }
+    const basePool = filteredPicks.length > 0 ? filteredPicks : template.validPicks
+    const remaining = [...basePool]
 
-  if (template.name === "Psychic Circle") {
-    const count = floor <= 8 ? 3 : floor <= 14 ? 4 : 5
-    const psychics = pickNRandomIn(template.pokemon, count)
-    const positions: [number, number][] = [[4, 1], [2, 1], [6, 1], [3, 2], [5, 2]]
-    const board: [Pkm, number, number][] = psychics.map((pkm, i) =>
-      [pkm, positions[i][0], positions[i][1]]
+    const clampedMin = Math.max(
+      difficulty.starBudget[0] - mainStars,
+      remainingCount
     )
-    return { name: template.name, avatar: psychics[0], board }
-  }
-
-  if (template.name === "Rival Flames") {
-    const board: [Pkm, number, number][] = [[Pkm.ELECTABUZZ, 3, 2], [Pkm.MAGMAR, 5, 2]]
-    if (floor >= 12) {
-      board.push([Pkm.ELEKID, 2, 1], [Pkm.MAGBY, 6, 1])
-    }
-    return { name: template.name, avatar: template.avatar, board }
-  }
-
-  if (template.name === "Bat Cave") {
-    const board: [Pkm, number, number][] = [
-      [Pkm.GOLBAT, 4, 2], [Pkm.NOIBAT, 2, 1], [Pkm.SWOOBAT, 6, 1]
-    ]
-    if (floor >= 10) {
-      board.push([Pkm.ZUBAT, 3, 1])
-    }
-    if (floor >= 14) {
-      board.push([Pkm.WOOBAT, 5, 1])
-    }
-    return { name: template.name, avatar: template.avatar, board }
-  }
-
-  if (template.name === "Rock Tunnel") {
-    const board: [Pkm, number, number][] = [
-      [Pkm.LAIRON, 4, 2], [Pkm.GRAVELER, 2, 1], [Pkm.ONIX, 6, 1]
-    ]
-    if (floor >= 10) {
-      board.push([Pkm.ARON, 3, 1])
-    }
-    if (floor >= 14) {
-      board.push([Pkm.GEODUDE, 5, 1])
-    }
-    return { name: template.name, avatar: template.avatar, board }
-  }
-
-  if (template.name === "Bug Swarm") {
-    const board: [Pkm, number, number][] = floor >= 12
-      ? [[Pkm.METAPOD, 3, 2], [Pkm.KAKUNA, 5, 2], [Pkm.SCATTERBUG, 2, 1], [Pkm.GRUBBIN, 6, 1]]
-      : [[Pkm.CATERPIE, 3, 2], [Pkm.WEEDLE, 5, 2], [Pkm.SCATTERBUG, 2, 1], [Pkm.GRUBBIN, 6, 1]]
-    return { name: template.name, avatar: template.avatar, board }
-  }
-
-  if (template.name === "Poltergeist") {
-    const rotoms = pickNRandomIn(template.pokemon, 4)
-    const positions: [number, number][] = [[3, 2], [5, 2], [2, 1], [6, 1]]
-    const board: [Pkm, number, number][] = rotoms.map((pkm, i) =>
-      [pkm, positions[i][0], positions[i][1]]
+    const clampedMax = Math.min(
+      difficulty.starBudget[1] - mainStars,
+      remainingCount * difficulty.maxStarsPerPokemon
     )
-    const items = rotoms.map(() => pickNRandomIn([...Tools], 2) as Item[])
-    return { name: template.name, avatar: rotoms[0], board, items }
-  }
-
-  if (template.name === "Sleeping Giant") {
-    const berry1 = pickRandomIn(NonSpecialBerries)
-    const berry2 = pickRandomIn(NonSpecialBerries)
-    return {
-      name: template.name,
-      avatar: template.avatar,
-      board: [[Pkm.SNORLAX, 3, 2], [Pkm.SLAKING, 5, 2]],
-      items: [
-        [Item.BIG_EATER_BELT, Item.KINGS_ROCK, berry1],
-        [Item.BIG_EATER_BELT, Item.KINGS_ROCK, berry2]
-      ]
-    }
-  }
-
-  if (template.name === "Masquerade") {
-    const critSet: Item[] = [Item.REAPER_CLOTH, Item.RAZOR_CLAW, Item.RAZOR_FANG]
-    return {
-      name: template.name,
-      avatar: template.avatar,
-      board: [...template.board],
-      items: [
-        critSet,                                          // Mimikyu
-        critSet,                                          // Zoroark
-        critSet,                                          // Meowscarada
-        critSet,                                          // Meowscarada
-        [Item.KINGS_ROCK, Item.ROCKY_HELMET],             // Ditto 1
-        [Item.KINGS_ROCK, Item.ASSAULT_VEST],             // Ditto 2
-        [Item.KINGS_ROCK, Item.ROCKY_HELMET],             // Ditto 3
-        [Item.KINGS_ROCK, Item.ASSAULT_VEST],             // Ditto 4
-        [Item.KINGS_ROCK, Item.ROCKY_HELMET],             // Ditto 5
-        [Item.KINGS_ROCK, Item.ASSAULT_VEST],             // Ditto 6
-        [Item.KINGS_ROCK, Item.ROCKY_HELMET],             // Ditto 7
-        [Item.KINGS_ROCK, Item.ASSAULT_VEST],             // Ditto 8
-      ]
-    }
-  }
-
-  if (template.name === "Dragon's Den") {
-    const count = floor <= 8 ? 5 : floor <= 14 ? 6 : 8
-    const dragons = pickNRandomIn(template.pokemon, Math.min(count, template.pokemon.length))
-    const positions: [number, number][] = [
-      [4, 3], [2, 2], [6, 2], [3, 1], [5, 1], [2, 1], [6, 1], [4, 2]
-    ]
-    const board: [Pkm, number, number][] = dragons.map((pkm, i) =>
-      [pkm, positions[i][0], positions[i][1]]
+    const targetStars = randomBetween(
+      Math.max(remainingCount, clampedMin),
+      Math.max(remainingCount, clampedMax)
     )
-    const items = dragons.map(() => pickNRandomIn(CraftableItems, 1) as Item[])
-    return { name: template.name, avatar: dragons[0], board, items }
-  }
+    let currentStars = 0
 
-  if (template.name === "Tyrant's Court") {
-    const items = template.pokemon.map(() => [Item.STICKY_BARB] as Item[])
-    return {
-      name: template.name,
-      avatar: template.avatar,
-      board: [...template.board],
-      items
+    for (let i = 0; i < remainingCount; i++) {
+      const slotsLeft = remainingCount - i
+      const starsNeeded = targetStars - currentStars
+      const maxAffordable = Math.min(difficulty.maxStarsPerPokemon, starsNeeded - (slotsLeft - 1))
+      const minNeeded = Math.max(1, starsNeeded - (slotsLeft - 1) * difficulty.maxStarsPerPokemon)
+
+      const starFilter = (p: Pkm) => {
+        const s = getPokemonData(p).stars
+        return s >= minNeeded && s <= maxAffordable
+      }
+
+      // Prefer unique picks; fall back to full pool if remaining is exhausted
+      let eligible = remaining.filter(starFilter)
+      if (eligible.length === 0) eligible = basePool.filter(starFilter)
+      if (eligible.length === 0) eligible = remaining.length > 0 ? remaining : [...basePool]
+
+      const pick = pickRandomIn(eligible)
+      picks.push(pick)
+      currentStars += getPokemonData(pick).stars
+      const idx = remaining.indexOf(pick)
+      if (idx !== -1) remaining.splice(idx, 1)
     }
   }
 
-  if (template.name === "Celestial Court") {
-    const count = floor <= 8 ? 5 : floor <= 14 ? 6 : 7
-    const fairies = pickNRandomIn(template.pokemon, Math.min(count, template.pokemon.length))
-    const positions: [number, number][] = [
-      [4, 3], [2, 2], [6, 2], [3, 2], [5, 2], [2, 1], [6, 1]
-    ]
-    const board: [Pkm, number, number][] = fairies.map((pkm, i) =>
-      [pkm, positions[i][0], positions[i][1]]
-    )
-    const items = fairies.map(() => pickNRandomIn(CraftableItems, randomBetween(1, 2)) as Item[])
-    return { name: template.name, avatar: fairies[0], board, items }
+  const allPokemon = [mainPkm, ...picks]
+  const board = positionByRange(allPokemon, act)
+
+  const useClassItems = act >= 3 || (act >= 2 && mode === 3)
+  let items = useClassItems
+    ? generateClassItems(board, mode)
+    : generateEncounterItems(allPokemon.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
+
+  if (!items || items.length === 0) {
+    items = allPokemon.map(() => [] as Item[])
+  }
+  while (items.length < allPokemon.length) {
+    items.push([])
+  }
+  // Main pokemon gets items as priority: swap with the best-equipped slot
+  const bestIdx = items.reduce((best, list, i) => list.length > items[best].length ? i : best, 0)
+  if (bestIdx !== 0 && items[bestIdx].length > items[0].length) {
+    const temp = items[0]
+    items[0] = items[bestIdx]
+    items[bestIdx] = temp
   }
 
-  if (template.name === "Mother's Fury") {
-    const items = template.pokemon.map(() => pickNRandomIn(CraftableItems, 2) as Item[])
-    return {
-      name: template.name,
-      avatar: template.avatar,
-      board: [...template.board],
-      items
-    }
-  }
+  const hpBonus = [50, 100, 150][dojoLevel - 1] ?? 0
+  const atkBonus = [5, 10, 15][dojoLevel - 1] ?? 0
+  const apBonus = [15, 30, 45][dojoLevel - 1] ?? 0
 
-  if (template.name === "Luchador Ring") {
-    const items = template.pokemon.map(() => pickNRandomIn(CraftableItems, 1) as Item[])
-    return {
-      name: template.name,
-      avatar: template.avatar,
-      board: [...template.board],
-      items
-    }
-  }
-
-  if (template.name === "Cursed Grotto") {
-    return {
-      name: template.name,
-      avatar: template.avatar,
-      board: [...template.board],
-      items: [[], [], [], [], [Item.WIDE_LENS], [Item.WIDE_LENS]]
-    }
-  }
-
-  return {
+  const encounter: SpireEncounter = {
     name: template.name,
-    avatar: template.avatar,
-    board: [...template.board]
+    avatar: mainPkm,
+    board,
+    items,
+    mainBonusHP: hpBonus,
+    mainBonusAtk: atkBonus,
+    mainBonusAP: apBonus
   }
+
+  return addHardModeItems(adjustEncounterItems(encounter, mode, act), act, floor, mode)
 }
 
-export function getEliteEncountersForAct(act: number): EliteEncounterTemplate[] {
-  return ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
+export function getEliteMainPokemon(index: number, act: number): Pkm {
+  const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
+  return encounters[index % encounters.length]?.mainPokemon ?? Pkm.DEFAULT
 }
 
 export function getEliteEncounterCount(act: number): number {
   return (ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS).length
-}
-
-export function getEliteEncounterPokemon(index: number, act: number): Pkm[] {
-  const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
-  const template = encounters[index % encounters.length]
-  if (template.eliteType) return [template.avatar]
-  return template.rewards
-}
-
-export function getEliteEncounterType(index: number, act: number): "legendary" | "unique" | "hatch" | undefined {
-  const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
-  const template = encounters[index % encounters.length]
-  return template.eliteType
 }
 
 export function getEliteEncounterName(index: number, act: number): string {
@@ -1488,7 +1261,7 @@ export function getEliteEncounterName(index: number, act: number): string {
 
 export function getEliteEncounterAvatar(index: number, act: number): Pkm {
   const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
-  return encounters[index % encounters.length]?.avatar ?? Pkm.DEFAULT
+  return encounters[index % encounters.length]?.mainPokemon ?? Pkm.DEFAULT
 }
 
 export function getGymLeaderDisplayName(synergy: string): string {

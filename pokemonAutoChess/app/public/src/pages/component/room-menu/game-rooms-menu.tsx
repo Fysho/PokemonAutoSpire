@@ -22,7 +22,7 @@ export function IngameRoomsList({ gameMode }: { gameMode?: GameMode }) {
   ).filter((r) => !gameMode || r.metadata.gameMode === gameMode)
   const navigate = useNavigate()
   const [isJoining, setJoining] = useState<boolean>(false)
-  const [sortBy, setSortBy] = useState<"stage" | "elo" | "name">("stage")
+  const [sortBy, setSortBy] = useState<"difficulty" | "stage" | "elo" | "name">("difficulty")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const user = useAppSelector((state) => state.network.profile)
 
@@ -47,7 +47,11 @@ export function IngameRoomsList({ gameMode }: { gameMode?: GameMode }) {
     rooms: RoomAvailable<IGameMetadata>[]
   ): RoomAvailable<IGameMetadata>[] => {
     return [...rooms].sort((a, b) => {
-      if (sortBy === "stage") {
+      if (sortBy === "difficulty") {
+        const diffA = a.metadata?.difficultyMode ?? 0
+        const diffB = b.metadata?.difficultyMode ?? 0
+        return diffA - diffB // Sort by difficulty ascending
+      } else if (sortBy === "stage") {
         const stageA = a.metadata?.stageLevel || 0
         const stageB = b.metadata?.stageLevel || 0
         return stageB - stageA // Sort by stage descending
@@ -125,9 +129,10 @@ export function IngameRoomsList({ gameMode }: { gameMode?: GameMode }) {
         <select
           id="sort-select"
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as "stage" | "elo")}
+          onChange={(e) => setSortBy(e.target.value as "difficulty" | "stage" | "elo" | "name")}
           style={{ padding: "4px 8px" }}
         >
+          <option value="difficulty">{t("difficulty")}</option>
           <option value="stage">{t("stage")}</option>
           <option value="elo">{t("average_elo")}</option>
           <option value="name">{t("name")}</option>

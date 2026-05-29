@@ -65,7 +65,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | Phase transitions | `game-commands.ts` → `OnUpdatePhaseCommand.execute()` |
 | Battle encounters (wild) | `app/models/spire-encounters.ts` → `getRegionalWildEncounter()` |
 | Encounter difficulty scaling | `spire-encounters.ts` → `getDifficultyConfig()` |
-| Elite encounters (handcrafted) | `spire-encounters.ts` → `ELITE_ENCOUNTERS_BY_ACT` (6/7/6 per act), `getEliteEncounter()` |
+| Elite encounters (proc-gen) | `spire-encounters.ts` → `ELITE_ENCOUNTERS_BY_ACT` (5/7/6 per act), `getEliteEncounter()`. Each has `mainPokemon` (map icon, gets dojo ticket) + `validPicks` pool filled via star budget. |
 | Unlock encounters (proc-gen) | `spire-encounters.ts` → `UNLOCK_ENCOUNTERS_BY_ACT` (Act 1: hatch, Act 2: unique, Act 3: legendary), `getUnlockEncounter()` |
 | Gym leaders (early/late) | `spire-encounters.ts` → `EARLY_GYM_LEADERS` / `LATE_GYM_LEADERS` |
 | Legendary bosses | `spire-encounters.ts` → `LEGENDARY_BOSSES` |
@@ -132,8 +132,8 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 ### Post-Fight Rewards
 - **Wild wins** (4 choices): 2-3 Pokemon + 1-2 item components. 33% chance one option is Ditto.
 - **Wild losses** (3 choices): 1-2 Pokemon + 1-2 item components. No Ditto.
-- **Elite wins**: Encounter-specific themed Pokemon with items
-- **Elite losses**: Standard wild loss rewards
+- **Elite wins** (3 choices): Main pokemon + 2 from fight, each with item component. Reroll 1g (infinite). Pick 1.
+- **Elite losses** (2 choices): 2 pokemon from the fight, no items. Pick 1.
 - **Unlock wins**: Single reward — the specific Pokemon shown on the node. Hatch mons (Act 1) are given as eggs.
 - **Unlock losses**: Standard wild loss rewards
 - **Gym wins**: Synergy gem (auto-applied) + choose one of: crafted item, Pokemon + component, or tool

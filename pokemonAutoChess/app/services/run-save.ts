@@ -55,6 +55,7 @@ interface SavedRunData {
   runHP: number
   stageLevel: number
   eliteFourAvailable: boolean
+  runComplete: boolean
   gameSpeed: number
   challengeItem: string
   gameLightX: number
@@ -161,6 +162,7 @@ export async function saveRun(odToken: string, state: GameState, player: Player)
       runHP: state.runHP,
       stageLevel: state.stageLevel,
       eliteFourAvailable: state.eliteFourAvailable,
+      runComplete: state.runComplete,
       gameSpeed: state.gameSpeed,
       challengeItem: state.challengeItem,
       gameLightX: state.lightX,
@@ -281,6 +283,7 @@ export function restoreRunToState(
   state.runHP = savedData.runHP
   state.stageLevel = savedData.stageLevel
   state.eliteFourAvailable = savedData.eliteFourAvailable
+  state.runComplete = savedData.runComplete ?? false
   state.gameSpeed = savedData.gameSpeed
   state.challengeItem = savedData.challengeItem
   state.lightX = savedData.gameLightX
@@ -514,11 +517,13 @@ export async function saveRunHistory(
         })
       }
     })
+    const historyAct = state.currentAct >= 5 ? 4 : state.currentAct
+    const historyFloor = state.currentAct >= 5 ? 5 : state.currentFloor
     await RunHistory.create({
       odToken,
       time: Date.now(),
-      currentAct: state.currentAct,
-      currentFloor: state.currentFloor,
+      currentAct: historyAct,
+      currentFloor: historyFloor,
       difficultyMode: state.difficultyMode,
       runHP: state.runHP,
       arceusDamageDealt: state.arceusDamageDealt,
@@ -527,7 +532,7 @@ export async function saveRunHistory(
     })
     const result = victory ? "victory" : "defeat"
     const arceus = state.arceusDamageDealt > 0 ? ` | arceus dmg: ${state.arceusDamageDealt}` : ""
-    logger.info(`Run saved | ${player.name} | ${result} | act ${state.currentAct} floor ${state.currentFloor}${arceus}`)
+    logger.info(`Run saved | ${player.name} | ${result} | act ${historyAct} floor ${historyFloor}${arceus}`)
   } catch (e) {
     logger.error("Failed to save run history:", e)
   }

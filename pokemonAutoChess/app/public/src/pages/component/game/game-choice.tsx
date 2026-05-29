@@ -324,6 +324,18 @@ export default function GameChoice() {
             Reroll
           </button>
         )}
+        {isEliteReward && choice.items.length > 0 && (
+          <button
+            className={`bubbly blue active`}
+            style={{ marginLeft: "0.5em" }}
+            onClick={() => {
+              playSound(SOUNDS.BUTTON_CLICK)
+              rooms.game?.send(Transfer.REROLL_ELITE_REWARD)
+            }}
+          >
+            Reroll (1g)
+          </button>
+        )}
         {isSpecialReward && (
           <button
             className={`bubbly blue active`}

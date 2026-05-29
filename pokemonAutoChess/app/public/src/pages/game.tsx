@@ -10,7 +10,6 @@ import {
 } from "../../../config"
 import { IPokemonRecord } from "../../../models/colyseus-models/game-record"
 import { Wanderer } from "../../../models/colyseus-models/wanderer"
-import { PVEStages } from "../../../models/pve-stages"
 import GameState from "../../../rooms/states/game-state"
 import {
   IAfterGamePlayer,
@@ -544,16 +543,6 @@ export default function Game() {
 
       $state.listen("roundTime", (value) => {
         dispatch(setRoundTime(value))
-        const stageLevel = room.state.stageLevel ?? 0
-        if (
-          room.state.phase === GamePhaseState.PICK &&
-          stageLevel in PVEStages === false &&
-          value < 5 &&
-          gameContainer.gameScene?.board &&
-          !gameContainer.gameScene.board.portal
-        ) {
-          gameContainer.gameScene.board.addPortal()
-        }
       })
 
       $state.listen("phase", (newPhase, previousPhase) => {

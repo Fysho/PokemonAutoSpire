@@ -72,7 +72,7 @@ export default function Login() {
           ) : (
             <span
               onClick={() => setShowIdentity(true)}
-              style={{ cursor: "pointer", color: "#3498db", textDecoration: "underline" }}
+              style={{ cursor: "pointer", color: "white" }}
             >
               Click to reveal
             </span>

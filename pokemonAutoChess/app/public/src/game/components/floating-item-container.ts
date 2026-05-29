@@ -2,6 +2,7 @@ import Phaser, { GameObjects } from "phaser"
 import { Item } from "../../../../types/enum/Item"
 import { Pkm, PkmIndex } from "../../../../types/enum/Pokemon"
 import { preference } from "../../preferences"
+import { GamePokemonDetailDOMWrapper } from "../../pages/component/game/game-pokemon-detail"
 import { DEPTH } from "../depths"
 import GameScene from "../scenes/game-scene"
 import ItemDetail from "./item-detail"
@@ -15,9 +16,10 @@ export class FloatingItemContainer extends GameObjects.Container {
   circle: GameObjects.Ellipse
   sprite: GameObjects.Image
   id: string
-  detail: ItemDetail | undefined
+  detail: ItemDetail | GamePokemonDetailDOMWrapper | undefined
   mouseoutTimeout: NodeJS.Timeout | null = null
   priceText: GameObjects.Text | null = null
+  pokemonName: string = ""
 
   constructor(
     manager: MinigameManager,
@@ -33,6 +35,7 @@ export class FloatingItemContainer extends GameObjects.Container {
     this.manager = manager
     this.name = item
     this.id = id
+    this.pokemonName = pokemonName
     this.circle = new GameObjects.Ellipse(
       manager.scene,
       0,
@@ -152,7 +155,15 @@ export class FloatingItemContainer extends GameObjects.Container {
     this.scene.closeTooltips() // close other open item tooltips
 
     if (this.detail === undefined) {
-      this.detail = new ItemDetail(this.scene, 0, 0, this.name)
+      if (this.pokemonName && this.pokemonName !== "") {
+        this.detail = new GamePokemonDetailDOMWrapper(
+          this.scene, 0, 0,
+          this.pokemonName as Pkm,
+          "shop"
+        )
+      } else {
+        this.detail = new ItemDetail(this.scene, 0, 0, this.name)
+      }
       this.detail.setDepth(DEPTH.TOOLTIP)
       this.detail.setPosition(
         this.detail.width * 0.5 + 40,

@@ -49,8 +49,7 @@ import {
   generateWildRewardPokemon,
   getArceusEncounter,
   getEliteEncounter,
-  getEliteEncounterPokemon,
-  getEliteEncounterType,
+  getEliteMainPokemon,
   getGoldReward,
   generateGymEncounter,
   getGymLeaderBaseFormPokemon,
@@ -85,7 +84,6 @@ import PokemonFactory, {
   getPokemonBaseline
 } from "../../models/pokemon-factory"
 import { getPokemonData } from "../../models/precomputed/precomputed-pokemon-data"
-import { PRECOMPUTED_POKEMONS_PER_TYPE } from "../../models/precomputed/precomputed-types"
 import { PVEStages } from "../../models/pve-stages"
 import { getBuyPrice, getSellPrice } from "../../models/shop"
 import { updatePlayerTitlesAfterFight } from "../../models/titles"
@@ -1125,10 +1123,28 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.initializeMapPhase()
           } else if (!this.state.runFailed) {
             this.state.runFailed = true
+            this.state.gameFinished = true
             this.state.players.forEach((p: Player) => {
               if (!p.isBot) {
                 p.life = 0
                 p.alive = false
+                const loserSnapshot = snapshotPlayerTeam(p, { includeBench: true })
+                loserSnapshot.region = this.state.playerSpireRegion || "town"
+                if (loserSnapshot.pokemon.length > 0) {
+                  const data = loadChampionData(this.state.difficultyMode as DifficultyMode)
+                  for (let i = 3; i >= 0; i--) {
+                    if (data.eliteFour[i].name === DEFAULT_SNAPSHOT.name) {
+                      data.eliteFour[i] = loserSnapshot
+                      saveChampionData(data, this.state.difficultyMode as DifficultyMode)
+                      break
+                    }
+                  }
+                }
+                const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+                deleteSavedRun(p.id)
+                saveRunHistory(p.id, this.state, p, false)
+                incrementRunEnd(p.id, this.state.difficultyMode, true, false, 0)
+                this.room.runHistoryRecorded = true
               }
             })
             this.syncRunHPToPlayers()
@@ -1206,6 +1222,34 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     )
   }
 
+  generateEliteRewardChoice(player: Player) {
+    const fightPokemon = this.room.eliteFightPokemon ?? []
+    const mainPkm = this.room.eliteMainPokemon ?? (fightPokemon[0] || Pkm.DITTO)
+    const others = fightPokemon.filter(p => p !== mainPkm)
+    const picked = others.length >= 2
+      ? pickNRandomIn(others, 2)
+      : others.length === 1
+        ? [others[0], pickRandomIn(fightPokemon)]
+        : [mainPkm, mainPkm]
+    const pokemons: Pkm[] = [mainPkm, picked[0], picked[1]]
+    const items: Item[] = pokemons.map(() => pickRandomIn(ItemComponentsNoFossilOrScarf))
+    player.choices.push(
+      new PlayerChoice({ type: "eliteReward", pokemons, items })
+    )
+  }
+
+  generateEliteLossChoice(player: Player) {
+    const fightPokemon = this.room.eliteFightPokemon ?? []
+    const picks = fightPokemon.length >= 2
+      ? pickNRandomIn(fightPokemon, 2)
+      : fightPokemon.length === 1
+        ? [fightPokemon[0]]
+        : [Pkm.DITTO]
+    player.choices.push(
+      new PlayerChoice({ type: "eliteReward", pokemons: picks, items: [] })
+    )
+  }
+
   applyFisho2EliteOverride() {
     if (this.state.currentAct > 3) return
     const isFisho2 = schemaValues(this.state.players).some(
@@ -1240,7 +1284,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
   autoSaveRun() {
     this.state.players.forEach((player: Player) => {
-      if (!player.isBot && player.alive && !this.state.runComplete && !this.state.runFailed) {
+      if (!player.isBot && player.alive && !this.state.gameFinished && !this.state.runFailed) {
         const { saveRun } = require("../../services/run-save")
         saveRun(player.id, this.state, player)
       }
@@ -1335,6 +1379,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           )
         } else if (node.nodeType === MapNodeType.ELITE) {
           encounter = getEliteEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode)
+          this.room.eliteFightPokemon = encounter.board.map(([pkm]) => pkm)
+          this.room.eliteMainPokemon = getEliteMainPokemon(node.eliteEncounterIndex, this.state.currentAct)
+          this.room.eliteMainBonusHP = encounter.mainBonusHP ?? 0
+          this.room.eliteMainBonusAtk = encounter.mainBonusAtk ?? 0
+          this.room.eliteMainBonusAP = encounter.mainBonusAP ?? 0
         } else if (node.nodeType === MapNodeType.UNLOCK) {
           encounter = getUnlockEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode)
         } else if (node.nodeType === MapNodeType.ELITE_FOUR) {
@@ -1429,7 +1478,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.state.spireEncounterBoard,
             encounter.board.map(([pkm, x, y], i) => {
               const itemStr = encounter.items?.[i]?.length ? `,${encounter.items[i].join(",")}` : ""
-              return `${pkm},${x},${y}${itemStr}`
+              const boostStr = i === 0 && (encounter.mainBonusHP || encounter.mainBonusAtk || encounter.mainBonusAP)
+                ? `|${encounter.mainBonusHP ?? 0},${encounter.mainBonusAtk ?? 0},0,0,${encounter.mainBonusAP ?? 0},0`
+                : ""
+              return `${pkm},${x},${y}${itemStr}${boostStr}`
             })
           )
           const stats = calculateEncounterStats(encounter)
@@ -1437,6 +1489,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           this.state.encounterPokemonCount = stats.pokemonCount
           this.state.encounterTotalStars = stats.totalStars
           this.state.encounterTotalItems = stats.totalItems
+          const tempPokemon = encounter.board.map(([pkm, , ], i) => {
+            const p = PokemonFactory.createPokemonFromName(pkm)
+            p.positionY = 1
+            if (encounter.items?.[i]) {
+              encounter.items[i].forEach((item) => { if (!p.items.has(item)) p.items.add(item) })
+            }
+            return p
+          })
+          const pveSynergies = computeSynergies(tempPokemon)
+          resetArraySchema(
+            this.state.encounterSynergies,
+            Array.from(pveSynergies.entries()).filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v}`)
+          )
         }
         this.state.encounterName = encounter.name
         this.state.encounterBonusHP = encounter.bonusHP ?? 0
@@ -1721,7 +1786,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
         deleteSavedRun(p.id)
         saveRunHistory(p.id, this.state, p, false)
-        incrementRunEnd(p.id, this.state.difficultyMode, true, true, this.state.arceusDamageDealt)
+        incrementRunEnd(p.id, this.state.difficultyMode, true, false, this.state.arceusDamageDealt)
         this.room.runHistoryRecorded = true
       }
     })
@@ -1789,14 +1854,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       })
       this.syncRunHPToPlayers()
     }
-    // Delete saved run and record history
     this.state.players.forEach((p: Player) => {
       if (!p.isBot) {
-        const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+        const { deleteSavedRun, incrementRunEnd } = require("../../services/run-save")
         deleteSavedRun(p.id)
-        saveRunHistory(p.id, this.state, p, !!winner)
         incrementRunEnd(p.id, this.state.difficultyMode, true, !!winner, 0)
-        this.room.runHistoryRecorded = true
       }
     })
   }
@@ -1864,122 +1926,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         if (node.nodeType === MapNodeType.WILD_BATTLE) {
           this.generateWildRewardChoice(player, node, won)
         } else if (node.nodeType === MapNodeType.ELITE && node.eliteEncounterIndex >= 0) {
-          const encounterType = getEliteEncounterType(node.eliteEncounterIndex, this.state.currentAct)
-
-          if (won && encounterType) {
-            const mainPokemon = getEliteEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct)
-            const mainPkm = mainPokemon[0] ?? Pkm.DITTO
-            const mainData = getPokemonData(mainPkm)
-            const synergies = (mainData.types ?? []) as Synergy[]
-            const supportPool: Pkm[] = []
-            for (const syn of synergies) {
-              const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn] ?? []
-              for (const pkm of typed) {
-                const data = getPokemonData(pkm)
-                if (pkm !== mainPkm && data.rarity !== "LEGENDARY" && data.rarity !== "UNIQUE" &&
-                    data.rarity !== "HATCH" && data.rarity !== "SPECIAL" && !supportPool.includes(pkm)) {
-                  supportPool.push(pkm)
-                }
-              }
-            }
-            const support1 = supportPool.length > 0 ? pickRandomIn(supportPool) : Pkm.DITTO
-            const support2 = supportPool.length > 1 ? pickRandomIn(supportPool.filter(p => p !== support1)) : Pkm.DITTO
-            const comp1 = pickRandomIn(ItemComponentsNoFossilOrScarf)
-            const comp2 = pickRandomIn(ItemComponentsNoFossilOrScarf)
-            const pokemons: Pkm[] = [mainPkm, support1, support2]
-            const items: Item[] = [Item.ORAN_BERRY, comp1, comp2]
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons, items })
-            )
-          } else if (!won && encounterType) {
-            this.generateWildRewardChoice(player, node, false)
+          if (won) {
+            this.generateEliteRewardChoice(player)
           } else {
-
-          const eliteEncounters = (require("../../models/spire-encounters") as any)
-          const encounters = eliteEncounters.getEliteEncountersForAct(this.state.currentAct)
-          const template = encounters[node.eliteEncounterIndex % encounters.length]
-
-          if (won && template.name === "Eeveelution Squad") {
-            const evoStones = [
-              Item.WATER_STONE, Item.THUNDER_STONE, Item.FIRE_STONE,
-              Item.LEAF_STONE, Item.ICE_STONE, Item.MOON_STONE,
-              Item.SUN_STONE, Item.DUSK_STONE, Item.DAWN_STONE
-            ]
-            const stones = pickNRandomIn(evoStones, 2)
-            const pokemons: Pkm[] = [Pkm.EEVEE, Pkm.DEFAULT, Pkm.DEFAULT]
-            const items: Item[] = [Item.FOSSIL_STONE, stones[0], stones[1]]
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons, items })
-            )
-          } else if (won && template.name === "Psychic Circle") {
-            const offers = pickNRandomIn(template.rewards, 3)
-            const pairedItems: Item[] = offers.map(() => pickRandomIn(ItemComponentsNoFossilOrScarf))
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons: offers, items: pairedItems })
-            )
-          } else if (won && template.name === "Bat Cave") {
-            const comp1 = pickRandomIn(ItemComponentsNoFossilOrScarf)
-            const comp2 = pickRandomIn(ItemComponentsNoFossilOrScarf)
-            const pokemons: Pkm[] = [Pkm.ZUBAT, Pkm.WOOBAT, Pkm.NOIBAT]
-            const items: Item[] = [comp1, comp2, Item.ORAN_BERRY]
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons, items })
-            )
-          } else if (won && template.name === "Rival Flames") {
-            const synergyItem = pickRandomIn([Item.ELECTIRIZER, Item.MAGMARIZER])
-            const pokemons: Pkm[] = [Pkm.ELEKID, Pkm.MAGBY, Pkm.DEFAULT]
-            const items: Item[] = [Item.ORAN_BERRY, Item.ORAN_BERRY, synergyItem]
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons, items })
-            )
-          } else if (won && template.name === "Iron Defense") {
-            const comp1 = pickRandomIn(ItemComponentsNoFossilOrScarf)
-            const comp2 = pickRandomIn(ItemComponentsNoFossilOrScarf)
-            const pokemons: Pkm[] = [Pkm.BELDUM, Pkm.RIOLU, Pkm.SCYTHER]
-            const items: Item[] = [comp1, comp2, Item.ORAN_BERRY]
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons, items })
-            )
-          } else if (won && template.name === "Psychic Conclave") {
-            const rewardPool: Pkm[] = [Pkm.ABRA, Pkm.RALTS, Pkm.DROWZEE, Pkm.FENNEKIN]
-            const offers = pickNRandomIn(rewardPool, 2)
-            const comps: Item[] = offers.map(() => pickRandomIn(ItemComponentsNoFossilOrScarf))
-            const pokemons: Pkm[] = [offers[0], offers[1], Pkm.DEFAULT]
-            const items: Item[] = [comps[0], comps[1], Item.TWISTED_SPOON]
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons, items })
-            )
-          } else if (won && template.name === "Sleeping Giant") {
-            const comp1 = pickRandomIn(ItemComponentsNoFossilOrScarf)
-            const comp2 = pickRandomIn(ItemComponentsNoFossilOrScarf)
-            const pokemons: Pkm[] = [Pkm.SNORLAX, Pkm.SLAKOTH, Pkm.DEFAULT]
-            const items: Item[] = [comp1, comp2, Item.BIG_EATER_BELT]
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons, items })
-            )
-          } else if (won && template.name === "Poltergeist") {
-            const foughtRotoms = Array.from(this.state.spireEncounterBoard)
-              .map((entry: string) => entry.split(",")[0] as Pkm)
-              .filter((pkm) => pkm !== Pkm.DEFAULT)
-            const offers = foughtRotoms.length > 0 ? foughtRotoms : [Pkm.ROTOM]
-            player.choices.push(
-              new PlayerChoice({ type: "eliteReward", pokemons: offers })
-            )
-          } else if (won) {
-            const elitePokemon = getEliteEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct)
-            if (elitePokemon.length > 0) {
-              const offers = pickNRandomIn(elitePokemon, Math.min(3, elitePokemon.length))
-              const pairedItems: Item[] = offers.map(() =>
-                pickRandomIn(ItemComponentsNoFossilOrScarf)
-              )
-              player.choices.push(
-                new PlayerChoice({ type: "eliteReward", pokemons: offers, items: pairedItems })
-              )
-            }
-          } else {
-            this.generateWildRewardChoice(player, node, false)
+            this.generateEliteLossChoice(player)
           }
-          } // end else (handcrafted elite)
         } else if (node.nodeType === MapNodeType.UNLOCK && node.eliteEncounterIndex >= 0) {
           if (won) {
             const unlockPokemon = getUnlockEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct)
@@ -2069,10 +2020,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode)
           this.applyFisho2EliteOverride()
           this.state.players.forEach((p) => { p.dojoFamilies.clear() })
+          this.autoSaveRun()
         } else {
           // Act 3 boss beaten: show victory, allow entering Elite 4
           this.state.runComplete = true
           this.state.eliteFourAvailable = true
+          this.autoSaveRun()
         }
       } else if (this.state.currentAct < 3) {
         this.state.currentAct += 1
@@ -2082,6 +2035,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode)
         this.applyFisho2EliteOverride()
         this.state.players.forEach((p) => { p.dojoFamilies.clear() })
+        this.autoSaveRun()
       } else {
         this.state.runFailed = true
         this.state.gameFinished = true
@@ -2890,6 +2844,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               if (encounter.bonusAP) pkm.addAbilityPower(encounter.bonusAP)
               if (this.state.encounterBonusPP) pkm.maxPP += this.state.encounterBonusPP
             })
+          }
+          if (node?.nodeType === MapNodeType.ELITE && pvePokemons.length > 0) {
+            const main = pvePokemons[0]
+            if (this.room.eliteMainBonusHP) main.addMaxHP(this.room.eliteMainBonusHP)
+            if (this.room.eliteMainBonusAtk) main.addAttack(this.room.eliteMainBonusAtk)
+            if (this.room.eliteMainBonusAP) main.addAbilityPower(this.room.eliteMainBonusAP)
           }
           if (this.state.challengeItem && node?.nodeType === MapNodeType.WILD_BATTLE) {
             pvePokemons.forEach((pkm) => {

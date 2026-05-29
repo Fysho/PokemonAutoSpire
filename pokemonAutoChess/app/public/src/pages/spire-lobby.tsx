@@ -2,7 +2,8 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router"
 import { useTranslation } from "react-i18next"
 import { clearGameReconnection, client, getIdToken, joinGame, spectateGame } from "../network"
-import { useAppSelector } from "../hooks"
+import { useAppSelector, useAppDispatch } from "../hooks"
+import { changeName } from "../stores/NetworkStore"
 import { SynergyTriggers } from "../../../config"
 import { computeSynergies } from "../../../models/colyseus-models/synergies"
 import PokemonFactory from "../../../models/pokemon-factory"
@@ -78,10 +79,11 @@ const PAC_TAG_COLORS: Record<string, { bg: string; text: string }> = {
   buffed: { bg: "#2d6a2d", text: "#7fff7f" },
   nerfed: { bg: "#6a2d2d", text: "#ff7f7f" },
   changed: { bg: "#6a5a2d", text: "#ffd27f" },
-  removed: { bg: "#4a2d4a", text: "#d07fd0" }
+  removed: { bg: "#4a2d4a", text: "#d07fd0" },
+  info: { bg: "#2d4a6a", text: "#7fbfff" }
 }
 
-function PacTag({ type }: { type: "buffed" | "nerfed" | "changed" | "removed" }) {
+function PacTag({ type }: { type: "buffed" | "nerfed" | "changed" | "removed" | "info" }) {
   const colors = PAC_TAG_COLORS[type]
   return (
     <span style={{
@@ -106,6 +108,7 @@ export default function SpireLobby() {
   const { t } = useTranslation()
   const uid = useAppSelector((state) => state.network.uid)
   const displayName = useAppSelector((state) => state.network.displayName)
+  const dispatch = useAppDispatch()
   const [starting, setStarting] = useState(false)
   const [serverStatus, setServerStatus] = useState<{ ccu: number; totalAccounts: number } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -161,6 +164,10 @@ export default function SpireLobby() {
 
   useEffect(() => {
     localStore.set(LocalStoreKeys.SPIRE_PLAYER_NAME, playerName)
+    const trimmed = playerName.trim()
+    if (trimmed && trimmed !== "Username" && trimmed !== "Player") {
+      dispatch(changeName(trimmed))
+    }
   }, [playerName])
 
   useEffect(() => {
@@ -188,6 +195,11 @@ export default function SpireLobby() {
   }
 
   useEffect(() => { refreshRuns() }, [])
+
+  useEffect(() => {
+    const id = setInterval(refreshRuns, 30000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     if (!uid || uid === "local-player") {
@@ -462,7 +474,7 @@ function SpireLobbyContent({
 }) {
   const [activeSection, setActive] = useState<string>("rooms")
   const [ascensionIndex, setAscensionIndex] = useState(0)
-  const [runSortBy, setRunSortBy] = useState<"stage" | "difficulty">("stage")
+  const [runSortBy, setRunSortBy] = useState<"stage" | "difficulty">("difficulty")
   const [runSortAsc, setRunSortAsc] = useState(false)
   const [runFilterDifficulty, setRunFilterDifficulty] = useState<number | null>(null)
   const [showPatchPopup, setShowPatchPopup] = useState(false)
@@ -518,7 +530,7 @@ function SpireLobbyContent({
           active: activeSection === "leaderboard"
         })}
       >
-        <div className="my-container custom-bg hidden-scrollable" style={{ padding: "12px 16px", color: "var(--color-fg-primary)" }}>
+        <div className="my-container custom-bg hidden-scrollable" style={{ padding: "12px 16px", color: "var(--color-fg-primary)", height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
             <h2 style={{ margin: 0, flex: 1 }}>Live Runs</h2>
             <button
@@ -576,7 +588,7 @@ function SpireLobbyContent({
                 {publicRuns.length === 0 ? "No active runs" : "No runs match filter"}
               </span>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, overflowY: "auto" }}>
                 {filtered.map((run) => (
                   <div key={run.roomId} className="my-box" style={{
                     display: "flex", alignItems: "center", gap: "8px", padding: "6px 10px", flexWrap: "wrap"
@@ -614,10 +626,10 @@ function SpireLobbyContent({
       <section className={cc("rooms", { active: activeSection === "rooms" })}>
         <div className="my-container room-menu custom-bg hidden-scrollable">
           <h2>Play</h2>
-          <ul className="room-list" style={{ padding: 0 }}>
+          <ul className="room-list" style={{ padding: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
             {/* Resume Run Panel */}
             <li style={{ listStyle: "none" }}>
-              <div className="room-item my-box" style={{ display: "flex", flexDirection: "row", gap: "12px", alignItems: "center", flexWrap: "wrap", ...(savedRun ? { border: "2px solid #f39c12" } : {}) }}>
+              <div className="room-item my-box" style={{ display: "flex", flexDirection: "row", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
                 <span className="room-name" style={{ color: savedRun ? "#f39c12" : "#888" }}>Saved Run</span>
                 {savedRun ? (
                   <>
@@ -733,26 +745,32 @@ function SpireLobbyContent({
                   >
                     {starting ? t("loading") : "Start Hard"}
                   </button>
-                  <button
-                    className={cc("bubbly", { loading: starting })}
-                    disabled={starting || (!hasHardWin && !isAdmin)}
-                    onClick={() => startRun(3)}
-                    style={{
-                      backgroundColor: "#222222",
-                      opacity: (!hasHardWin && !isAdmin) ? 0.4 : 1,
-                      cursor: (!hasHardWin && !isAdmin) ? "not-allowed" : "pointer"
-                    }}
-                    title={(!hasHardWin && !isAdmin) ? "Defeat Hard mode to unlock Impossible" : ""}
-                  >
-                    {starting ? t("loading") : "Start Impossible"}
-                  </button>
+                  <span style={{ position: "relative", display: "inline-block" }} className={(!hasHardWin && !isAdmin) ? "hometown-help" : ""}>
+                    <button
+                      className={cc("bubbly", { loading: starting })}
+                      disabled={starting || (!hasHardWin && !isAdmin)}
+                      onClick={() => startRun(3)}
+                      style={{
+                        backgroundColor: "#222222",
+                        opacity: (!hasHardWin && !isAdmin) ? 0.4 : 1,
+                        cursor: (!hasHardWin && !isAdmin) ? "not-allowed" : "pointer"
+                      }}
+                    >
+                      {starting ? t("loading") : "Start Impossible"}
+                    </button>
+                    {(!hasHardWin && !isAdmin) && (
+                      <span className="hometown-help-tooltip">
+                        Defeat Hard mode to unlock Impossible
+                      </span>
+                    )}
+                  </span>
                 </div>
               </div>
             </li>
 
-            {/* Ascension Panel */}
-            <li style={{ listStyle: "none" }}>
-              <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
+            {/* Ascension + Endless Row */}
+            <li style={{ listStyle: "none", display: "flex", gap: "8px" }}>
+              <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", flex: 1 }}>
                 <span className="room-name">Ascension Run</span>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <img
@@ -795,6 +813,32 @@ function SpireLobbyContent({
                   maxWidth: "400px"
                 }}>
                   {selectedAscension.description}
+                </span>
+              </div>
+
+              <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", flex: 1 }}>
+                <span className="room-name">Endless Mode</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <img
+                    src="assets/ui/room.svg"
+                    alt="Endless"
+                    style={{ width: "32px", height: "32px", opacity: 0.6 }}
+                  />
+                  <button
+                    className="bubbly"
+                    disabled
+                    style={{ backgroundColor: "#555", cursor: "not-allowed" }}
+                  >
+                    Coming Soon
+                  </button>
+                </div>
+                <span style={{
+                  fontSize: "12px",
+                  opacity: 0.7,
+                  textAlign: "center",
+                  maxWidth: "400px"
+                }}>
+                  Survive as long as you can in an endless gauntlet of increasingly difficult encounters.
                 </span>
               </div>
             </li>
@@ -983,6 +1027,14 @@ function SpireLobbyContent({
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0869-0056")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
               <span><PacTag type="nerfed" /> <strong>Alcremie (Rainbow Swirl)</strong> — Decorate PP buff reduced from 60 to 30, AP scaling halved.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+                <img src={getPortraitSrc("0111")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("0460")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("0062")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+              </div>
+              <span><PacTag type="info" /> <strong>Execute Abilities</strong> — Horn Drill, Sheer Cold, and Crabhammer deal 9999 damage on execute.</span>
             </div>
           </div>
 

@@ -187,12 +187,17 @@ export function promoteNewChampion(
   if (data.championSince) {
     reignDurationMs = now.getTime() - new Date(data.championSince).getTime()
     if (!data.longestReign || reignDurationMs > data.longestReign.durationMs) {
-      previousLongestReign = data.longestReign ?? null
-      isNewLongestReign = true
-      data.longestReign = {
-        name: previousChampion,
-        durationMs: reignDurationMs,
-        date: now.toISOString()
+      if (data.longestReign && data.longestReign.name === previousChampion) {
+        data.longestReign.durationMs = reignDurationMs
+        data.longestReign.date = now.toISOString()
+      } else {
+        previousLongestReign = data.longestReign ?? null
+        isNewLongestReign = true
+        data.longestReign = {
+          name: previousChampion,
+          durationMs: reignDurationMs,
+          date: now.toISOString()
+        }
       }
     }
   }
@@ -248,6 +253,39 @@ ${teamList}
 `)
 
   return { previousChampion, reignDurationMs, isNewLongestReign, previousLongestReign }
+}
+
+export function checkLiveReignRecord(mode: DifficultyMode): {
+  championName: string
+  durationMs: number
+  previousRecord: LongestReign | null
+  difficultyMode: DifficultyMode
+} | null {
+  const data = loadChampionData(mode)
+  if (!data.championSince || !data.longestReign) return null
+
+  const currentReignMs = Date.now() - new Date(data.championSince).getTime()
+
+  if (
+    currentReignMs > data.longestReign.durationMs &&
+    data.longestReign.name !== data.champion.name
+  ) {
+    const previousRecord = { ...data.longestReign }
+    data.longestReign = {
+      name: data.champion.name,
+      durationMs: currentReignMs,
+      date: new Date().toISOString()
+    }
+    saveChampionData(data, mode)
+    return {
+      championName: data.champion.name,
+      durationMs: currentReignMs,
+      previousRecord,
+      difficultyMode: mode
+    }
+  }
+
+  return null
 }
 
 export function getChampionSlotForEncounter(slot: TeamSnapshot) {

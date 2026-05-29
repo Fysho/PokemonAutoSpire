@@ -11,6 +11,7 @@ import pkg from "../package.json"
 import UserMetadata from "./models/mongo-models/user-metadata"
 import { RunHistory } from "./models/mongo-models/run-history"
 import { SavedRun } from "./models/mongo-models/saved-run"
+import { startLongestReignChecker } from "./services/cronjobs"
 
 Encoder.BUFFER_SIZE = 512 * 1024
 
@@ -46,6 +47,8 @@ async function main() {
     ])
     logger.info(`Database: ${accounts} accounts, ${runs} completed runs, ${activeRuns} active saves`)
   }
+
+  startLongestReignChecker()
 }
 
 main()

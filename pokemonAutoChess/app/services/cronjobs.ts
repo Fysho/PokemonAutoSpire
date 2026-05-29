@@ -23,6 +23,32 @@ import { logger } from "../utils/logger"
 import { min } from "../utils/number"
 import { notificationsService } from "./notifications"
 import { refreshSpriteGapData } from "./sprite-gap-scanner"
+import { DifficultyMode, checkLiveReignRecord } from "./champion-data"
+import { discordService } from "./discord"
+
+export function startLongestReignChecker() {
+  logger.info("Starting longest reign checker (60s interval)")
+  setInterval(() => {
+    for (const mode of [0, 1, 2, 3] as DifficultyMode[]) {
+      try {
+        const result = checkLiveReignRecord(mode)
+        if (result) {
+          logger.info(
+            `New longest reign on ${["Easy", "Normal", "Hard", "Impossible"][mode]}: ${result.championName} (${Math.floor(result.durationMs / 60000)}m)`
+          )
+          discordService.announceNewLongestReign(
+            result.championName,
+            result.durationMs,
+            result.difficultyMode,
+            result.previousRecord
+          )
+        }
+      } catch (e) {
+        logger.error(`Longest reign check failed for mode ${mode}:`, e)
+      }
+    }
+  }, 60_000)
+}
 
 export function initCronJobs() {
   // All cron jobs disabled for single-player spire mode.

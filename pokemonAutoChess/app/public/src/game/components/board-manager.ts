@@ -848,17 +848,11 @@ export default class BoardManager {
         player.simulationId
       )
       if (spectatedPlayer) {
-        const isPVERound = spectatedPlayer.opponentId === "pve"
-        const isRedPlayer = gameState.teamSpectated === Team.RED_TEAM
-        if (!isPVERound && phaseJustChanged) {
-          this.portalTransition(isRedPlayer)
-        } else {
-          this.updateOpponentAvatar(
-            spectatedPlayer.opponentId,
-            spectatedPlayer.opponentAvatar,
-            simulation?.isGhostBattle
-          )
-        }
+        this.updateOpponentAvatar(
+          spectatedPlayer.opponentId,
+          spectatedPlayer.opponentAvatar,
+          simulation?.isGhostBattle
+        )
       }
     }, 0) // need to wait for next event loop for state to be up to date
   }

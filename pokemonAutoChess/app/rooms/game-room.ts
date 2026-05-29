@@ -82,6 +82,11 @@ export default class GameRoom extends Room<{ state: GameState }> {
   miniGame: MiniGame
   isResume: boolean = false
   runHistoryRecorded: boolean = false
+  eliteFightPokemon: Pkm[] = []
+  eliteMainPokemon: Pkm = Pkm.DEFAULT
+  eliteMainBonusHP: number = 0
+  eliteMainBonusAtk: number = 0
+  eliteMainBonusAP: number = 0
   constructor() {
     super()
     this.dispatcher = new Dispatcher(this)
@@ -367,6 +372,23 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
     })
 
+    this.onMessage(Transfer.REROLL_ELITE_REWARD, (client) => {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
+        const player = this.state.players.get(client.auth.uid)
+        if (!player || player.money < 1) return
+        const choiceIdx = player.choices.findIndex((c) => c.type === "eliteReward")
+        if (choiceIdx < 0) return
+        player.choices.splice(choiceIdx, 1)
+        player.money -= 1
+        const cmd = new OnUpdatePhaseCommand()
+        cmd.setPayload({})
+        cmd.room = this
+        cmd.state = this.state
+        cmd.clock = this.clock
+        cmd.generateEliteRewardChoice(player)
+      }
+    })
+
     this.onMessage(Transfer.REROLL_BOSS_REWARD, (client) => {
       if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
@@ -379,9 +401,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const { pickNRandomIn } = require("../utils/random")
         const { ShinyItems, Tools } = require("../types/enum/Item")
         const { PlayerChoice } = require("../models/colyseus-models/player-choice")
-        const isHardOrImpossible = this.state.difficultyMode >= 2
-        const isImpossible = this.state.difficultyMode === 3
-        const fullPool = (isHardOrImpossible && this.state.currentAct === 1) || isImpossible ? [...Tools] : [...ShinyItems]
+        const originalWasTools = currentItems.some((i: Item) => Tools.includes(i))
+        const fullPool = originalWasTools ? [...Tools] : [...ShinyItems]
         const filteredPool = fullPool.filter((i: Item) => !currentItems.includes(i))
         const pool = filteredPool.length >= 3 ? filteredPool : fullPool
         const newItems = pickNRandomIn(pool, 3)
@@ -440,14 +461,10 @@ export default class GameRoom extends Room<{ state: GameState }> {
       if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
         if (!player) return
-        const choiceIdx = player.choices.findIndex((c) => c.type === "gymReward" || c.type === "eliteReward")
+        const choiceIdx = player.choices.findIndex((c) => c.type === "gymReward" || c.type === "eliteReward" || c.type === "unlockReward")
         if (choiceIdx < 0) return
         player.choices.splice(choiceIdx, 1)
         player.money += 5
-        if (this.state.phase === GamePhaseState.REWARD && player.choices.length === 0) {
-          this.state.updatePhaseNeeded = true
-          this.state.time = 0
-        }
       }
     })
 
@@ -1006,9 +1023,10 @@ export default class GameRoom extends Room<{ state: GameState }> {
     if (!this.runHistoryRecorded && (this.state.runComplete || this.state.runFailed) && humanPlayer) {
       const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../services/run-save")
       deleteSavedRun(humanPlayer.id)
-      await saveRunHistory(humanPlayer.id, this.state, humanPlayer, false)
-      await incrementRunEnd(humanPlayer.id, this.state.difficultyMode, true, false, 0)
-      logger.info(`Deferred run history saved for ${name} (E4 loss, no Arceus)`)
+      const victory = this.state.runComplete && !this.state.runFailed
+      await saveRunHistory(humanPlayer.id, this.state, humanPlayer, victory)
+      await incrementRunEnd(humanPlayer.id, this.state.difficultyMode, true, victory, this.state.arceusDamageDealt)
+      logger.info(`Deferred run history saved for ${name} | victory: ${victory}`)
     }
 
     this.dispatcher.stop()

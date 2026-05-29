@@ -134,22 +134,13 @@ function generateAct5Map(
   mapEdges: ArraySchema<MapEdge>
 ) {
   const act = 5
-  const floorNodes: string[][] = []
 
-  const centerId = nodeId(act, 1, 0)
-  const centerNode = new MapNode(centerId, MapNodeType.POKEMON_CENTER, 2, 1, act, 1, `act5_floor1_center`, "")
-  centerNode.available = true
-  mapNodes.set(centerId, centerNode)
-  floorNodes.push([centerId])
-
-  const arceusId = nodeId(act, 2, 0)
-  const arceusNode = new MapNode(arceusId, MapNodeType.ARCEUS_BOSS, 2, 2, act, 2, `act5_arceus`, "")
+  const arceusId = nodeId(act, 1, 0)
+  const arceusNode = new MapNode(arceusId, MapNodeType.ARCEUS_BOSS, 2, 1, act, 1, `act5_arceus`, "")
   arceusNode.displayName = "Arceus"
   arceusNode.bossSprites = "0493"
+  arceusNode.available = true
   mapNodes.set(arceusId, arceusNode)
-  floorNodes.push([arceusId])
-
-  mapEdges.push(new MapEdge(centerId, arceusId))
 }
 
 export function generateActMap(
