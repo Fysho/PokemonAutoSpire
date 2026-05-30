@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
-import { MAX_LEVEL } from "../../../../../config"
 import { selectSpectatedPlayer, useAppSelector } from "../../../hooks"
 import { levelClick } from "../../../network"
 import { addIconsToDescription } from "../../utils/descriptions"
@@ -12,7 +11,7 @@ export default function GameExperience() {
   const experienceManager = useAppSelector(
     (state) => state.game.experienceManager
   )
-  const isLevelMax = experienceManager.level >= MAX_LEVEL
+  const isLevelMax = experienceManager.level >= experienceManager.maxLevel
   const xpNeeded = isLevelMax
     ? 0
     : experienceManager.expNeeded - experienceManager.experience

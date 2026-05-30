@@ -52,6 +52,7 @@ interface SavedRunData {
   currentAct: number
   currentFloor: number
   difficultyMode: number
+  isEndless: boolean
   runHP: number
   stageLevel: number
   eliteFourAvailable: boolean
@@ -159,6 +160,7 @@ export async function saveRun(odToken: string, state: GameState, player: Player)
       currentAct: state.currentAct,
       currentFloor: state.currentFloor,
       difficultyMode: state.difficultyMode,
+      isEndless: state.isEndless,
       runHP: state.runHP,
       stageLevel: state.stageLevel,
       eliteFourAvailable: state.eliteFourAvailable,
@@ -230,6 +232,7 @@ export async function saveRun(odToken: string, state: GameState, player: Player)
         currentAct: state.currentAct,
         currentFloor: state.currentFloor,
         difficultyMode: state.difficultyMode,
+        isEndless: state.isEndless,
         runHP: state.runHP,
         teamPreview,
         data
@@ -263,7 +266,7 @@ export async function deleteSavedRun(odToken: string): Promise<boolean> {
 export async function getSavedRunSummary(odToken: string) {
   try {
     return await SavedRun.findOne({ odToken })
-      .select("odToken savedAt currentAct currentFloor difficultyMode runHP teamPreview")
+      .select("odToken savedAt currentAct currentFloor difficultyMode isEndless runHP teamPreview")
       .lean()
   } catch (e) {
     logger.error("Failed to get saved run summary:", e)
@@ -280,6 +283,7 @@ export function restoreRunToState(
   state.currentAct = savedData.currentAct
   state.currentFloor = savedData.currentFloor
   state.difficultyMode = savedData.difficultyMode
+  state.isEndless = savedData.isEndless ?? false
   state.runHP = savedData.runHP
   state.stageLevel = savedData.stageLevel
   state.eliteFourAvailable = savedData.eliteFourAvailable
@@ -383,8 +387,11 @@ export function restoreRunToState(
   player.money = savedData.money
   player.experienceManager.level = savedData.level
   player.experienceManager.experience = savedData.experience
-  const { ExpTable } = require("../config")
+  const { ExpTable, ENDLESS_MAX_LEVEL } = require("../config")
   player.experienceManager.expNeeded = ExpTable[savedData.level] ?? 4
+  if (savedData.isEndless) {
+    player.experienceManager.maxLevel = ENDLESS_MAX_LEVEL
+  }
 
   // Restore life to match runHP
   player.life = savedData.runHP
@@ -538,6 +545,34 @@ export async function saveRunHistory(
   }
 }
 
+export async function saveRunHistoryFromSavedRun(odToken: string, savedData: SavedRunData): Promise<void> {
+  if (odToken === "local-player") return
+  try {
+    const boardPokemon = savedData.team.pokemon.filter((p) => p.y > 0)
+    const pokemons = boardPokemon.map((p) => ({
+      name: p.name as string,
+      avatar: getAvatarString(PkmIndex[p.name] ?? "", !!p.shiny, (p.emotion as Emotion) ?? Emotion.NORMAL),
+      items: (p.items ?? []) as string[]
+    }))
+    const historyAct = savedData.currentAct >= 5 ? 4 : savedData.currentAct
+    const historyFloor = savedData.currentAct >= 5 ? 5 : savedData.currentFloor
+    await RunHistory.create({
+      odToken,
+      time: Date.now(),
+      currentAct: historyAct,
+      currentFloor: historyFloor,
+      difficultyMode: savedData.difficultyMode,
+      runHP: savedData.runHP,
+      arceusDamageDealt: 0,
+      victory: false,
+      pokemons
+    })
+    logger.info(`Abandoned run history saved | ${savedData.team.name} | act ${historyAct} floor ${historyFloor}`)
+  } catch (e) {
+    logger.error("Failed to save abandoned run history:", e)
+  }
+}
+
 export async function getRunHistory(odToken: string, page: number = 1, pageSize: number = 10) {
   return RunHistory.find({ odToken })
     .sort({ time: -1 })
@@ -580,5 +615,22 @@ export async function incrementRunEnd(
     await UserMetadata.updateOne({ uid }, { $inc: inc }, { upsert: false })
   } catch (e) {
     logger.error("Failed to increment run end stats:", e)
+  }
+}
+
+export async function updateVictoryRecord(
+  uid: string,
+  name: string,
+  avatar: string,
+  difficultyMode: number,
+  currentAct: number,
+  isEndless: boolean
+): Promise<void> {
+  if (uid === "local-player" || isEndless) return
+  const { recordVictory, recordLoss } = require("./victory-record")
+  if (currentAct >= 4) {
+    await recordVictory(uid, name, avatar, difficultyMode)
+  } else {
+    await recordLoss(uid, name, avatar, difficultyMode)
   }
 }

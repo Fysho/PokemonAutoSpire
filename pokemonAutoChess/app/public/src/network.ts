@@ -37,7 +37,7 @@ export function authenticateUser() {
     store.dispatch(
       setProfile({
         uid: user.uid,
-        displayName: user.displayName || "Player",
+        displayName: "Player",
         avatar: "0019/Normal",
         elo: 1000,
         maxElo: 1000,

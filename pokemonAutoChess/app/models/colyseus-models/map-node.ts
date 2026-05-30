@@ -11,7 +11,8 @@ export enum MapNodeType {
   LEGENDARY_BOSS = "LEGENDARY_BOSS",
   ELITE_FOUR = "ELITE_FOUR",
   CHAMPION = "CHAMPION",
-  ARCEUS_BOSS = "ARCEUS_BOSS"
+  ARCEUS_BOSS = "ARCEUS_BOSS",
+  ASYNC_FIGHT = "ASYNC_FIGHT"
 }
 
 export class MapNode extends Schema {

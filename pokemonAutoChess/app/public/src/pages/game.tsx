@@ -69,6 +69,7 @@ import {
   setPodium,
   setRunHP,
   setDifficultyMode,
+  setIsEndless,
   setCurrentAct,
   setCurrentFloor,
   setEncounterDifficulty,
@@ -213,6 +214,7 @@ export default function Game() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState<boolean>(false)
   const [connectError, setConnectError] = useState<string>("")
   const [spectatorCount, setSpectatorCount] = useState<number>(0)
+  const [announcement, setAnnouncement] = useState<string | null>(null)
   const [finalRank, setFinalRank] = useState<number>(0)
   enum FinalRankVisibility {
     HIDDEN,
@@ -504,6 +506,10 @@ export default function Game() {
         }
       })
 
+      room.onMessage(Transfer.SERVER_ANNOUNCEMENT, (message: string) => {
+        setAnnouncement(message)
+      })
+
       room.onMessage(Transfer.GAME_END, leave)
 
       room.onMessage(Transfer.DRAG_DROP_CANCEL, (message) =>
@@ -568,6 +574,10 @@ export default function Game() {
 
       $state.listen("difficultyMode", (value) => {
         dispatch(setDifficultyMode(value))
+      })
+
+      $state.listen("isEndless", (value) => {
+        dispatch(setIsEndless(value))
       })
 
       $state.listen("currentAct", (value) => {
@@ -987,6 +997,7 @@ export default function Game() {
   const currentFloor = useAppSelector((state) => state.game.currentFloor)
   const money = useAppSelector((state) => state.game.money)
   const difficultyMode = useAppSelector((state) => state.game.difficultyMode)
+  const isEndless = useAppSelector((state) => state.game.isEndless)
   const arceusDamageDealt = useAppSelector((state) => state.game.arceusDamageDealt)
   const isNewArceusRecord = useAppSelector((state) => state.game.isNewArceusRecord)
   const previousArceusRecord = useAppSelector((state) => state.game.previousArceusRecord)
@@ -1075,10 +1086,13 @@ export default function Game() {
               currentAct={currentAct}
               currentFloor={currentFloor}
               runHP={runHP}
+              difficultyMode={difficultyMode}
+              isEndless={isEndless}
               onHide={() => setMapHidden(true)}
               readOnly={spectate || (!isMapPhase && (connectedPlayer?.choices?.length ?? 0) > 0)}
               showRerollMap={!spectate && (connectedPlayer?.choices?.some((c: any) => c.type === "starter") ?? false)}
               hasChoicesPending={(connectedPlayer?.choices?.length ?? 0) > 0}
+              isAdmin={isAdmin}
             />
           )}
           {isRestPhase && room?.state && (
@@ -1221,6 +1235,18 @@ export default function Game() {
                   Give Mewtwo
                 </button>
                 <button
+                  onClick={() => rooms.game?.send(Transfer.GIVE_DITTO)}
+                  style={{ padding: "6px 12px", background: "#a259c4", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                >
+                  Give Ditto
+                </button>
+                <button
+                  onClick={() => rooms.game?.send(Transfer.ADMIN_HEAL)}
+                  style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                >
+                  Heal
+                </button>
+                <button
                   onClick={() => {
                     rooms.game?.send(Transfer.ENTER_ELITE_FOUR)
                     setRunComplete(false)
@@ -1263,6 +1289,38 @@ export default function Game() {
         <GameLoadingScreen connectError={connectError} />
       )}
       <ConnectionStatusNotification />
+      {announcement && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999
+        }}>
+          <div className="my-container" style={{
+            padding: "24px",
+            maxWidth: "450px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px"
+          }}>
+            <h3 style={{ color: "#f1c40f", margin: 0 }}>Server Announcement</h3>
+            <p style={{ fontSize: "14px", opacity: 0.9, margin: 0, whiteSpace: "pre-wrap" }}>
+              {announcement}
+            </p>
+            <button
+              className="bubbly"
+              onClick={() => setAnnouncement(null)}
+              style={{ backgroundColor: "#555" }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
       {connectionStatus === ConnectionStatus.CONNECTION_FAILED && !runComplete && !runFailed && (
         <div style={{
           position: "fixed",

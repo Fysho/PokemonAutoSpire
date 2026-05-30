@@ -8,9 +8,9 @@ export default class ExperienceManager
   implements IExperienceManager
 {
   @type("uint8") level: number
-  @type("uint8") experience: number
-  @type("uint8") expNeeded: number
-  maxLevel: number
+  @type("uint16") experience: number
+  @type("uint16") expNeeded: number
+  @type("uint8") maxLevel: number
 
   constructor() {
     super()

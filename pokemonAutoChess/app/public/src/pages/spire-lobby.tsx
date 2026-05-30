@@ -28,6 +28,7 @@ interface SavedRunSummary {
   difficultyMode: number
   runHP: number
   teamPreview: string[]
+  isEndless?: boolean
 }
 
 const DIFFICULTY_LABELS: Record<number, string> = {
@@ -75,6 +76,17 @@ function eliteSpriteSrc(pkm: Pkm): string {
   return `assets/ui/elite-sprites-v2/${idx}.png`
 }
 
+// Reverse lookup from a stored avatar sprite string (e.g. "0019/Normal" or
+// "0019/0001/Normal") back to its Pkm, for loading the saved avatar from the DB.
+const INDEX_TO_PKM: Record<string, Pkm> = {}
+for (const [pkm, idx] of Object.entries(PkmIndex)) INDEX_TO_PKM[idx] = pkm as Pkm
+function avatarStringToPkm(avatar: string): Pkm | undefined {
+  const parts = avatar.split("/")
+  if (parts.length < 2) return undefined
+  // Drop the trailing emotion (e.g. "Normal"); rejoin index parts with "-".
+  return INDEX_TO_PKM[parts.slice(0, -1).join("-")]
+}
+
 const PAC_TAG_COLORS: Record<string, { bg: string; text: string }> = {
   buffed: { bg: "#2d6a2d", text: "#7fff7f" },
   nerfed: { bg: "#6a2d2d", text: "#ff7f7f" },
@@ -110,21 +122,26 @@ export default function SpireLobby() {
   const displayName = useAppSelector((state) => state.network.displayName)
   const dispatch = useAppDispatch()
   const [starting, setStarting] = useState(false)
+  const [announcement, setAnnouncement] = useState<string | null>(null)
   const [serverStatus, setServerStatus] = useState<{ ccu: number; totalAccounts: number } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [playerName, setPlayerName] = useState(() => localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME) ?? "Username")
   const [avatarPkm, setAvatarPkm] = useState<Pkm>(() => (localStore.get(LocalStoreKeys.SPIRE_PLAYER_AVATAR) as Pkm) || Pkm.RATTATA)
   const [playerRegion, setPlayerRegion] = useState(() => localStore.get(LocalStoreKeys.SPIRE_PLAYER_REGION) ?? "town")
   const [regionLoaded, setRegionLoaded] = useState(false)
+  const [nameLoaded, setNameLoaded] = useState(false)
+  const [avatarLoaded, setAvatarLoaded] = useState(false)
   const [savedRun, setSavedRun] = useState<SavedRunSummary | null>(null)
   const [loadingSave, setLoadingSave] = useState(true)
   const [confirmOverwrite, setConfirmOverwrite] = useState<number | null>(null)
   const [lostRunPopup, setLostRunPopup] = useState<"found" | "not-found" | "error" | "searching" | null>(null)
   const [hasHardWin, setHasHardWin] = useState(false)
+  const [endlessEnabled, setEndlessEnabled] = useState(true)
   const [publicRuns, setPublicRuns] = useState<{
     roomId: string
     ownerName: string
     difficultyMode: number
+    isEndless?: boolean
     currentAct: number
     currentFloor: number
     runHP: number
@@ -143,6 +160,13 @@ export default function SpireLobby() {
     fetch("/status")
       .then((r) => r.json())
       .then((data) => setServerStatus(data))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/endless-enabled")
+      .then((r) => r.json())
+      .then((data) => setEndlessEnabled(data?.enabled !== false))
       .catch(() => {})
   }, [])
 
@@ -167,12 +191,38 @@ export default function SpireLobby() {
     const trimmed = playerName.trim()
     if (trimmed && trimmed !== "Username" && trimmed !== "Player") {
       dispatch(changeName(trimmed))
+      // Persist the chosen name to the DB (debounced) so it's searchable
+      // even if the player never starts a run. Guests are not saved.
+      // Gated on nameLoaded so the local value can't overwrite the DB before
+      // the DB load completes (and so a wiped "Player" name isn't re-seeded).
+      if (nameLoaded && uid && uid !== "local-player") {
+        const handle = setTimeout(() => {
+          fetch(`/api/player-name/${uid}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: trimmed })
+          }).catch(() => {})
+        }, 600)
+        return () => clearTimeout(handle)
+      }
     }
-  }, [playerName])
+  }, [playerName, uid, nameLoaded])
 
   useEffect(() => {
     localStore.set(LocalStoreKeys.SPIRE_PLAYER_AVATAR, avatarPkm)
-  }, [avatarPkm])
+    // Persist avatar to the DB (sprite-string form), gated on avatarLoaded so
+    // the local value can't overwrite the DB before the load completes.
+    if (avatarLoaded && uid && uid !== "local-player") {
+      const idx = PkmIndex[avatarPkm]
+      if (idx) {
+        fetch(`/api/player-avatar/${uid}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ avatar: `${idx.replace("-", "/")}/Normal` })
+        }).catch(() => {})
+      }
+    }
+  }, [avatarPkm, uid, avatarLoaded])
 
   useEffect(() => {
     localStore.set(LocalStoreKeys.SPIRE_PLAYER_REGION, playerRegion)
@@ -186,6 +236,17 @@ export default function SpireLobby() {
   }, [playerRegion])
 
   useEffect(() => { clearGameReconnection() }, [])
+
+  useEffect(() => {
+    const es = new EventSource("/api/announcements/stream")
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.message) setAnnouncement(data.message)
+      } catch {}
+    }
+    return () => es.close()
+  }, [])
 
   function refreshRuns() {
     fetch("/api/public-runs")
@@ -218,6 +279,53 @@ export default function SpireLobby() {
       .finally(() => setRegionLoaded(true))
   }, [uid])
 
+  // Load the saved player name from the DB. The DB wins for real names (so
+  // names follow the account across devices), but the placeholder sentinels
+  // ("Player"/"Username") are treated as unset — we keep the local name, which
+  // the save effect then re-persists to the DB.
+  useEffect(() => {
+    if (!uid || uid === "local-player") {
+      setNameLoaded(true)
+      return
+    }
+    fetch(`/api/player-name/${uid}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (
+          typeof data?.name === "string" &&
+          data.name.length > 0 &&
+          data.name !== "Player" &&
+          data.name !== "Username"
+        ) {
+          setPlayerName(data.name)
+          localStore.set(LocalStoreKeys.SPIRE_PLAYER_NAME, data.name)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setNameLoaded(true))
+  }, [uid])
+
+  // Load the saved avatar from the DB and map the sprite string back to a Pkm.
+  useEffect(() => {
+    if (!uid || uid === "local-player") {
+      setAvatarLoaded(true)
+      return
+    }
+    fetch(`/api/player-avatar/${uid}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (typeof data?.avatar === "string") {
+          const pkm = avatarStringToPkm(data.avatar)
+          if (pkm) {
+            setAvatarPkm(pkm)
+            localStore.set(LocalStoreKeys.SPIRE_PLAYER_AVATAR, pkm)
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAvatarLoaded(true))
+  }, [uid])
+
   useEffect(() => {
     if (!uid || uid === "local-player") {
       setLoadingSave(false)
@@ -237,7 +345,7 @@ export default function SpireLobby() {
 
   const [nameWarning, setNameWarning] = useState(false)
 
-  async function createRoom(difficultyMode: number, resume: boolean) {
+  async function createRoom(difficultyMode: number, resume: boolean, isEndless: boolean = false) {
     if (starting) return
     const name = playerName.trim()
     if (!name || name === "Username" || name === "Player") {
@@ -273,7 +381,8 @@ export default function SpireLobby() {
         tournamentId: null,
         bracketId: null,
         difficultyMode,
-        resume
+        resume,
+        isEndless
       })
       joinGame(room as any)
       navigate("/game")
@@ -294,18 +403,27 @@ export default function SpireLobby() {
   function confirmNewRun() {
     if (confirmOverwrite === null) return
     const diff = confirmOverwrite
+    const endless = diff === -1
     setConfirmOverwrite(null)
     fetch(`/api/saved-run/${uid}`, { method: "DELETE" })
       .then(() => {
         setSavedRun(null)
-        createRoom(diff, false)
+        createRoom(endless ? 1 : diff, false, endless)
       })
-      .catch(() => createRoom(diff, false))
+      .catch(() => createRoom(endless ? 1 : diff, false, endless))
+  }
+
+  function startEndlessRun() {
+    if (savedRun) {
+      setConfirmOverwrite(-1)
+    } else {
+      createRoom(1, false, true)
+    }
   }
 
   function resumeRun() {
     if (!savedRun) return
-    createRoom(savedRun.difficultyMode, true)
+    createRoom(savedRun.difficultyMode, true, savedRun.isEndless ?? false)
   }
 
   function findLostRun() {
@@ -383,6 +501,7 @@ export default function SpireLobby() {
       <div className="lobby-container">
         <SpireLobbyContent
           startRun={startRun}
+          startEndlessRun={startEndlessRun}
           resumeRun={resumeRun}
           abandonRun={abandonRun}
           starting={starting}
@@ -402,6 +521,7 @@ export default function SpireLobby() {
           playerRegion={playerRegion}
           setPlayerRegion={setPlayerRegion}
           hasHardWin={hasHardWin}
+          endlessEnabled={endlessEnabled}
           isAdmin={isAdmin}
           nameWarning={nameWarning}
           setNameWarning={setNameWarning}
@@ -409,6 +529,8 @@ export default function SpireLobby() {
           joiningSpectate={joiningSpectate}
           watchRun={watchRun}
           refreshRuns={refreshRuns}
+          announcement={announcement}
+          setAnnouncement={setAnnouncement}
         />
       </div>
     </main>
@@ -417,6 +539,7 @@ export default function SpireLobby() {
 
 function SpireLobbyContent({
   startRun,
+  startEndlessRun,
   resumeRun,
   abandonRun,
   starting,
@@ -436,15 +559,19 @@ function SpireLobbyContent({
   playerRegion,
   setPlayerRegion,
   hasHardWin,
+  endlessEnabled,
   isAdmin,
   nameWarning,
   setNameWarning,
   publicRuns,
   joiningSpectate,
   watchRun,
-  refreshRuns
+  refreshRuns,
+  announcement,
+  setAnnouncement
 }: {
   startRun: (difficultyMode: number) => void
+  startEndlessRun: () => void
   resumeRun: () => void
   abandonRun: () => void
   starting: boolean
@@ -464,13 +591,16 @@ function SpireLobbyContent({
   playerRegion: string
   setPlayerRegion: (region: string) => void
   hasHardWin: boolean
+  endlessEnabled: boolean
   isAdmin: boolean
   nameWarning: boolean
   setNameWarning: (v: boolean) => void
-  publicRuns: { roomId: string; ownerName: string; difficultyMode: number; currentAct: number; currentFloor: number; runHP: number; spectatorCount: number }[]
+  publicRuns: { roomId: string; ownerName: string; difficultyMode: number; isEndless?: boolean; currentAct: number; currentFloor: number; runHP: number; spectatorCount: number }[]
   joiningSpectate: boolean
   watchRun: (roomId: string) => void
   refreshRuns: () => void
+  announcement: string | null
+  setAnnouncement: (v: string | null) => void
 }) {
   const [activeSection, setActive] = useState<string>("rooms")
   const [ascensionIndex, setAscensionIndex] = useState(0)
@@ -569,6 +699,7 @@ function SpireLobbyContent({
               <option value="1">Normal</option>
               <option value="2">Hard</option>
               <option value="3">Impossible</option>
+              <option value="-1">Endless</option>
             </select>
             <span style={{ marginLeft: "auto", fontSize: "12px", opacity: 0.6 }}>
               {publicRuns.length} active
@@ -577,7 +708,11 @@ function SpireLobbyContent({
 
           {(() => {
             const filtered = publicRuns
-              .filter((r) => runFilterDifficulty === null || r.difficultyMode === runFilterDifficulty)
+              .filter((r) => {
+                if (runFilterDifficulty === null) return true
+                if (runFilterDifficulty === -1) return !!r.isEndless
+                return !r.isEndless && r.difficultyMode === runFilterDifficulty
+              })
               .sort((a, b) => {
                 const dir = runSortAsc ? 1 : -1
                 if (runSortBy === "difficulty") return (a.difficultyMode - b.difficultyMode) * dir
@@ -595,7 +730,7 @@ function SpireLobbyContent({
                   }}>
                     <span style={{ fontWeight: "bold", fontSize: "13px", minWidth: "90px", display: "inline-block" }}>{run.ownerName}</span>
                     <span style={{ fontSize: "12px", color: "white", minWidth: "65px", display: "inline-block" }}>
-                      {DIFFICULTY_LABELS[run.difficultyMode] ?? "Normal"}
+                      {run.isEndless ? "Endless" : DIFFICULTY_LABELS[run.difficultyMode] ?? "Normal"}
                     </span>
                     <span style={{ fontSize: "12px", opacity: 0.8, minWidth: "100px", display: "inline-block" }}>
                       Act {run.currentAct} &middot; Floor {run.currentFloor}
@@ -635,7 +770,7 @@ function SpireLobbyContent({
                   <>
                     <div style={{ display: "flex", gap: "16px", alignItems: "center", fontSize: "13px", opacity: 0.9 }}>
                       <span>Act {savedRun.currentAct} &middot; Floor {savedRun.currentFloor}</span>
-                      <span>{DIFFICULTY_LABELS[savedRun.difficultyMode] ?? "Normal"}</span>
+                      <span>{savedRun.isEndless ? "Endless" : DIFFICULTY_LABELS[savedRun.difficultyMode] ?? "Normal"}</span>
                       <span style={{ color: savedRun.runHP <= 30 ? "#e74c3c" : "#2ecc71" }}>
                         {savedRun.runHP} HP
                       </span>
@@ -727,7 +862,7 @@ function SpireLobbyContent({
                     className={cc("bubbly", { loading: starting })}
                     disabled={starting}
                     onClick={() => startRun(0)}
-                    style={{ backgroundColor: "#27ae60" }}
+                    style={{ backgroundColor: "#27ae60", minWidth: "150px" }}
                   >
                     {starting ? t("loading") : "Start Easy"}
                   </button>
@@ -735,6 +870,7 @@ function SpireLobbyContent({
                     className={cc("bubbly yellow", { loading: starting })}
                     disabled={starting}
                     onClick={() => startRun(1)}
+                    style={{ minWidth: "150px" }}
                   >
                     {starting ? t("loading") : "Start Normal"}
                   </button>
@@ -742,6 +878,7 @@ function SpireLobbyContent({
                     className={cc("bubbly red", { loading: starting })}
                     disabled={starting}
                     onClick={() => startRun(2)}
+                    style={{ minWidth: "150px" }}
                   >
                     {starting ? t("loading") : "Start Hard"}
                   </button>
@@ -752,6 +889,7 @@ function SpireLobbyContent({
                       onClick={() => startRun(3)}
                       style={{
                         backgroundColor: "#222222",
+                        minWidth: "150px",
                         opacity: (!hasHardWin && !isAdmin) ? 0.4 : 1,
                         cursor: (!hasHardWin && !isAdmin) ? "not-allowed" : "pointer"
                       }}
@@ -817,20 +955,27 @@ function SpireLobbyContent({
               </div>
 
               <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", flex: 1 }}>
-                <span className="room-name">Endless Mode</span>
+                <span className="room-name">Endless Mode (test demo)</span>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <img
-                    src="assets/ui/room.svg"
-                    alt="Endless"
-                    style={{ width: "32px", height: "32px", opacity: 0.6 }}
-                  />
-                  <button
-                    className="bubbly"
-                    disabled
-                    style={{ backgroundColor: "#555", cursor: "not-allowed" }}
-                  >
-                    Coming Soon
-                  </button>
+                  <span style={{ position: "relative", display: "inline-block" }} className={(!endlessEnabled && !isAdmin) ? "hometown-help" : ""}>
+                    <button
+                      className={cc("bubbly", { loading: starting })}
+                      disabled={starting || (!endlessEnabled && !isAdmin)}
+                      onClick={startEndlessRun}
+                      style={{
+                        backgroundColor: "#1abc9c",
+                        opacity: (!endlessEnabled && !isAdmin) ? 0.4 : 1,
+                        cursor: (!endlessEnabled && !isAdmin) ? "not-allowed" : "pointer"
+                      }}
+                    >
+                      {starting ? "Loading..." : "Start Endless"}
+                    </button>
+                    {(!endlessEnabled && !isAdmin) && (
+                      <span className="hometown-help-tooltip">
+                        Endless mode is currently disabled
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <span style={{
                   fontSize: "12px",
@@ -838,7 +983,7 @@ function SpireLobbyContent({
                   textAlign: "center",
                   maxWidth: "400px"
                 }}>
-                  Survive as long as you can in an endless gauntlet of increasingly difficult encounters.
+                  Battle through endless acts of scaling difficulty. Fight teams from other players who reached the same stage. I expect this to be a catastrophe.
                 </span>
               </div>
             </li>
@@ -940,6 +1085,8 @@ function SpireLobbyContent({
           </div>
           <ChampionDisplay />
           <ArceusRecordDisplay />
+          <EndlessLeaderboardDisplay />
+          <VictoryLeaderboardDisplay />
         </div>
       </section>
 
@@ -1022,7 +1169,7 @@ function SpireLobbyContent({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0200")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Misdreavus / Mismagius</strong> — Night Shade damage capped at 150.</span>
+              <span><PacTag type="nerfed" /> <strong>Misdreavus / Mismagius</strong> — Night Shade damage capped at 500.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0869-0056")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
@@ -1214,6 +1361,38 @@ function SpireLobbyContent({
           </div>
         </div>
       )}
+      {announcement && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999
+        }}>
+          <div className="my-container" style={{
+            padding: "24px",
+            maxWidth: "450px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px"
+          }}>
+            <h3 style={{ color: "#f1c40f", margin: 0 }}>Server Announcement</h3>
+            <p style={{ fontSize: "14px", opacity: 0.9, margin: 0, whiteSpace: "pre-wrap" }}>
+              {announcement}
+            </p>
+            <button
+              className="bubbly"
+              onClick={() => setAnnouncement(null)}
+              style={{ backgroundColor: "#555" }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1223,6 +1402,7 @@ interface ChampionSlot {
   avatar: string
   pokemon: { name: string; items: string[] }[]
   inventory: string[]
+  victories: number
 }
 
 interface ChampionData {
@@ -1359,6 +1539,13 @@ function ChampionSlotRow({ slot, title, highlight }: { slot: ChampionSlot; title
         minWidth: "90px", flexShrink: 0,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
       }}>{slot.name}</span>
+      {slot.victories > 0 && (
+        <span style={{
+          fontSize: "11px", opacity: 0.7, flexShrink: 0,
+          padding: "1px 5px", borderRadius: "8px",
+          background: "rgba(255,255,255,0.08)"
+        }}>{slot.victories} win{slot.victories !== 1 ? "s" : ""}</span>
+      )}
       <div style={{ display: "flex", gap: "2px", alignItems: "center", flexShrink: 0 }}>
         {topSynergies.map(([type, value]) => (
           <div key={type} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -1460,7 +1647,8 @@ function ArceusRecordDisplay() {
                     name: entry.name,
                     avatar: entry.avatar,
                     pokemon: entry.pokemon,
-                    inventory: entry.inventory || []
+                    inventory: entry.inventory || [],
+                    victories: 0
                   }
                   return (
                     <ChampionSlotRow
@@ -1473,6 +1661,176 @@ function ArceusRecordDisplay() {
                 })}
               </div>
             )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+interface EndlessLeaderboardEntry {
+  name: string
+  avatar: string
+  act: number
+  floor: number
+  pokemon: { name: string; items: string[] }[]
+}
+
+function EndlessLeaderboardDisplay() {
+  const [leaderboard, setLeaderboard] = useState<EndlessLeaderboardEntry[]>([])
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/endless-record")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setLeaderboard(data) })
+      .catch(() => {})
+  }, [])
+
+  return (
+    <div style={{ marginTop: "12px" }}>
+      <h2 style={{ textAlign: "center", margin: "0 0 10px 0" }}>
+        Endless Mode Records
+      </h2>
+      <div className="my-box" style={{ marginBottom: "6px", padding: "0" }}>
+        <div
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "8px 12px", cursor: "pointer", userSelect: "none"
+          }}
+        >
+          <span style={{ fontWeight: "bold", color: "white", flex: 1, textAlign: "center" }}>Top Runs</span>
+          <span style={{ fontSize: "12px", opacity: 0.6 }}>{expanded ? "▲" : "▼"}</span>
+        </div>
+        {expanded && (
+          <div style={{ padding: "0 12px 10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+            {Array.from({ length: 5 }, (_, i) => {
+              const entry = leaderboard[i]
+              if (!entry) {
+                return (
+                  <div key={i} style={{
+                    display: "flex", alignItems: "center", gap: "8px", padding: "4px 0",
+                    borderTop: "1px solid rgba(255,255,255,0.1)", minHeight: "58px"
+                  }}>
+                    <span style={{
+                      fontSize: "14px", opacity: 0.3, minWidth: "80px", flexShrink: 0, fontWeight: "bold"
+                    }}>#{i + 1}</span>
+                  </div>
+                )
+              }
+              const slot: ChampionSlot = {
+                name: entry.name,
+                avatar: entry.avatar,
+                pokemon: entry.pokemon,
+                inventory: [],
+                victories: 0
+              }
+              return (
+                <ChampionSlotRow
+                  key={i}
+                  slot={slot}
+                  title={`Act ${entry.act} F${entry.floor}`}
+                  highlight={i === 0}
+                />
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface VictoryLeaderboardEntry {
+  name: string
+  avatar: string
+  value: number
+}
+
+function VictoryLeaderboardDisplay() {
+  const [data, setData] = useState<Record<number, { totalVictories: VictoryLeaderboardEntry[]; longestStreak: VictoryLeaderboardEntry[] }>>({})
+  const [expanded, setExpanded] = useState<number | null>(null)
+
+  useEffect(() => {
+    DIFF_ORDER.forEach(({ mode }) => {
+      fetch(`/api/victory-leaderboard/${mode}`)
+        .then((r) => r.json())
+        .then((d) => setData((prev) => ({ ...prev, [mode]: d })))
+        .catch(() => {})
+    })
+  }, [])
+
+  return (
+    <div style={{ marginTop: "12px" }}>
+      <h2 style={{ textAlign: "center", margin: "0 0 10px 0" }}>
+        Victory Records
+      </h2>
+      {DIFF_ORDER.map(({ mode, label, color }) => {
+        const d = data[mode]
+        const isOpen = expanded === mode
+        return (
+          <div key={mode} className="my-box" style={{ marginBottom: "6px", padding: "0" }}>
+            <div
+              onClick={() => setExpanded(isOpen ? null : mode)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "8px 12px", cursor: "pointer", userSelect: "none"
+              }}
+            >
+              <span style={{ fontWeight: "bold", color, flex: 1, textAlign: "center" }}>{label}</span>
+              <span style={{ fontSize: "12px", opacity: 0.6 }}>{isOpen ? "▲" : "▼"}</span>
+            </div>
+            {isOpen && d && (
+              <div style={{ display: "flex", gap: "12px", padding: "0 12px 10px" }}>
+                <VictoryColumn title="Total Victories" entries={d.totalVictories} />
+                <VictoryColumn title="Longest Streak" entries={d.longestStreak} />
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function VictoryColumn({ title, entries }: { title: string; entries: VictoryLeaderboardEntry[] }) {
+  return (
+    <div style={{ flex: 1 }}>
+      <div style={{
+        fontSize: "13px", fontWeight: "bold", textAlign: "center",
+        marginBottom: "6px", opacity: 0.8
+      }}>{title}</div>
+      {Array.from({ length: 10 }, (_, i) => {
+        const entry = entries[i]
+        return (
+          <div key={i} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "2px 0",
+            borderTop: "1px solid rgba(255,255,255,0.06)", minHeight: "30px"
+          }}>
+            <span style={{
+              fontSize: "12px", opacity: entry ? 0.5 : 0.2, minWidth: "22px",
+              textAlign: "right", flexShrink: 0
+            }}>#{i + 1}</span>
+            {entry ? (
+              <>
+                <img
+                  src={getAvatarSrc(entry.avatar)}
+                  alt={entry.name}
+                  style={{ width: 26, height: 26, imageRendering: "pixelated", flexShrink: 0 }}
+                />
+                <span style={{
+                  fontSize: "13px", flex: 1, overflow: "hidden",
+                  textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  color: i === 0 ? "#f1c40f" : "inherit",
+                  fontWeight: i === 0 ? "bold" : "normal"
+                }}>{entry.name}</span>
+                <span style={{
+                  fontSize: "13px", fontWeight: "bold", flexShrink: 0,
+                  color: i === 0 ? "#f1c40f" : "inherit"
+                }}>{entry.value}</span>
+              </>
+            ) : null}
           </div>
         )
       })}

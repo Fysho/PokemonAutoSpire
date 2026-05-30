@@ -1,0 +1,201 @@
+{
+  "records": [
+    {
+      "playerName": "Fish arc23",
+      "avatar": "0861/Normal",
+      "act": 5,
+      "floor": 17,
+      "team": {
+        "name": "Fish arc23",
+        "avatar": "0861/Normal",
+        "pokemon": [
+          {
+            "name": "TYRUNT",
+            "x": 4,
+            "y": 3,
+            "items": [
+              "EXP_SHARE",
+              "METRONOME",
+              "DYNAMAX_BAND"
+            ],
+            "statBoosts": {
+              "hp": 150,
+              "atk": 15,
+              "def": 0,
+              "speDef": 0,
+              "ap": 45,
+              "speed": 0
+            },
+            "evolution": "TYRANTRUM"
+          },
+          {
+            "name": "SPIRITOMB",
+            "x": 5,
+            "y": 3,
+            "items": [
+              "CHARCOAL",
+              "KINGS_ROCK",
+              "STICKY_BARB"
+            ],
+            "statBoosts": {
+              "hp": 200,
+              "atk": 20,
+              "def": 0,
+              "speDef": 0,
+              "ap": 60,
+              "speed": 0
+            }
+          },
+          {
+            "name": "PRIMARINA",
+            "x": 1,
+            "y": 2,
+            "items": [
+              "AQUA_EGG",
+              "SOUL_DEW",
+              "LOADED_DICE"
+            ],
+            "statBoosts": {
+              "hp": 500,
+              "atk": 50,
+              "def": 0,
+              "speDef": 0,
+              "ap": 150,
+              "speed": 0
+            }
+          },
+          {
+            "name": "HAXORUS",
+            "x": 1,
+            "y": 3,
+            "items": [
+              "PROTECTOR",
+              "WONDER_BOX",
+              "XRAY_VISION"
+            ]
+          },
+          {
+            "name": "HAKAMO_O",
+            "x": 2,
+            "y": 3,
+            "items": [
+              "KINGS_ROCK",
+              "ASSAULT_VEST",
+              "MUSCLE_BAND"
+            ],
+            "evolution": "KOMMO_O"
+          },
+          {
+            "name": "ALTARIA",
+            "x": 2,
+            "y": 2,
+            "items": [
+              "EXP_SHARE"
+            ]
+          },
+          {
+            "name": "REGIDRAGO",
+            "x": 3,
+            "y": 3,
+            "items": [
+              "GRACIDEA_FLOWER",
+              "RED_ORB",
+              "SMOKE_BALL"
+            ],
+            "statBoosts": {
+              "hp": 150,
+              "atk": 15,
+              "def": 0,
+              "speDef": 0,
+              "ap": 45,
+              "speed": 0
+            }
+          },
+          {
+            "name": "ALOLAN_EXEGGUTOR",
+            "x": 6,
+            "y": 3,
+            "items": [
+              "BERSERK_GENE",
+              "MUSCLE_BAND",
+              "SAFETY_GOGGLES"
+            ]
+          },
+          {
+            "name": "NOIVERN",
+            "x": 3,
+            "y": 2,
+            "items": []
+          },
+          {
+            "name": "AERODACTYL",
+            "x": 0,
+            "y": 3,
+            "items": []
+          }
+        ],
+        "inventory": [
+          "RECYCLE_TICKET",
+          "RECYCLE_TICKET",
+          "SPIRIT_WAND",
+          "FOSSIL_GEM",
+          "SOUND_GEM",
+          "TWISTED_SPOON"
+        ],
+        "groundHoles": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "lightX": 3,
+        "lightY": 1
+      },
+      "date": "2026-05-29T14:01:08.355Z"
+    }
+  ]
+}

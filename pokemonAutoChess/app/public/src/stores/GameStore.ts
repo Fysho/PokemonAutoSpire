@@ -53,6 +53,7 @@ export interface GameStateStore {
   podium: ILeaderboardInfo[]
   runHP: number
   difficultyMode: number
+  isEndless: boolean
   currentAct: number
   currentFloor: number
   encounterDifficulty: number
@@ -101,6 +102,7 @@ const initialState: GameStateStore = {
   podium: new Array<ILeaderboardInfo>(),
   runHP: 100,
   difficultyMode: 1,
+  isEndless: false,
   currentAct: 1,
   currentFloor: 0,
   encounterDifficulty: 0,
@@ -138,6 +140,9 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
     },
     setDifficultyMode: (state, action: PayloadAction<number>) => {
       state.difficultyMode = action.payload
+    },
+    setIsEndless: (state, action: PayloadAction<boolean>) => {
+      state.isEndless = action.payload
     },
     setCurrentAct: (state, action: PayloadAction<number>) => {
       state.currentAct = action.payload
@@ -219,7 +224,8 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
         ...state.experienceManager,
         experience: action.payload.experience,
         expNeeded: action.payload.expNeeded,
-        level: action.payload.level
+        level: action.payload.level,
+        maxLevel: action.payload.maxLevel
       }
     },
     changePlayer: (
@@ -405,6 +411,7 @@ export const {
   setStageLevel,
   setRunHP,
   setDifficultyMode,
+  setIsEndless,
   setCurrentAct,
   setCurrentFloor,
   setEncounterDifficulty,

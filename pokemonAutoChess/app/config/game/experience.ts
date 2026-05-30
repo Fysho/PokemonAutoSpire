@@ -15,5 +15,11 @@ export const ExpTable: { [key: number]: number } = Object.freeze({
   6: 34,
   7: 52,
   8: 72,
-  9: 255
+  9: 250,
+  10: 500,
+  11: 750,
+  12: 1000,
+  13: 255
 })
+
+export const ENDLESS_MAX_LEVEL = 13

@@ -87,6 +87,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
   eliteMainBonusHP: number = 0
   eliteMainBonusAtk: number = 0
   eliteMainBonusAP: number = 0
+  asyncFightSnapshots: Map<string, { snapshot: any; name: string; avatar: string; region: string }> = new Map()
   constructor() {
     super()
     this.dispatcher = new Dispatcher(this)
@@ -110,7 +111,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
     tournamentId,
     bracketId,
     difficultyMode,
-    resume
+    resume,
+    isEndless
   }: {
     users: Record<string, IGameUser>
     preparationId: string
@@ -125,8 +127,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
     bracketId: string | null
     difficultyMode?: number
     resume?: boolean
+    isEndless?: boolean
   }) {
-    const diffLabel = difficultyMode === 0 ? "Easy" : difficultyMode === 2 ? "Hard" : difficultyMode === 3 ? "Impossible" : "Normal"
+    const diffLabel = isEndless ? "Endless" : difficultyMode === 0 ? "Easy" : difficultyMode === 2 ? "Hard" : difficultyMode === 3 ? "Impossible" : "Normal"
     const playerName = ownerName || Object.values(users || {})[0]?.name || "Unknown"
     logger.info(`Create Game ${this.roomId} | player: ${playerName} | difficulty: ${diffLabel}`)
 
@@ -143,6 +146,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
       tournamentId,
       bracketId,
       difficultyMode: difficultyMode ?? 1,
+      isEndless: !!isEndless,
       currentAct: 1,
       currentFloor: 0,
       runHP: 100,
@@ -158,7 +162,29 @@ export default class GameRoom extends Room<{ state: GameState }> {
       maxRank,
       specialGameRule
     )
-    if (difficultyMode === 0 || difficultyMode === 2 || difficultyMode === 3) {
+    if (isEndless) {
+      const { isEndlessEnabled } = require("../services/endless-config")
+      if (!resume && !isEndlessEnabled()) {
+        // Endless is disabled for new runs; allow admins through for testing
+        // (resuming an already-started endless run is always permitted).
+        const creatorUid = Object.keys(users || {})[0]
+        let isCreatorAdmin = false
+        if (creatorUid && creatorUid !== "local-player") {
+          try {
+            const UserMetadata = require("../models/mongo-models/user-metadata").default
+            const meta = await UserMetadata.findOne({ uid: creatorUid }, { role: 1 }).lean()
+            isCreatorAdmin = meta?.role === Role.ADMIN
+          } catch (e) {
+            isCreatorAdmin = false
+          }
+        }
+        if (!isCreatorAdmin) {
+          throw new Error("Endless mode is currently disabled")
+        }
+      }
+      this.state.isEndless = true
+      this.state.difficultyMode = 1
+    } else if (difficultyMode === 0 || difficultyMode === 2 || difficultyMode === 3) {
       this.state.difficultyMode = difficultyMode
     }
     this.isResume = !!resume
@@ -392,21 +418,30 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.onMessage(Transfer.REROLL_BOSS_REWARD, (client) => {
       if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
-        if (!player || player.money < 20) return
+        const node = this.state.mapNodes.get(this.state.currentNodeId)
+        const isAsyncMiniBoss = node?.nodeType === "ASYNC_FIGHT" && node.floor !== 20
+        const cost = isAsyncMiniBoss ? 1 : 20
+        if (!player || player.money < cost) return
         const choiceIdx = player.choices.findIndex((c) => c.type === "item")
         if (choiceIdx < 0) return
         const currentItems = [...player.choices[choiceIdx].items]
         player.choices.splice(choiceIdx, 1)
-        player.money -= 20
+        player.money -= cost
         const { pickNRandomIn } = require("../utils/random")
-        const { ShinyItems, Tools } = require("../types/enum/Item")
+        const { ShinyItems, Tools, ItemComponentsNoFossilOrScarf } = require("../types/enum/Item")
         const { PlayerChoice } = require("../models/colyseus-models/player-choice")
-        const originalWasTools = currentItems.some((i: Item) => Tools.includes(i))
-        const fullPool = originalWasTools ? [...Tools] : [...ShinyItems]
-        const filteredPool = fullPool.filter((i: Item) => !currentItems.includes(i))
-        const pool = filteredPool.length >= 3 ? filteredPool : fullPool
-        const newItems = pickNRandomIn(pool, 3)
-        player.choices.push(new PlayerChoice({ type: "item", items: newItems }))
+        if (isAsyncMiniBoss) {
+          const pool = ItemComponentsNoFossilOrScarf.filter((i: Item) => !currentItems.includes(i))
+          const newItems = pickNRandomIn(pool.length >= 3 ? pool : ItemComponentsNoFossilOrScarf, 3)
+          player.choices.push(new PlayerChoice({ type: "item", items: newItems }))
+        } else {
+          const originalWasTools = currentItems.some((i: Item) => Tools.includes(i))
+          const fullPool = originalWasTools ? [...Tools] : [...ShinyItems]
+          const filteredPool = fullPool.filter((i: Item) => !currentItems.includes(i))
+          const pool = filteredPool.length >= 3 ? filteredPool : fullPool
+          const newItems = pickNRandomIn(pool, 3)
+          player.choices.push(new PlayerChoice({ type: "item", items: newItems }))
+        }
       }
     })
 
@@ -849,6 +884,77 @@ export default class GameRoom extends Room<{ state: GameState }> {
         }
       })
     })
+
+    this.onMessage(Transfer.ADMIN_HEAL, (client) => {
+      if (!client.auth) return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player || player.role !== Role.ADMIN) return
+      this.state.runHP = 100
+      player.life = 100
+    })
+
+    this.onMessage(Transfer.GIVE_DITTO, (client) => {
+      if (!client.auth) return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player || player.role !== Role.ADMIN) return
+      this.spawnOnBench(player, Pkm.DITTO)
+    })
+
+    this.onMessage(Transfer.ADMIN_TELEPORT_NODE, (client, nodeId: string) => {
+      if (!client.auth || !this.isPlayer(client)) return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player || player.role !== Role.ADMIN) return
+      const node = this.state.mapNodes.get(nodeId)
+      if (!node || node.visited) return
+      try {
+        node.available = true
+        const cmd = new OnUpdatePhaseCommand()
+        cmd.setPayload({})
+        cmd.room = this
+        cmd.state = this.state
+        cmd.clock = this.clock
+        cmd.onSelectMapNode(nodeId)
+        this.updateSpectateMetadata()
+      } catch (error) {
+        logger.error("admin teleport node error", error)
+      }
+    })
+
+    this.presence.subscribe("server-announcement", (message: string) => {
+      this.broadcast(Transfer.SERVER_ANNOUNCEMENT, message)
+    })
+  }
+
+  async populateAsyncFightNodes() {
+    const { MapNodeType } = require("../models/colyseus-models/map-node")
+    const { getAsyncFightOpponents } = require("../services/async-fight-pool")
+    const { PkmIndex } = require("../types/enum/Pokemon")
+    const nodesByFloor = new Map<number, string[]>()
+    this.state.mapNodes.forEach((node: any, id: string) => {
+      if (node.nodeType === MapNodeType.ASYNC_FIGHT) {
+        const list = nodesByFloor.get(node.floor) ?? []
+        list.push(id)
+        nodesByFloor.set(node.floor, list)
+      }
+    })
+    for (const [floor, nodeIds] of nodesByFloor) {
+      const stage = `act${this.state.currentAct}-floor${floor}`
+      const opponents = await getAsyncFightOpponents(stage, nodeIds.length)
+      nodeIds.forEach((id, i) => {
+        const node = this.state.mapNodes.get(id)
+        const opp = opponents[i % opponents.length]
+        if (node && opp) {
+          node.displayName = opp.playerName
+          node.eliteAvatar = opp.avatar.split("/")[0]
+          this.asyncFightSnapshots.set(id, {
+            snapshot: opp.snapshot,
+            name: opp.playerName,
+            avatar: opp.avatar,
+            region: opp.region
+          })
+        }
+      })
+    }
   }
 
   startGame() {
@@ -880,12 +986,17 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.state.phase = GamePhaseState.MAP
     this.state.time = 999 * 1000
     this.state.roundTime = 999
-    generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3)
+    generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3, this.state.isEndless)
     logger.info(`Map generated: ${this.state.mapNodes.size} nodes, ${this.state.mapEdges.length} edges`)
+    if (this.state.isEndless) this.populateAsyncFightNodes()
 
     this.state.players.forEach((player: Player) => {
       player.lightX = this.state.lightX
       player.lightY = this.state.lightY
+      if (this.state.isEndless) {
+        const { ENDLESS_MAX_LEVEL } = require("../config")
+        player.experienceManager.maxLevel = ENDLESS_MAX_LEVEL
+      }
       if (!player.isBot) {
         const { incrementRunStarted } = require("../services/run-save")
         incrementRunStarted(player.id, this.state.difficultyMode)
@@ -965,22 +1076,24 @@ export default class GameRoom extends Room<{ state: GameState }> {
     player.alive = true
     player.loadingProgress = 100
 
-    logger.info(`Run resumed for ${player.name} (Act ${this.state.currentAct}, Floor ${this.state.currentFloor})`)
+    if (this.state.isEndless) this.populateAsyncFightNodes()
+    logger.info(`Run resumed for ${player.name} (Act ${this.state.currentAct}, Floor ${this.state.currentFloor}${this.state.isEndless ? ", Endless" : ""})`)
   }
 
   async onAuth(client: Client, options, context) {
     if (options.idToken) {
       const token = await admin.auth().verifyIdToken(options.idToken)
       const user = await admin.auth().getUser(token.uid)
+      const gameName = options.displayName || "Player"
       const UserMetadata = require("../models/mongo-models/user-metadata").default
       await UserMetadata.updateOne(
         { uid: user.uid },
-        { $setOnInsert: { uid: user.uid, displayName: user.displayName || options.displayName || "Player" } },
+        { $set: { displayName: gameName }, $setOnInsert: { uid: user.uid } },
         { upsert: true }
       )
       return {
         uid: user.uid,
-        displayName: user.displayName || options.displayName || "Player"
+        displayName: gameName
       }
     }
     console.log("Guest has connected")
@@ -1021,11 +1134,12 @@ export default class GameRoom extends Room<{ state: GameState }> {
     logger.info(`Dispose Game ${this.roomId} | player: ${name}`)
 
     if (!this.runHistoryRecorded && (this.state.runComplete || this.state.runFailed) && humanPlayer) {
-      const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../services/run-save")
+      const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../services/run-save")
       deleteSavedRun(humanPlayer.id)
       const victory = this.state.runComplete && !this.state.runFailed
       await saveRunHistory(humanPlayer.id, this.state, humanPlayer, victory)
       await incrementRunEnd(humanPlayer.id, this.state.difficultyMode, true, victory, this.state.arceusDamageDealt)
+      await updateVictoryRecord(humanPlayer.id, humanPlayer.name, humanPlayer.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
       logger.info(`Deferred run history saved for ${name} | victory: ${victory}`)
     }
 

@@ -157,12 +157,69 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 - Old champion/E4 entries without a region field gracefully default to "town"
 - API: `GET /api/spire-region/:uid` and `PUT /api/spire-region/:uid` with `{ region: string }` body
 
+## Endless Mode
+
+### Overview
+Separate game mode (`state.isEndless = true`) with infinite acts, async PvP fights, and uncapped difficulty scaling. No Elite Four or Arceus. Based on Normal difficulty.
+
+### Map Layout (per act, 20 floors)
+- **Floors 5, 10, 15**: 4 `ASYNC_FIGHT` nodes (choose 1 of 4 opponents)
+- **Floor 20**: 4 `ASYNC_FIGHT` nodes (act-end boss replacement)
+- **Floors 7, 17**: `GYM_LEADER` (guaranteed)
+- **Floors 9, 19**: `POKEMON_CENTER` (guaranteed)
+- **All other floors**: Standard random distribution (wild/elite/unlock/mystery/mart), no legendary bosses
+
+### Async Fight System
+- Players fight saved team snapshots from other players who reached the same stage
+- **Storage**: MongoDB `asyncfightpools` collection, 100 entries per stage (FIFO), keyed by `act${N}-floor${M}`
+- **Opponent selection**: 4 random from pool → fallback to previous stages recursively → Magikarp default
+- **Team submission**: Player's team is saved to the pool when they reach an async fight floor (regardless of win/loss)
+- **Fight reconstruction**: Uses `encounterSnapshot` path (same as Champion/E4 — full `reconstructTeamAsPlayer`)
+- **Opponent display**: `node.displayName` = player name, `node.eliteAvatar` = avatar sprite index
+
+### Difficulty Scaling (acts 4+)
+- Base: Act 3 floor 20 config (8-9 pokemon, 3 items, EPIC/ULTRA rarity)
+- Per act beyond 3: `+1 pokemonCount`, `+1 star budget`, `+1 maxItemsPerPokemon` every 2 acts
+- No cap on pokemon count or items per pokemon — grows unbounded
+
+### Rewards
+- **Async fight floors 5/10/15**: Choose 1 of 3 random item components, reroll 1g. Gold: 3 + act*2.
+- **Async fight floor 20** (act end): Choose 1 of 3 from ShinyItems+Tools pool, reroll 20g. Gold: 11 + act*4.
+- Act transition always occurs after floor 20 (win or loss)
+
+### Act 4+ Unlock Encounters
+Hatch, unique, and legendary unlock pools are combined with equal chance (instead of act-specific pools).
+
+### Leaderboard
+- Top 5 by furthest act/floor reached. JSON file: `endless-record.json`
+- API: `GET /api/endless-record`
+- Checked on run death (all death paths in `stopSpireFightingPhase`)
+
+### Key Files
+| File | Role |
+|---|---|
+| `app/models/mongo-models/async-fight-pool.ts` | Mongoose model for async fight FIFO pools |
+| `app/services/async-fight-pool.ts` | Submit/retrieve opponents, recursive fallback |
+| `app/services/endless-record.ts` | Top 5 leaderboard (JSON file) |
+| `app/core/map-generator.ts` | `assignEndlessNodeType()` for endless floor layout |
+| `app/rooms/game-room.ts` | `populateAsyncFightNodes()`, `asyncFightSnapshots` map |
+
+### State Fields
+- `state.isEndless` (`boolean`, synced) — gates all endless-specific logic
+- `ISavedRunSummary.isEndless` — persisted in saved run for resume
+
+### How to Start Endless Mode
+Client sends `isEndless: true` in room creation options. Server forces `difficultyMode = 1` (Normal).
+
 ## New Files (Spire-Specific)
 
 ### Server-Side
 | File | Purpose |
 |---|---|
-| `app/core/map-generator.ts` | StS-style branching maps: 20 floors/act, 3-5 nodes/floor, no-crossing edges. Gyms on floors 6/12/18 (guaranteed) + 9/15 (40%). Elites on 8/13/17 (50%). Centers on 10/19. Boss on 20. |
+| `app/core/map-generator.ts` | StS-style branching maps: 20 floors/act, 3-5 nodes/floor, no-crossing edges. Gyms on floors 6/12/18 (guaranteed) + 9/15 (40%). Elites on 8/13/17 (50%). Centers on 10/19. Boss on 20. Endless mode: `assignEndlessNodeType()` places async fights on 5/10/15/20, gyms 7/17, centers 9/19. |
+| `app/models/mongo-models/async-fight-pool.ts` | Mongoose model for endless mode async fight FIFO pools (100 per stage) |
+| `app/services/async-fight-pool.ts` | Submit/retrieve async fight opponents with recursive stage fallback and Magikarp default |
+| `app/services/endless-record.ts` | Top 5 endless leaderboard by act/floor (JSON file, mirrors arceus-record.ts pattern) |
 | `app/core/relic-effects.ts` | 15 passive items (PASSIVE_ITEMS list). Helpers: `getRelicBonusGold()`, `getRelicPostBattleHeal()`, `getRelicDamageReduction()`, `getRelicPokemonOfferCount()`, `getRelicBonusXP()`, `getRelicRestHealBonus()`, `getRandomItemChoices()` |
 | `app/models/colyseus-models/map-node.ts` | `MapNode` (id, type, x, y, region, gymLeaderSynergy, eliteEncounterIndex, displayName) and `MapEdge` schemas. `MapNodeType` enum (includes ELITE and UNLOCK). |
 | `app/models/spire-encounters.ts` | Regional wild encounters via `getRegionalWildEncounter()` with difficulty scaling (`getDifficultyConfig()`). Dynamic gym generation via `generateGymEncounter()` with 27 synergy types and `GYM_LEADER_POKEMON` map. Elite encounter templates with act-specific tiers. Multiple boss options per act via `LEGENDARY_BOSSES` arrays. `getGoldReward()`. |
@@ -369,6 +426,10 @@ To store new data in MongoDB:
 2. Import and use it in server-side code (rooms, commands)
 3. No client-side changes needed — the client talks to the server via Colyseus messages, not directly to MongoDB
 
+### IMPORTANT: Never Use Firebase/Google Real Names
+
+Firebase `user.displayName` contains the player's real name from their Google account. **Never use it anywhere** — not in the database, not in the UI, not in leaderboards, not in Discord messages. Always use the game name chosen by the player in the lobby (`options.displayName`). The `onAuth()` method in `game-room.ts` writes `options.displayName` to `UserMetadata.displayName` via `$set` on every game start. The login page and account tab only reveal the player's email, never their real name.
+
 ### Guest vs Signed-In Behavior
 
 | Feature | Guest | Signed In |
@@ -449,6 +510,7 @@ The same `discord.ts` file also has webhook-based announcements for bans and bot
 | `/api/run-history/:uid` | GET | Paginated run history (`?page=N`) |
 | `/api/champion-data/:difficulty` | GET | Elite Four & Champion data (0/1/2) for lobby display. Includes `championSince` and `longestReign`. |
 | `/api/arceus-record/:difficulty` | GET | Arceus damage leaderboard (top 5) for lobby display |
+| `/api/endless-record` | GET | Endless mode leaderboard (top 5 by act/floor) |
 | `/api/spire-region/:uid` | GET | Player's Home Town region choice (returns `{ region: string }`) |
 | `/api/spire-region/:uid` | PUT | Save Home Town region (`{ region: string }` body) |
 | `/api/spire-stats/:uid` | GET | Per-difficulty player stats (runs, wins, champion, arceus damage) |

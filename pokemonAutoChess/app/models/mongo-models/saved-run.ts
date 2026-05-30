@@ -8,6 +8,7 @@ export interface ISavedRunSummary {
   difficultyMode: number
   runHP: number
   teamPreview: string[]
+  isEndless?: boolean
 }
 
 export interface ISavedRun extends ISavedRunSummary {
@@ -23,6 +24,7 @@ const savedRunSchema = new Schema<ISavedRun>(
     difficultyMode: { type: Number, required: true },
     runHP: { type: Number, required: true },
     teamPreview: [{ type: String }],
+    isEndless: { type: Boolean, default: false },
     data: { type: Schema.Types.Mixed, required: true }
   },
   {

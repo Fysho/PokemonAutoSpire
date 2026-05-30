@@ -17,6 +17,41 @@ function nodeId(act: number, floor: number, col: number): string {
   return `${act}-${floor}-${col}`
 }
 
+const ENDLESS_ASYNC_FLOORS = new Set([5, 10, 15, 20])
+const ENDLESS_GYM_FLOORS = new Set([7, 17])
+const ENDLESS_CENTER_FLOORS = new Set([9, 19])
+
+function assignEndlessNodeType(floor: number, totalFloors: number): MapNodeType {
+  if (ENDLESS_ASYNC_FLOORS.has(floor)) return MapNodeType.ASYNC_FIGHT
+  if (floor === 1) return MapNodeType.WILD_BATTLE
+  if (ENDLESS_GYM_FLOORS.has(floor)) return MapNodeType.GYM_LEADER
+  if (ENDLESS_CENTER_FLOORS.has(floor)) return MapNodeType.POKEMON_CENTER
+
+  const roll = Math.random()
+  if (floor === 16) return roll < 0.5 ? MapNodeType.POKEMART : MapNodeType.WILD_BATTLE
+
+  if (floor === 8 || floor === 13 || floor === 18) {
+    const eliteChance = 0.5
+    if (roll < eliteChance) {
+      return Math.random() < 0.5 ? MapNodeType.ELITE : MapNodeType.UNLOCK
+    }
+    return MapNodeType.WILD_BATTLE
+  }
+
+  if (floor === 4 || floor === 11) {
+    if (roll < 0.3) {
+      return Math.random() < 0.5 ? MapNodeType.ELITE : MapNodeType.UNLOCK
+    }
+    return MapNodeType.WILD_BATTLE
+  }
+
+  if (roll < 0.50) return MapNodeType.WILD_BATTLE
+  if (roll < 0.62) return MapNodeType.MYSTERY_ENCOUNTER
+  if (floor >= 6 && roll < 0.78) return MapNodeType.POKEMART
+  if (floor >= 4 && roll < 0.82) return MapNodeType.POKEMON_CENTER
+  return MapNodeType.WILD_BATTLE
+}
+
 function assignNodeType(act: number, floor: number, totalFloors: number): MapNodeType {
   if (floor === totalFloors) {
     return MapNodeType.LEGENDARY_BOSS
@@ -147,12 +182,13 @@ export function generateActMap(
   act: number,
   mapNodes: MapSchema<MapNode>,
   mapEdges: ArraySchema<MapEdge>,
-  difficultyMode: DifficultyMode = 1
+  difficultyMode: DifficultyMode = 1,
+  isEndless: boolean = false
 ) {
-  if (act === 5) {
+  if (!isEndless && act === 5) {
     return generateAct5Map(mapNodes, mapEdges)
   }
-  if (act === 4) {
+  if (!isEndless && act === 4) {
     return generateEliteFourMap(mapNodes, mapEdges, difficultyMode)
   }
 
@@ -168,14 +204,16 @@ export function generateActMap(
   shuffleArray(eliteIndices)
   let elitePick = 0
 
-  const unlockTotal = getUnlockEncounterCount(act)
+  const unlockTotal = getUnlockEncounterCount(act, isEndless)
   const unlockIndices = Array.from({ length: unlockTotal }, (_, i) => i)
   shuffleArray(unlockIndices)
   let unlockPick = 0
 
   for (let floor = 1; floor <= totalFloors; floor++) {
     let nodeCount: number
-    if (floor === totalFloors) {
+    if (isEndless && ENDLESS_ASYNC_FLOORS.has(floor)) {
+      nodeCount = 4
+    } else if (floor === totalFloors && !isEndless) {
       nodeCount = 1
     } else if (floor === 1) {
       nodeCount = 3
@@ -190,7 +228,9 @@ export function generateActMap(
     for (let col = 0; col < nodeCount; col++) {
       const id = nodeId(act, floor, col)
       const x = nodeCount === 1 ? 2 : Math.round((col / (nodeCount - 1)) * 4)
-      const nodeType = assignNodeType(act, floor, totalFloors)
+      const nodeType = isEndless
+        ? assignEndlessNodeType(floor, totalFloors)
+        : assignNodeType(act, floor, totalFloors)
 
       let region = ""
       if (nodeType === MapNodeType.WILD_BATTLE) {
@@ -220,8 +260,8 @@ export function generateActMap(
       if (nodeType === MapNodeType.UNLOCK) {
         node.eliteEncounterIndex = unlockIndices[unlockPick % unlockIndices.length]
         unlockPick++
-        node.displayName = getUnlockEncounterName(node.eliteEncounterIndex, act)
-        const avatar = getUnlockEncounterAvatar(node.eliteEncounterIndex, act)
+        node.displayName = getUnlockEncounterName(node.eliteEncounterIndex, act, isEndless)
+        const avatar = getUnlockEncounterAvatar(node.eliteEncounterIndex, act, isEndless)
         node.eliteAvatar = PkmIndex[avatar] ?? ""
       }
 

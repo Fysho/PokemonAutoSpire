@@ -17,7 +17,8 @@ const NODE_COLORS: Record<string, string> = {
   [MapNodeType.LEGENDARY_BOSS]: "#e67e22",
   [MapNodeType.ELITE_FOUR]: "#8e44ad",
   [MapNodeType.CHAMPION]: "#f1c40f",
-  [MapNodeType.ARCEUS_BOSS]: "#f1c40f"
+  [MapNodeType.ARCEUS_BOSS]: "#f1c40f",
+  [MapNodeType.ASYNC_FIGHT]: "#1abc9c"
 }
 
 const NODE_ICONS: Record<string, string> = {
@@ -33,7 +34,8 @@ const NODE_LABELS: Record<string, string> = {
   [MapNodeType.LEGENDARY_BOSS]: "👑",
   [MapNodeType.ELITE_FOUR]: "🏆",
   [MapNodeType.CHAMPION]: "👑",
-  [MapNodeType.ARCEUS_BOSS]: "✦"
+  [MapNodeType.ARCEUS_BOSS]: "✦",
+  [MapNodeType.ASYNC_FIGHT]: "⚔"
 }
 
 const NODE_NAMES: Record<string, string> = {
@@ -47,7 +49,8 @@ const NODE_NAMES: Record<string, string> = {
   [MapNodeType.LEGENDARY_BOSS]: "BOSS",
   [MapNodeType.ELITE_FOUR]: "Elite Four",
   [MapNodeType.CHAMPION]: "CHAMPION",
-  [MapNodeType.ARCEUS_BOSS]: "ARCEUS"
+  [MapNodeType.ARCEUS_BOSS]: "ARCEUS",
+  [MapNodeType.ASYNC_FIGHT]: "Trainer"
 }
 
 function getRegionSynergies(region: string): Synergy[] {
@@ -56,16 +59,26 @@ function getRegionSynergies(region: string): Synergy[] {
   return details?.synergies ?? []
 }
 
+const DIFFICULTY_MODE_LABELS: Record<number, string> = {
+  0: "Easy",
+  1: "Normal",
+  2: "Hard",
+  3: "Impossible"
+}
+
 interface GameMapProps {
   mapNodes: Map<string, MapNode>
   mapEdges: MapEdge[]
   currentAct: number
   currentFloor: number
   runHP: number
+  difficultyMode?: number
+  isEndless?: boolean
   onHide: () => void
   readOnly?: boolean
   showRerollMap?: boolean
   hasChoicesPending?: boolean
+  isAdmin?: boolean
 }
 
 export default function GameMap({
@@ -74,10 +87,13 @@ export default function GameMap({
   currentAct,
   currentFloor,
   runHP,
+  difficultyMode = 1,
+  isEndless = false,
   onHide,
   readOnly = false,
   showRerollMap = false,
-  hasChoicesPending = false
+  hasChoicesPending = false,
+  isAdmin = false
 }: GameMapProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
@@ -94,7 +110,12 @@ export default function GameMap({
 
   const handleNodeClick = (nodeId: string) => {
     const node = mapNodes.get(nodeId)
-    if (!node || !node.available) return
+    if (!node) return
+    if (isAdmin && !node.available && !node.visited) {
+      rooms.game?.send(Transfer.ADMIN_TELEPORT_NODE, nodeId)
+      return
+    }
+    if (!node.available) return
     if (readOnly) {
       showWarning("Clear this floor first")
       return
@@ -184,7 +205,7 @@ export default function GameMap({
       }}
     >
       <h2 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>
-        {currentAct === 4 ? "Elite Four" : `Act ${currentAct}`} - Floor {currentFloor}
+        {currentAct === 4 ? "Elite Four" : `Act ${currentAct}`} - Floor {currentFloor} ({isEndless ? "Endless" : DIFFICULTY_MODE_LABELS[difficultyMode] ?? "Normal"})
       </h2>
       <div style={{ display: "flex", gap: "20px", marginBottom: "12px", fontSize: "16px" }}>
         <span>HP: {runHP}/100</span>
@@ -272,6 +293,36 @@ export default function GameMap({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            <filter id="blue-outline" x="-10%" y="-10%" width="120%" height="120%">
+              <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded" />
+              <feComposite in="expanded" in2="SourceAlpha" operator="out" result="ring" />
+              <feFlood floodColor="#4488ff" floodOpacity="0.5" result="blue" />
+              <feComposite in="blue" in2="ring" operator="in" result="outline" />
+              <feMerge>
+                <feMergeNode in="outline" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="blue-outline-hover" x="-15%" y="-15%" width="130%" height="130%">
+              <feMorphology in="SourceAlpha" operator="dilate" radius="4" result="expanded" />
+              <feComposite in="expanded" in2="SourceAlpha" operator="out" result="ring" />
+              <feFlood floodColor="#4488ff" floodOpacity="0.7" result="blue" />
+              <feComposite in="blue" in2="ring" operator="in" result="outline" />
+              <feMerge>
+                <feMergeNode in="outline" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="blue-outline-dark" x="-15%" y="-15%" width="130%" height="130%">
+              <feMorphology in="SourceAlpha" operator="dilate" radius="4" result="expanded" />
+              <feComposite in="expanded" in2="SourceAlpha" operator="out" result="ring" />
+              <feFlood floodColor="#0044cc" floodOpacity="0.9" result="blue" />
+              <feComposite in="blue" in2="ring" operator="in" result="outline" />
+              <feMerge>
+                <feMergeNode in="outline" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </defs>
           {mapEdges.map((edge, i) => {
             const fromNode = mapNodes.get(edge.from)
@@ -310,7 +361,8 @@ export default function GameMap({
             const isChampion = node.nodeType === MapNodeType.CHAMPION
             const isUnlock = node.nodeType === MapNodeType.UNLOCK
             const isElite = node.nodeType === MapNodeType.ELITE
-            const hasAvatar = (isElite || isUnlock || isE4 || isChampion) && !!node.eliteAvatar
+            const isAsyncFight = node.nodeType === MapNodeType.ASYNC_FIGHT
+            const hasAvatar = (isElite || isUnlock || isE4 || isChampion || isAsyncFight) && !!node.eliteAvatar
             const isBoss = (node.nodeType === MapNodeType.LEGENDARY_BOSS || node.nodeType === MapNodeType.ARCEUS_BOSS) && !!node.bossSprites
             const hasSynergyIcon = (isWild && synergies.length > 0) || ((isGym || isE4) && node.gymLeaderSynergy) || hasAvatar || isBoss
             const nodeRadius = isBoss ? 48 : hasSynergyIcon ? 28 : (isAvailable ? 24 : 20)
@@ -329,12 +381,15 @@ export default function GameMap({
                 onClick={() => handleNodeClick(node.id)}
                 onMouseEnter={() => setHoveredNode(node.id)}
                 onMouseLeave={() => setHoveredNode(null)}
-                style={{ cursor: isAvailable && !readOnly ? "pointer" : "default" }}
+                style={{ cursor: (isAvailable && !readOnly) || (isAdmin && !isVisited) ? "pointer" : "default" }}
               >
                 <g filter={
                   isElite && isHovered ? "url(#red-outline-dark)" :
                   isElite && isAvailable ? "url(#red-outline-hover)" :
                   isElite ? "url(#red-outline)" :
+                  isAsyncFight && isHovered ? "url(#blue-outline-dark)" :
+                  isAsyncFight && isAvailable ? "url(#blue-outline-hover)" :
+                  isAsyncFight ? "url(#blue-outline)" :
                   isHovered ? "url(#white-outline-hover)" :
                   isAvailable ? "url(#white-outline)" :
                   undefined

@@ -21,6 +21,8 @@ export interface ChampionFileData {
   championSince?: string
   eliteFourCrownedAt?: [string, string, string, string]
   longestReign?: LongestReign
+  championVictories?: number
+  eliteFourVictories?: [number, number, number, number]
 }
 
 // Legacy format for migration
@@ -165,6 +167,7 @@ export function saveChampionData(data: ChampionFileData, mode: DifficultyMode = 
 
 export interface PromotionResult {
   previousChampion: string
+  previousChampionVictories: number
   reignDurationMs: number | null
   isNewLongestReign: boolean
   previousLongestReign: LongestReign | null
@@ -209,6 +212,9 @@ export function promoteNewChampion(
     data.championSince ?? now.toISOString()
   ]
 
+  const oldVictories = data.eliteFourVictories ?? [0, 0, 0, 0]
+  const previousChampionVictories = data.championVictories ?? 0
+
   data.eliteFour[0] = { ...data.eliteFour[1] }
   data.eliteFour[1] = { ...data.eliteFour[2] }
   data.eliteFour[2] = { ...data.eliteFour[3] }
@@ -219,8 +225,15 @@ export function promoteNewChampion(
     oldCrownedAt[3],
     data.championSince ?? now.toISOString()
   ]
+  data.eliteFourVictories = [
+    oldVictories[1],
+    oldVictories[2],
+    oldVictories[3],
+    previousChampionVictories
+  ]
   data.champion = winnerSnapshot
   data.championSince = now.toISOString()
+  data.championVictories = 0
 
   saveChampionData(data, mode)
 
@@ -252,7 +265,7 @@ ${teamList}
 ╚══════════════════════════════════════════════════════════════╝
 `)
 
-  return { previousChampion, reignDurationMs, isNewLongestReign, previousLongestReign }
+  return { previousChampion, previousChampionVictories, reignDurationMs, isNewLongestReign, previousLongestReign }
 }
 
 export function checkLiveReignRecord(mode: DifficultyMode): {
@@ -329,4 +342,17 @@ export function getChampionReignForClient(mode: DifficultyMode = 1): {
       ? { name: data.longestReign.name, durationMs: data.longestReign.durationMs }
       : null
   }
+}
+
+export function incrementChampionVictory(mode: DifficultyMode): void {
+  const data = loadChampionData(mode)
+  data.championVictories = (data.championVictories ?? 0) + 1
+  saveChampionData(data, mode)
+}
+
+export function incrementE4Victory(e4Index: number, mode: DifficultyMode): void {
+  const data = loadChampionData(mode)
+  if (!data.eliteFourVictories) data.eliteFourVictories = [0, 0, 0, 0]
+  data.eliteFourVictories[e4Index] = (data.eliteFourVictories[e4Index] ?? 0) + 1
+  saveChampionData(data, mode)
 }

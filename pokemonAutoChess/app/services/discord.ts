@@ -51,7 +51,7 @@ let cachedArceusChannel: TextChannel | undefined
 
 const DIFFICULTY_NAMES: Record<string, DifficultyMode> = { easy: 0, normal: 1, hard: 2, impossible: 3 }
 
-type PendingReset = { timeout: NodeJS.Timeout; action: "all" | "arceus" | "champions"; mode?: DifficultyMode }
+type PendingReset = { timeout: NodeJS.Timeout; action: "all" | "arceus" | "champions" | "wipenames"; mode?: DifficultyMode }
 const pendingResets = new Map<string, PendingReset>()
 
 function setPendingReset(userId: string, action: PendingReset["action"], mode?: DifficultyMode) {
@@ -119,10 +119,51 @@ if (process.env.DISCORD_BOT_TOKEN && (championChannelId || arceusChannelId || ad
       return
     }
 
+    if (command === "/wipeplayernames") {
+      setPendingReset(message.author.id, "wipenames")
+      message.reply(
+        `${envTag}Are you sure you want to reset **all** player names to "Player"? This affects every account profile and victory record and cannot be undone. Type \`/confirm-reset\` within 30 seconds to proceed.`
+      )
+      return
+    }
+
+    if (command === "/announce") {
+      const rawContent = message.content.trim()
+      const spaceIdx = rawContent.indexOf(" ")
+      if (spaceIdx === -1) {
+        message.reply(`${envTag}Usage: \`/announce your message here\``)
+        return
+      }
+      const text = rawContent.slice(spaceIdx + 1).trim()
+      if (!text) {
+        message.reply(`${envTag}Usage: \`/announce your message here\``)
+        return
+      }
+      const { broadcastAnnouncement } = require("./announcement")
+      broadcastAnnouncement(text)
+      message.reply(`${envTag}Announcement sent: "${text}"`)
+      logger.info(`Server announcement by ${message.author.tag}: ${text}`)
+      return
+    }
+
+    if (command === "/endless") {
+      const sub = parts[1]
+      if (sub !== "enable" && sub !== "disable") {
+        message.reply(`${envTag}Usage: \`/endless enable\` or \`/endless disable\``)
+        return
+      }
+      const { setEndlessEnabled } = require("./endless-config")
+      const enabled = sub === "enable"
+      setEndlessEnabled(enabled)
+      message.reply(`${envTag}Endless mode is now **${enabled ? "enabled" : "disabled"}** for players.`)
+      logger.info(`Endless mode ${enabled ? "enabled" : "disabled"} by Discord user ${message.author.tag}`)
+      return
+    }
+
     if (content === "/confirm-reset") {
       const pending = pendingResets.get(message.author.id)
       if (!pending) {
-        message.reply(`${envTag}No pending reset. Use \`/reset-leaderboards\`, \`/reset-arceus\`, or \`/reset-champions\` first.`)
+        message.reply(`${envTag}No pending reset. Use \`/reset-leaderboards\`, \`/reset-arceus\`, \`/reset-champions\`, or \`/wipeplayernames\` first.`)
         return
       }
       clearTimeout(pending.timeout)
@@ -145,6 +186,17 @@ if (process.env.DISCORD_BOT_TOKEN && (championChannelId || arceusChannelId || ad
         resetChampionData(pending.mode)
         message.reply(`${envTag}Champion/E4 data has been reset for ${modeLabel}.`)
         logger.info(`Champion data reset (${modeLabel}) by Discord user ${message.author.tag}`)
+      } else if (pending.action === "wipenames") {
+        const { wipeAllPlayerNames } = require("./victory-record")
+        wipeAllPlayerNames()
+          .then((res: { users: number; records: number }) => {
+            message.reply(`${envTag}Reset player names to "Player" on ${res.users} account(s) and ${res.records} victory record(s).`)
+            logger.info(`Player names wiped by Discord user ${message.author.tag} (${res.users} accounts, ${res.records} records)`)
+          })
+          .catch((e: unknown) => {
+            logger.error("Failed to wipe player names:", e)
+            message.reply(`${envTag}Failed to wipe player names. Check server logs.`)
+          })
       }
       return
     }
@@ -451,7 +503,8 @@ export const discordService = {
     difficultyMode: DifficultyMode,
     defeatedChampion: string,
     newE4: string[],
-    reignDurationMs: number | null
+    reignDurationMs: number | null,
+    championVictories: number = 0
   ) {
     if (!discordBot || !championChannelId) return
 
@@ -480,7 +533,16 @@ export const discordService = {
         : null
 
       const diffLabel = DIFFICULTY_LABEL[difficultyMode] ?? "Normal"
-      const reignStr = reignDurationMs != null ? ` ${defeatedChampion} held the title for ${formatDuration(reignDurationMs)}.` : ""
+      let reignStr = ""
+      if (reignDurationMs != null) {
+        reignStr = `${defeatedChampion} held the title for ${formatDuration(reignDurationMs)}`
+        if (championVictories > 0) {
+          reignStr += ` and defended it ${championVictories} time${championVictories !== 1 ? "s" : ""}`
+        }
+        reignStr += "."
+      } else if (championVictories > 0) {
+        reignStr = `${defeatedChampion} defended their title ${championVictories} time${championVictories !== 1 ? "s" : ""}.`
+      }
 
       const embed = new EmbedBuilder()
         .setTitle(`${envTag}**${snapshot.name}** has defeated **${defeatedChampion}** to become the new Champion of ${diffLabel}!`)
@@ -619,6 +681,66 @@ export const discordService = {
       await channel.send({ embeds: [embed] })
     } catch (err) {
       logger.error("Failed to announce longest reign:", err)
+    }
+  },
+
+  async announceEndlessRecord(
+    snapshot: TeamSnapshot,
+    act: number,
+    floor: number,
+    previousHolder: string | null
+  ) {
+    if (!discordBot || !arceusChannelId) return
+
+    try {
+      const channel = await getArceusChannel()
+      if (!channel) return
+
+      const synergyCounts = computeSnapshotSynergies(snapshot)
+      const activeSynergies: { synergy: string; count: number }[] = []
+      synergyCounts.forEach((count, synergy) => {
+        const triggers = SynergyTriggers[synergy]
+        if (triggers && count >= triggers[0]) {
+          activeSynergies.push({ synergy, count })
+        }
+      })
+      activeSynergies.sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count
+        const stepsA = SynergyTriggers[a.synergy]?.filter((n: number) => n <= a.count).length ?? 0
+        const stepsB = SynergyTriggers[b.synergy]?.filter((n: number) => n <= b.count).length ?? 0
+        return stepsB - stepsA
+      })
+
+      const imageBuffer = await generateTeamImage(snapshot.pokemon, activeSynergies, snapshot.name)
+      const attachment = imageBuffer.length > 0
+        ? new AttachmentBuilder(imageBuffer, { name: "team.png" })
+        : null
+
+      const title = previousHolder
+        ? `${envTag}**${snapshot.name}** set a new Endless Mode record, taking the #1 spot from **${previousHolder}**!`
+        : `${envTag}**${snapshot.name}** set the first Endless Mode record!`
+
+      const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setColor(0x1abc9c)
+        .setTimestamp()
+
+      embed.addFields({
+        name: "Reached",
+        value: `**Act ${act} - Floor ${floor}**`,
+        inline: true
+      })
+
+      if (attachment) {
+        embed.setImage("attachment://team.png")
+      }
+
+      const sendOptions: any = { embeds: [embed] }
+      if (attachment) sendOptions.files = [attachment]
+
+      await channel.send(sendOptions)
+    } catch (err) {
+      logger.error("Failed to announce endless record:", err)
     }
   }
 }

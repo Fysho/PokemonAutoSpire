@@ -45,14 +45,17 @@
   flex-wrap: wrap;
   gap: 1em;
   align-items: center;
-  justify-content: end;
-  margin-right: 1em;
+  justify-content: space-between;
+  padding: 0 1em;
   color: var(--color-fg-primary);
   text-shadow: 2px 4px 3px rgba(0, 0, 0, 0.3);
 }
 
-.auth-page .media p:last-child {
-  flex: 1;
+.auth-page .media-text {
+  display: flex;
+  gap: 1em;
+  align-items: center;
+  text-align: left;
 }
 
 .mobile-warning {

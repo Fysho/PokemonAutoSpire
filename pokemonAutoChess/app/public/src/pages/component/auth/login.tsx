@@ -16,7 +16,6 @@ export default function Login() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const uid = useAppSelector((state) => state.network.uid)
-  const displayName = useAppSelector((state) => state.network.displayName)
   const email = useAppSelector((state) => state.network.email)
   const [loggingOut, setLoggingOut] = useState(false)
   const [showIdentity, setShowIdentity] = useState(false)
@@ -41,7 +40,7 @@ export default function Login() {
         dispatch(logIn(u))
         dispatch(setProfile({
           uid: u.uid,
-          displayName: u.displayName || "Player",
+          displayName: "Player",
           avatar: "0019/Normal",
           elo: 1000, maxElo: 1000, games: 0, wins: 0, exp: 0, level: 1,
           donor: false, titles: [], title: "", role: Role.BASIC,
@@ -68,7 +67,7 @@ export default function Login() {
         <p>
           {t("auth.authenticated_as")}:{" "}
           {showIdentity ? (
-            <span>{displayName}{email ? ` (${email})` : ""}</span>
+            <span>{email || "Signed in"}</span>
           ) : (
             <span
               onClick={() => setShowIdentity(true)}

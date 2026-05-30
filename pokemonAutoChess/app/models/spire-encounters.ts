@@ -71,14 +71,27 @@ function getItemClassForPokemon(pkm: Pkm): ItemClass {
   return "support"
 }
 
-function generateClassItems(board: [Pkm, number, number][], mode: DifficultyMode = 1): Item[][] {
-  const maxItems = mode === 0 ? 2 : mode === 3 ? 4 : 3
+function filterFullyEvolved(pool: Pkm[]): Pkm[] {
+  return pool.filter((p) => {
+    const data = getPokemonData(p)
+    return !data.evolution
+  })
+}
+
+function generateClassItems(board: [Pkm, number, number][], mode: DifficultyMode = 1, minOverride?: number, maxOverride?: number): Item[][] {
+  const maxItems = maxOverride ?? (mode === 0 ? 2 : mode === 3 ? 4 : 3)
+  const minItems = minOverride ?? 0
   return board.map(([pkm]) => {
-    const count = randomBetween(0, maxItems)
+    const count = randomBetween(minItems, maxItems)
     if (count === 0) return []
     const itemClass = getItemClassForPokemon(pkm)
     const pool = ITEM_CLASS_POOLS[itemClass]
-    return pickNRandomIn(pool, Math.min(count, pool.length))
+    if (count <= pool.length) return pickNRandomIn(pool, count)
+    const items: Item[] = []
+    while (items.length < count) {
+      items.push(pickRandomIn(pool))
+    }
+    return items
   })
 }
 
@@ -546,8 +559,9 @@ interface DifficultyConfig {
   useCraftedItems: boolean
 }
 
-function getDifficultyConfig(act: number, floor: number, mode: DifficultyMode = 1): DifficultyConfig {
-  const progress = (act - 1) * 20 + floor // 1-60
+function getDifficultyConfig(act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false): DifficultyConfig {
+  const clampedAct = Math.min(act, 3)
+  const progress = (clampedAct - 1) * 20 + floor // 1-60
 
   let config: DifficultyConfig
   // --- Act 1 (no 3-star pokemon) ---
@@ -581,6 +595,15 @@ function getDifficultyConfig(act: number, floor: number, mode: DifficultyMode = 
     config = { pokemonCount: randomBetween(7, 9), maxStarsPerPokemon: 3, starBudget: [15, 21], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
   } else {
     config = { pokemonCount: randomBetween(8, 9), maxStarsPerPokemon: 3, starBudget: [17, 23], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 3, maxItemsPerPokemon: 3, useCraftedItems: true }
+  }
+
+  if (isEndless && act > 3) {
+    const bonus = act - 3
+    config.pokemonCount += bonus
+    config.starBudget = [config.starBudget[0] + bonus, config.starBudget[1] + bonus]
+    config.maxItemsPerPokemon = 3 + Math.floor(bonus / 2)
+    config.minItemsPerPokemon = Math.min(config.minItemsPerPokemon + Math.floor(bonus / 3), config.maxItemsPerPokemon)
+    config.allowedRarities = ["EPIC", "ULTRA", "UNIQUE", "LEGENDARY"]
   }
 
   const offset = getStarBudgetOffset(act, floor, mode)
@@ -695,13 +718,13 @@ function positionByRange(pokemon: Pkm[], act: number): [Pkm, number, number][] {
   return board
 }
 
-export function getRegionalWildEncounter(act: number, floor: number, region: string, mode: DifficultyMode = 1): SpireEncounter {
+export function getRegionalWildEncounter(act: number, floor: number, region: string, mode: DifficultyMode = 1, isEndless: boolean = false): SpireEncounter {
   const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
   if (synergies.length === 0) {
     return getWildEncounter(act, floor, 0)
   }
 
-  const difficulty = getDifficultyConfig(act, floor, mode)
+  const difficulty = getDifficultyConfig(act, floor, mode, isEndless)
 
   // Build candidate pool filtered by region synergies, stars, and rarity
   // In acts 2+3, focus on one synergy for most of the team
@@ -728,6 +751,15 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
     }
   }
 
+  if (isEndless && act >= 4) {
+    const evolved = filterFullyEvolved(primaryPool)
+    primaryPool.length = 0
+    primaryPool.push(...evolved)
+    const evolvedSec = filterFullyEvolved(secondaryPool)
+    secondaryPool.length = 0
+    secondaryPool.push(...evolvedSec)
+  }
+
   const candidatePool = [...primaryPool, ...secondaryPool]
 
   if (candidatePool.length === 0) {
@@ -737,6 +769,7 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
         for (const pkm of typed) {
           const data = getPokemonData(pkm)
           if (data.stars <= difficulty.maxStarsPerPokemon && !candidatePool.includes(pkm)) {
+            if (isEndless && act >= 4 && data.evolution) continue
             candidatePool.push(pkm)
           }
         }
@@ -754,9 +787,10 @@ export function getRegionalWildEncounter(act: number, floor: number, region: str
 
   const board = positionByRange(selected, act)
 
-  const useClassItems = act >= 3 || (act >= 2 && mode === 3)
+  const endlessClassItems = isEndless && act >= 4
+  const useClassItems = endlessClassItems || act >= 3 || (act >= 2 && mode === 3)
   const items = useClassItems
-    ? generateClassItems(board, mode)
+    ? generateClassItems(board, mode, endlessClassItems ? Math.max(0, act - 2) : undefined, endlessClassItems ? act : undefined)
     : generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
 
   const regionName = (region as string).replace(/([A-Z])/g, " $1").trim()
@@ -809,8 +843,8 @@ export function getWildEncounter(act: number, floor: number, seed: number): Spir
   }
 }
 
-export function generateGymEncounter(synergy: Synergy, act: number, floor: number, mode: DifficultyMode = 1, displayName?: string): SpireEncounter {
-  const difficulty = getDifficultyConfig(act, floor, mode)
+export function generateGymEncounter(synergy: Synergy, act: number, floor: number, mode: DifficultyMode = 1, displayName?: string, isEndless: boolean = false): SpireEncounter {
+  const difficulty = getDifficultyConfig(act, floor, mode, isEndless)
   difficulty.starBudget = [difficulty.starBudget[0], difficulty.starBudget[1] + 1]
   const signaturePokemon = GYM_LEADER_POKEMON[synergy] ?? []
   const names = GYM_LEADER_NAMES[synergy] ?? ["Gym Leader"]
@@ -858,10 +892,17 @@ export function generateGymEncounter(synergy: Synergy, act: number, floor: numbe
     }
   }
 
+  if (isEndless && act >= 4) {
+    const evolved = filterFullyEvolved(candidatePool)
+    candidatePool.length = 0
+    candidatePool.push(...evolved)
+  }
+
   if (candidatePool.length === 0) {
     for (const pkm of typed) {
       const data = getPokemonData(pkm)
       if (data.stars <= difficulty.maxStarsPerPokemon && !candidatePool.includes(pkm)) {
+        if (isEndless && act >= 4 && data.evolution) continue
         candidatePool.push(pkm)
       }
     }
@@ -914,9 +955,10 @@ export function generateGymEncounter(synergy: Synergy, act: number, floor: numbe
     }
   })
 
-  const useClassItems = act >= 3 || (act >= 2 && mode === 3)
+  const endlessGymClass = isEndless && act >= 4
+  const useClassItems = endlessGymClass || act >= 3 || (act >= 2 && mode === 3)
   const items = useClassItems
-    ? generateClassItems(board, mode)
+    ? generateClassItems(board, mode, endlessGymClass ? Math.max(0, act - 2) : undefined, endlessGymClass ? act : undefined)
     : generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
 
   return addHardModeItems({
@@ -1016,22 +1058,26 @@ function adjustEncounterItems(encounter: SpireEncounter, mode: DifficultyMode, a
   return adjusted
 }
 
-function generateLegendaryEliteEncounter(legendary: Pkm, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
-  const difficulty = getDifficultyConfig(act, floor)
+function generateLegendaryEliteEncounter(legendary: Pkm, act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false): SpireEncounter {
+  const difficulty = getDifficultyConfig(act, floor, mode, isEndless)
   difficulty.starBudget = [difficulty.starBudget[0] + 2, difficulty.starBudget[1] + 3]
   const legendaryData = getPokemonData(legendary)
   const synergies = (legendaryData.types ?? []) as Synergy[]
 
+  const endlessFullyEvolved = isEndless && act >= 4
   const candidatePool: Pkm[] = []
   for (const syn of synergies) {
     const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn] ?? []
     for (const pkm of typed) {
       if (pkm === legendary) continue
       const data = getPokemonData(pkm)
+      if (endlessFullyEvolved) {
+        if (data.evolution || data.rarity === "HATCH" || data.rarity === "SPECIAL") continue
+      } else {
+        if (data.rarity === "LEGENDARY" || data.rarity === "UNIQUE" || data.rarity === "HATCH" || data.rarity === "SPECIAL") continue
+      }
       if (
         data.stars <= difficulty.maxStarsPerPokemon &&
-        data.rarity !== "LEGENDARY" && data.rarity !== "UNIQUE" &&
-        data.rarity !== "HATCH" && data.rarity !== "SPECIAL" &&
         !candidatePool.includes(pkm)
       ) {
         candidatePool.push(pkm)
@@ -1074,9 +1120,10 @@ function generateLegendaryEliteEncounter(legendary: Pkm, act: number, floor: num
     }
   })
 
-  const useClassItems = act >= 3 || (act >= 2 && mode === 3)
+  const endlessLegendaryClass = isEndless && act >= 4
+  const useClassItems = endlessLegendaryClass || act >= 3 || (act >= 2 && mode === 3)
   const items = useClassItems
-    ? generateClassItems(board, mode)
+    ? generateClassItems(board, mode, endlessLegendaryClass ? Math.max(0, act - 2) : undefined, endlessLegendaryClass ? act : undefined)
     : generateEncounterItems(selected.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
   const name = legendaryData.name.replace(/_/g, " ")
 
@@ -1114,45 +1161,57 @@ function generateHatchUnlockEncounter(basePkm: Pkm, floor: number): SpireEncount
   }
 }
 
-export function getUnlockEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
-  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+const ALL_UNLOCK_ENCOUNTERS = [
+  ...HATCH_UNLOCK_ENCOUNTERS,
+  ...UNIQUE_ELITE_ENCOUNTERS,
+  ...LEGENDARY_ELITE_ENCOUNTERS
+]
+
+function getUnlockPool(act: number, isEndless: boolean = false): UnlockEncounterTemplate[] {
+  if (isEndless && act >= 4) return ALL_UNLOCK_ENCOUNTERS
+  return UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+}
+
+export function getUnlockEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false): SpireEncounter {
+  const encounters = getUnlockPool(act, isEndless)
   const template = encounters[index % encounters.length]
 
   if (template.eliteType === "hatch") {
     return addHardModeItems(adjustEncounterItems(generateHatchUnlockEncounter(template.avatar, floor), mode, act), act, floor, mode)
   }
-  return addHardModeItems(adjustEncounterItems(generateLegendaryEliteEncounter(template.avatar, act, floor), mode, act), act, floor, mode)
+  return addHardModeItems(adjustEncounterItems(generateLegendaryEliteEncounter(template.avatar, act, floor, mode, isEndless), mode, act), act, floor, mode)
 }
 
-export function getUnlockEncounterCount(act: number): number {
-  return (UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS).length
+export function getUnlockEncounterCount(act: number, isEndless: boolean = false): number {
+  return getUnlockPool(act, isEndless).length
 }
 
-export function getUnlockEncounterName(index: number, act: number): string {
-  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+export function getUnlockEncounterName(index: number, act: number, isEndless: boolean = false): string {
+  const encounters = getUnlockPool(act, isEndless)
   return encounters[index % encounters.length]?.name ?? "Unlock"
 }
 
-export function getUnlockEncounterAvatar(index: number, act: number): Pkm {
-  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+export function getUnlockEncounterAvatar(index: number, act: number, isEndless: boolean = false): Pkm {
+  const encounters = getUnlockPool(act, isEndless)
   return encounters[index % encounters.length]?.avatar ?? Pkm.DEFAULT
 }
 
-export function getUnlockEncounterType(index: number, act: number): "legendary" | "unique" | "hatch" | undefined {
-  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+export function getUnlockEncounterType(index: number, act: number, isEndless: boolean = false): "legendary" | "unique" | "hatch" | undefined {
+  const encounters = getUnlockPool(act, isEndless)
   return encounters[index % encounters.length]?.eliteType
 }
 
-export function getUnlockEncounterPokemon(index: number, act: number): Pkm[] {
-  const encounters = UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
+export function getUnlockEncounterPokemon(index: number, act: number, isEndless: boolean = false): Pkm[] {
+  const encounters = getUnlockPool(act, isEndless)
   const template = encounters[index % encounters.length]
   return [template.avatar]
 }
 
-export function getEliteEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1): SpireEncounter {
-  const encounters = ELITE_ENCOUNTERS_BY_ACT[act] ?? ACT1_ELITE_ENCOUNTERS
+export function getEliteEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false): SpireEncounter {
+  const clampedAct = Math.min(act, 3)
+  const encounters = ELITE_ENCOUNTERS_BY_ACT[clampedAct] ?? ACT1_ELITE_ENCOUNTERS
   const template = encounters[index % encounters.length]
-  const difficulty = getDifficultyConfig(act, floor, mode)
+  const difficulty = getDifficultyConfig(act, floor, mode, isEndless)
 
   const mainPkm = template.mainPokemon
   const mainStars = getPokemonData(mainPkm).stars
@@ -1162,7 +1221,12 @@ export function getEliteEncounter(index: number, act: number, floor: number, mod
   const picks: Pkm[] = []
 
   if (remainingCount > 0 && template.validPicks.length > 0) {
-    const filteredPicks = template.validPicks.filter(p =>
+    let picksPool = template.validPicks
+    if (isEndless && act >= 4) {
+      picksPool = filterFullyEvolved(picksPool)
+      if (picksPool.length === 0) picksPool = template.validPicks
+    }
+    const filteredPicks = picksPool.filter(p =>
       getPokemonData(p).stars <= difficulty.maxStarsPerPokemon
     )
     const basePool = filteredPicks.length > 0 ? filteredPicks : template.validPicks
@@ -1209,9 +1273,10 @@ export function getEliteEncounter(index: number, act: number, floor: number, mod
   const allPokemon = [mainPkm, ...picks]
   const board = positionByRange(allPokemon, act)
 
-  const useClassItems = act >= 3 || (act >= 2 && mode === 3)
+  const endlessEliteClass = isEndless && act >= 4
+  const useClassItems = endlessEliteClass || act >= 3 || (act >= 2 && mode === 3)
   let items = useClassItems
-    ? generateClassItems(board, mode)
+    ? generateClassItems(board, mode, endlessEliteClass ? Math.max(0, act - 2) : undefined, endlessEliteClass ? act : undefined)
     : generateEncounterItems(allPokemon.length, difficulty.minItemsPerPokemon, difficulty.maxItemsPerPokemon, difficulty.useCraftedItems)
 
   if (!items || items.length === 0) {
@@ -1493,13 +1558,14 @@ export function calculateEncounterStats(encounter: SpireEncounter): EncounterSta
   }
 }
 
-export function getGoldReward(nodeType: string, act: number): number {
+export function getGoldReward(nodeType: string, act: number, floor: number = 0): number {
   switch (nodeType) {
     case "WILD_BATTLE": return 2 + act
     case "ELITE": return 3 + act * 2
     case "UNLOCK": return 3 + act * 2
     case "GYM_LEADER": return 5 + act * 3
     case "LEGENDARY_BOSS": return 11 + act * 4
+    case "ASYNC_FIGHT": return floor === 20 ? 11 + act * 4 : 3 + act * 2
     case "ELITE_FOUR": return 8 + act * 3
     case "CHAMPION": return 15 + act * 5
     default: return 0
@@ -1776,12 +1842,12 @@ export function getChampionEncounter(mode: DifficultyMode = 1): SpireEncounter {
   return adjustEncounterItems(champion, mode)
 }
 
-export function getArceusEncounter(): SpireEncounter {
+export function getArceusEncounter(mode: DifficultyMode = 1): SpireEncounter {
   return {
     name: "Arceus",
     avatar: Pkm.ARCEUS,
     board: [
-      [Pkm.ARCEUS, 4, 2]
+      [Pkm.ARCEUS, 4, mode === 3 ? 3 : 2]
     ],
     items: [
       [Item.CHOICE_SPECS, Item.SCOPE_LENS, Item.SHELL_BELL, Item.MUSCLE_BAND, Item.UPGRADE, Item.SOUL_DEW,

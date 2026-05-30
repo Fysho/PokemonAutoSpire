@@ -1693,8 +1693,7 @@ export default class Simulation extends Schema implements ISimulation {
       if (
         this.weather !== Weather.NEUTRAL &&
         getSynergyStep(player.synergies, Synergy.ROCK) > 0 &&
-        !isGhostPlayer &&
-        !isPvE // No weather rocks collected for PvE rounds
+        !isGhostPlayer
       ) {
         const rockCollected = WeatherRocksByWeather.get(this.weather)
         if (rockCollected) {

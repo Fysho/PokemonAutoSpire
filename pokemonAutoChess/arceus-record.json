@@ -170,6 +170,241 @@
         "lightY": 3
       },
       "date": "2026-05-28T09:46:38.370Z"
+    },
+    {
+      "playerName": "Fish",
+      "damage": 2552,
+      "team": {
+        "name": "Fish",
+        "avatar": "0058/Normal",
+        "pokemon": [
+          {
+            "name": "GALARIAN_DARUMAKA",
+            "x": 0,
+            "y": 3,
+            "items": [],
+            "evolution": "GALARIAN_DARMANITAN"
+          },
+          {
+            "name": "MEWTWO",
+            "x": 4,
+            "y": 2,
+            "items": [],
+            "statBoosts": {
+              "hp": 1000,
+              "atk": 400,
+              "def": 200,
+              "speDef": 200,
+              "ap": 400,
+              "speed": 0
+            }
+          },
+          {
+            "name": "MEWTWO",
+            "x": 2,
+            "y": 2,
+            "items": [],
+            "statBoosts": {
+              "hp": 500,
+              "atk": 200,
+              "def": 100,
+              "speDef": 100,
+              "ap": 200,
+              "speed": 0
+            }
+          },
+          {
+            "name": "DITTO",
+            "x": 1,
+            "y": 0,
+            "items": []
+          },
+          {
+            "name": "DITTO",
+            "x": 0,
+            "y": 0,
+            "items": []
+          },
+          {
+            "name": "DITTO",
+            "x": 2,
+            "y": 0,
+            "items": []
+          },
+          {
+            "name": "TURTWIG",
+            "x": 3,
+            "y": 0,
+            "items": [],
+            "evolution": "GROTLE"
+          },
+          {
+            "name": "HISUI_SNEASEL",
+            "x": 4,
+            "y": 0,
+            "items": [],
+            "evolution": "SNEASLER"
+          },
+          {
+            "name": "BOUNSWEET",
+            "x": 5,
+            "y": 0,
+            "items": [],
+            "evolution": "STEENEE"
+          },
+          {
+            "name": "BURMY_TRASH",
+            "x": 6,
+            "y": 0,
+            "items": []
+          }
+        ],
+        "inventory": [
+          "BLACK_GLASSES",
+          "METRONOME",
+          "BABY_GEM"
+        ],
+        "groundHoles": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "lightX": 4,
+        "lightY": 2
+      },
+      "date": "2026-05-29T20:33:55.425Z"
+    },
+    {
+      "playerName": "Fish",
+      "damage": 742,
+      "team": {
+        "name": "Fish",
+        "avatar": "0058/Normal",
+        "pokemon": [
+          {
+            "name": "HATENNA",
+            "x": 0,
+            "y": 3,
+            "items": [],
+            "evolution": "HATTREM"
+          },
+          {
+            "name": "MEWTWO",
+            "x": 2,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 500,
+              "atk": 200,
+              "def": 100,
+              "speDef": 100,
+              "ap": 200,
+              "speed": 0
+            }
+          }
+        ],
+        "inventory": [
+          "TWISTED_SPOON"
+        ],
+        "groundHoles": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "lightX": 2,
+        "lightY": 1
+      },
+      "date": "2026-05-29T20:12:49.358Z"
     }
   ]
 }

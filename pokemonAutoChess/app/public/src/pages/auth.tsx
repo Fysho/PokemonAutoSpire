@@ -24,7 +24,7 @@ export default function Auth() {
       {isSupposedlyMobile && (
         <p className="mobile-warning">{t("auth.mobile_warning")}</p>
       )}
-      <img className="logo" src="assets/ui/AutoSpire.png" />
+      <img className="logo" src="assets/ui/AutoSpireLarge.png" />
       <header>
         <h1>Pokemon Auto Spire</h1>
         <div className="disclaimer">
@@ -44,19 +44,24 @@ export default function Auth() {
           >
             Play as Guest
           </button>
+          <p style={{ color: "white", fontSize: "12px", marginTop: "6px", maxWidth: "300px", opacity: 0.8 }}>
+            Guest runs cannot be saved. If you disconnect or the server restarts for a hotfix (which happens frequently), your progress will be lost.
+          </p>
         </div>
       </main>
       <div className="media">
-        <span>V{pkg.version}</span>
-        <p>
-          {t("auth.non_profit")} / {t("auth.open_source")}
-          <br />
-          {t("auth.copyright")}
-          <br />
-          A mod of Pokemon Auto Chess — all credit to the original developers
-          <br />
-          Built on Pokemon Auto Chess v6.9 (master@01c2ebe)
-        </p>
+        <div className="media-text">
+          <span>V{pkg.version}</span>
+          <p>
+            {t("auth.non_profit")} / {t("auth.open_source")}
+            <br />
+            {t("auth.copyright")}
+            <br />
+            A mod of Pokemon Auto Chess — all credit to the original developers
+            <br />
+            Built on Pokemon Auto Chess v6.9 (master@01c2ebe)
+          </p>
+        </div>
         <a
           href="https://discord.gg/cfytB2kA"
           target="_blank"

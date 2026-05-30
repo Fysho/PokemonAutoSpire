@@ -10,6 +10,7 @@ import { marked } from "marked"
 import path from "path"
 import pkg from "../package.json"
 import { SynergyTriggers } from "./config"
+import { USERNAME_REGEXP } from "./config/server/rules"
 import { initTilemap } from "./core/design"
 import { PRECOMPUTED_POKEMONS_PER_TYPE } from "./models/precomputed/precomputed-types"
 import GameRoom from "./rooms/game-room"
@@ -215,6 +216,7 @@ export const server = defineServer({
               roomId: r.roomId,
               ownerName: meta.ownerName ?? "Unknown",
               difficultyMode: meta.difficultyMode ?? 1,
+              isEndless: meta.isEndless ?? false,
               currentAct: meta.currentAct ?? 1,
               currentFloor: meta.currentFloor ?? 0,
               runHP: meta.runHP ?? 100,
@@ -296,6 +298,93 @@ export const server = defineServer({
       }
     })
 
+    // Persist a player's chosen lobby name to UserMetadata.displayName.
+    // Mirrors the validation used at run start; never accepts auth-derived names.
+    app.put("/api/player-name/:uid", async (req, res) => {
+      try {
+        const name = typeof req.body?.name === "string" ? req.body.name.trim() : ""
+        if (!USERNAME_REGEXP.test(name) || name === "Player" || name === "Username") {
+          return res.status(400).json({ error: "Invalid name" })
+        }
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        await UserMetadata.updateOne(
+          { uid: req.params.uid },
+          { $set: { displayName: name }, $setOnInsert: { uid: req.params.uid } },
+          { upsert: true }
+        )
+        res.json({ ok: true })
+      } catch (error) {
+        logger.error("Error saving player name:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    // Read the player's saved name (source of truth for the lobby input).
+    app.get("/api/player-name/:uid", async (req, res) => {
+      try {
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const user = await UserMetadata.findOne({ uid: req.params.uid }, { displayName: 1 }).lean()
+        res.json({ name: (user as any)?.displayName ?? null })
+      } catch (error) {
+        logger.error("Error fetching player name:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    // Read the player's saved avatar (sprite string, e.g. "0019/Normal").
+    app.get("/api/player-avatar/:uid", async (req, res) => {
+      try {
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const user = await UserMetadata.findOne({ uid: req.params.uid }, { avatar: 1 }).lean()
+        res.json({ avatar: (user as any)?.avatar ?? null })
+      } catch (error) {
+        logger.error("Error fetching player avatar:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    // Persist the player's chosen avatar (sprite string form) to UserMetadata.avatar.
+    app.put("/api/player-avatar/:uid", async (req, res) => {
+      try {
+        const avatar = typeof req.body?.avatar === "string" ? req.body.avatar.trim() : ""
+        if (!/^[0-9]{3,4}(\/[0-9]{3,4})*\/[A-Za-z]+$/.test(avatar)) {
+          return res.status(400).json({ error: "Invalid avatar" })
+        }
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        await UserMetadata.updateOne(
+          { uid: req.params.uid },
+          { $set: { avatar }, $setOnInsert: { uid: req.params.uid } },
+          { upsert: true }
+        )
+        res.json({ ok: true })
+      } catch (error) {
+        logger.error("Error saving player avatar:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    // Case-insensitive prefix search by player name. Uses the existing
+    // collation index on displayName (locale "en", strength 2).
+    app.get("/api/player-search", async (req, res) => {
+      try {
+        const q = typeof req.query.q === "string" ? req.query.q.trim() : ""
+        if (q.length < 1) return res.json([])
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const results = await UserMetadata.find(
+          { displayName: { $gte: q, $lt: q + "￿" } },
+          { uid: 1, displayName: 1, avatar: 1, _id: 0 }
+        )
+          .collation({ locale: "en", strength: 2 })
+          .sort({ displayName: 1 })
+          .limit(20)
+          .lean()
+        res.json(results)
+      } catch (error) {
+        logger.error("Error searching players:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
     app.get("/api/champion-data/:difficulty", async (req, res) => {
       try {
         const { loadChampionData } = await import("./services/champion-data")
@@ -313,9 +402,10 @@ export const server = defineServer({
           })),
           inventory: snap.inventory || []
         })
+        const e4Victories = data.eliteFourVictories ?? [0, 0, 0, 0]
         res.json({
-          champion: simplify(data.champion),
-          eliteFour: data.eliteFour.map(simplify),
+          champion: { ...simplify(data.champion), victories: data.championVictories ?? 0 },
+          eliteFour: data.eliteFour.map((snap, i) => ({ ...simplify(snap), victories: e4Victories[i] ?? 0 })),
           championSince: data.championSince ?? null,
           longestReign: data.longestReign
             ? { name: data.longestReign.name, durationMs: data.longestReign.durationMs }
@@ -341,6 +431,40 @@ export const server = defineServer({
       }
     })
 
+    app.get("/api/endless-record", async (req, res) => {
+      try {
+        const { getEndlessLeaderboardForClient } = await import("./services/endless-record")
+        res.json(getEndlessLeaderboardForClient())
+      } catch (error) {
+        logger.error("Error fetching endless record:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    app.get("/api/endless-enabled", async (req, res) => {
+      try {
+        const { isEndlessEnabled } = await import("./services/endless-config")
+        res.json({ enabled: isEndlessEnabled() })
+      } catch (error) {
+        logger.error("Error fetching endless-enabled flag:", error)
+        res.json({ enabled: true })
+      }
+    })
+
+    app.get("/api/victory-leaderboard/:difficulty", async (req, res) => {
+      try {
+        const { getVictoryLeaderboard } = await import("./services/victory-record")
+        const mode = parseInt(req.params.difficulty)
+        if (mode !== 0 && mode !== 1 && mode !== 2 && mode !== 3) {
+          return res.status(400).json({ error: "Invalid difficulty" })
+        }
+        res.json(await getVictoryLeaderboard(mode))
+      } catch (error) {
+        logger.error("Error fetching victory leaderboard:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
     app.get("/api/run-history/:uid", async (req, res) => {
       try {
         const { getRunHistory } = await import("./services/run-save")
@@ -355,13 +479,38 @@ export const server = defineServer({
 
     app.delete("/api/saved-run/:uid", async (req, res) => {
       try {
-        const { deleteSavedRun } = await import("./services/run-save")
+        const { loadRun, deleteSavedRun, saveRunHistoryFromSavedRun, updateVictoryRecord } = await import("./services/run-save")
+        const savedRun = await loadRun(req.params.uid)
+        if (savedRun?.data) {
+          await saveRunHistoryFromSavedRun(req.params.uid, savedRun.data)
+          await updateVictoryRecord(
+            req.params.uid,
+            savedRun.data.team?.name ?? "Unknown",
+            savedRun.data.team?.avatar ?? "0129/Normal",
+            savedRun.difficultyMode,
+            savedRun.currentAct,
+            savedRun.isEndless ?? false
+          )
+        }
         const deleted = await deleteSavedRun(req.params.uid)
         res.json({ deleted })
       } catch (error) {
         logger.error("Error deleting saved run:", error)
         res.status(500).json({ error: "Internal server error" })
       }
+    })
+
+    app.get("/api/announcements/stream", async (req, res) => {
+      const { addSSEClient, removeSSEClient } = await import("./services/announcement")
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive"
+      })
+      addSSEClient(res)
+      req.on("close", () => {
+        removeSSEClient(res)
+      })
     })
 
     const monitorPassword = process.env.MONITOR_PASSWORD

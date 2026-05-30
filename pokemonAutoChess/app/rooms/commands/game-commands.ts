@@ -63,7 +63,7 @@ import {
   getWildEncounter,
   SpireEncounter
 } from "../../models/spire-encounters"
-import { loadChampionData, saveChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, DEFAULT_SNAPSHOT, type DifficultyMode } from "../../services/champion-data"
+import { loadChampionData, saveChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, DEFAULT_SNAPSHOT, incrementChampionVictory, incrementE4Victory, type DifficultyMode } from "../../services/champion-data"
 import { discordService } from "../../services/discord"
 import { snapshotPlayerTeam, reconstructTeamAsPlayer, encodeSnapshotForClient } from "../../services/team-snapshot"
 import { getEventBerries, getEventItems, getRandomEvent } from "../../models/spire-events"
@@ -172,6 +172,8 @@ import { resetArraySchema, schemaValues } from "../../utils/schemas"
 import { getWeather } from "../../utils/weather"
 import GameRoom from "../game-room"
 import GameState from "../states/game-state"
+
+const E4_WIN_TAKES_SLOT = true
 
 export class OnBuyPokemonCommand extends Command<
   GameRoom,
@@ -1099,10 +1101,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     if (this.state.gameFinished) return
 
     if (this.state.phase === GamePhaseState.MAP) {
-      // MAP phase doesn't auto-transition; the player selects a node via message
       return
     } else if (this.state.phase === GamePhaseState.PICK) {
-      this.stopPickingPhase()
       this.checkForLazyTeam()
       this.initializeFightingPhase()
     } else if (this.state.phase === GamePhaseState.FIGHT) {
@@ -1111,6 +1111,20 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         this.endArceusFight()
       } else {
         this.stopSpireFightingPhase()
+
+        if (fightNode && (fightNode.nodeType === MapNodeType.ELITE_FOUR || fightNode.nodeType === MapNodeType.CHAMPION)) {
+          const playerLost = schemaValues(this.state.players).some(
+            (p) => !p.isBot && p.history.at(-1)?.result !== BattleResult.WIN
+          )
+          if (playerLost) {
+            if (fightNode.nodeType === MapNodeType.CHAMPION) {
+              incrementChampionVictory(this.state.difficultyMode as DifficultyMode)
+            } else {
+              incrementE4Victory(fightNode.floor - 1, this.state.difficultyMode as DifficultyMode)
+            }
+          }
+        }
+
         if (this.state.gameFinished) {
           // already ended (e.g. champion fight processed on prior tick)
         } else if (fightNode?.nodeType === MapNodeType.CHAMPION) {
@@ -1132,18 +1146,43 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                 loserSnapshot.region = this.state.playerSpireRegion || "town"
                 if (loserSnapshot.pokemon.length > 0) {
                   const data = loadChampionData(this.state.difficultyMode as DifficultyMode)
-                  for (let i = 3; i >= 0; i--) {
-                    if (data.eliteFour[i].name === DEFAULT_SNAPSHOT.name) {
-                      data.eliteFour[i] = loserSnapshot
-                      saveChampionData(data, this.state.difficultyMode as DifficultyMode)
-                      break
+                  const now = new Date().toISOString()
+                  const oldCrownedAt = data.eliteFourCrownedAt ?? [
+                    data.championSince ?? now,
+                    data.championSince ?? now,
+                    data.championSince ?? now,
+                    data.championSince ?? now
+                  ]
+                  const oldVictories = data.eliteFourVictories ?? [0, 0, 0, 0]
+                  if (E4_WIN_TAKES_SLOT && fightNode) {
+                    const insertIndex = fightNode.floor - 1
+                    for (let i = 3; i > insertIndex; i--) {
+                      data.eliteFour[i] = data.eliteFour[i - 1]
+                      oldCrownedAt[i] = oldCrownedAt[i - 1]
+                      oldVictories[i] = oldVictories[i - 1]
+                    }
+                    data.eliteFour[insertIndex] = loserSnapshot
+                    oldCrownedAt[insertIndex] = now
+                    oldVictories[insertIndex] = 0
+                  } else {
+                    for (let i = 3; i >= 0; i--) {
+                      if (data.eliteFour[i].name === DEFAULT_SNAPSHOT.name) {
+                        data.eliteFour[i] = loserSnapshot
+                        oldCrownedAt[i] = now
+                        oldVictories[i] = 0
+                        break
+                      }
                     }
                   }
+                  data.eliteFourCrownedAt = oldCrownedAt as [string, string, string, string]
+                  data.eliteFourVictories = oldVictories as [number, number, number, number]
+                  saveChampionData(data, this.state.difficultyMode as DifficultyMode)
                 }
-                const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+                const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
                 deleteSavedRun(p.id)
                 saveRunHistory(p.id, this.state, p, false)
                 incrementRunEnd(p.id, this.state.difficultyMode, true, false, 0)
+                updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
                 this.room.runHistoryRecorded = true
               }
             })
@@ -1359,15 +1398,28 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       case MapNodeType.LEGENDARY_BOSS:
       case MapNodeType.ELITE_FOUR:
       case MapNodeType.CHAMPION:
-      case MapNodeType.ARCEUS_BOSS: {
+      case MapNodeType.ARCEUS_BOSS:
+      case MapNodeType.ASYNC_FIGHT: {
         this.state.stageLevel = (this.state.currentAct - 1) * 15 + node.floor
         let encounter: SpireEncounter | null = null
         const mode = this.state.difficultyMode as 0 | 1 | 2 | 3
-        if (node.nodeType === MapNodeType.ARCEUS_BOSS) {
-          encounter = getArceusEncounter()
+        const endless = this.state.isEndless
+        if (node.nodeType === MapNodeType.ASYNC_FIGHT) {
+          const asyncData = this.room.asyncFightSnapshots.get(nodeId)
+          if (asyncData) {
+            this.state.encounterSnapshot = asyncData.snapshot
+            if (asyncData.region && asyncData.region !== "town") {
+              this.state.players.forEach((p: Player) => { if (!p.isBot) p.map = asyncData.region as any })
+            }
+            encounter = { name: asyncData.name, avatar: (asyncData.snapshot?.pokemon?.[0]?.name ?? "MAGIKARP") as Pkm, board: [], items: [] }
+          } else {
+            encounter = { name: "Fish", avatar: Pkm.MAGIKARP, board: [[Pkm.MAGIKARP, 4, 1]], items: [[]] }
+          }
+        } else if (node.nodeType === MapNodeType.ARCEUS_BOSS) {
+          encounter = getArceusEncounter(mode)
         } else if (node.nodeType === MapNodeType.WILD_BATTLE) {
           encounter = node.region
-            ? getRegionalWildEncounter(this.state.currentAct, node.floor, node.region, mode)
+            ? getRegionalWildEncounter(this.state.currentAct, node.floor, node.region, mode, endless)
             : getWildEncounter(this.state.currentAct, node.floor, node.x + node.floor * 7)
         } else if (node.nodeType === MapNodeType.GYM_LEADER) {
           encounter = generateGymEncounter(
@@ -1375,17 +1427,18 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.state.currentAct,
             node.floor,
             mode,
-            node.displayName || undefined
+            node.displayName || undefined,
+            endless
           )
         } else if (node.nodeType === MapNodeType.ELITE) {
-          encounter = getEliteEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode)
+          encounter = getEliteEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode, endless)
           this.room.eliteFightPokemon = encounter.board.map(([pkm]) => pkm)
           this.room.eliteMainPokemon = getEliteMainPokemon(node.eliteEncounterIndex, this.state.currentAct)
           this.room.eliteMainBonusHP = encounter.mainBonusHP ?? 0
           this.room.eliteMainBonusAtk = encounter.mainBonusAtk ?? 0
           this.room.eliteMainBonusAP = encounter.mainBonusAP ?? 0
         } else if (node.nodeType === MapNodeType.UNLOCK) {
-          encounter = getUnlockEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode)
+          encounter = getUnlockEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode, endless)
         } else if (node.nodeType === MapNodeType.ELITE_FOUR) {
           const e4Index = node.floor - 1
           const champData = loadChampionData(this.state.difficultyMode as DifficultyMode)
@@ -1418,17 +1471,20 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           let displaySnap = snap
           if (this.state.encounterCrownedAt && this.state.difficultyMode < 2) {
             const elapsedMs = Date.now() - new Date(this.state.encounterCrownedAt).getTime()
-            const isEasy = this.state.difficultyMode === 0
-            const hpDecay = Math.floor(elapsedMs / ((isEasy ? 2.5 : 5) * 60 * 1000))
-            if (hpDecay > 0) {
+            const hoursElapsed = elapsedMs / (1000 * 60 * 60)
+            const ratePerHour = this.state.difficultyMode === 0 ? 0.12 : 0.06
+            const decayMultiplier = Math.pow(1 - ratePerHour, hoursElapsed)
+            if (decayMultiplier < 1) {
               displaySnap = {
                 ...snap,
                 pokemon: snap.pokemon.map((p) => {
                   if (p.y <= 0) return p
                   const baseHp = PokemonFactory.createPokemonFromName(p.name as Pkm).hp
                   const effectiveHp = baseHp + (p.statBoosts?.hp ?? 0)
-                  if (effectiveHp <= 50) return p
-                  const reduction = Math.min(hpDecay, effectiveHp - 50)
+                  const floor = Math.round(effectiveHp * 0.3)
+                  const decayedHp = Math.max(floor, Math.round(effectiveHp * decayMultiplier))
+                  const reduction = effectiveHp - decayedHp
+                  if (reduction <= 0) return p
                   const newHpBoost = (p.statBoosts?.hp ?? 0) - reduction
                   const boosts = p.statBoosts ?? { hp: 0, atk: 0, def: 0, speDef: 0, ap: 0, speed: 0 }
                   return { ...p, statBoosts: { ...boosts, hp: newHpBoost } }
@@ -1783,10 +1839,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       if (!p.isBot) {
         p.life = 0
         p.alive = false
-        const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+        const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
         deleteSavedRun(p.id)
         saveRunHistory(p.id, this.state, p, false)
         incrementRunEnd(p.id, this.state.difficultyMode, true, false, this.state.arceusDamageDealt)
+        updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
         this.room.runHistoryRecorded = true
       }
     })
@@ -1818,7 +1875,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           this.state.difficultyMode as DifficultyMode,
           defeatedChampion,
           newE4,
-          result.reignDurationMs
+          result.reignDurationMs,
+          result.previousChampionVictories
         )
         if (result.isNewLongestReign) {
           discordService.announceNewLongestReign(
@@ -1839,13 +1897,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           loserSnapshot.region = this.state.playerSpireRegion || "town"
           if (loserSnapshot.pokemon.length > 0) {
             const data = loadChampionData(this.state.difficultyMode as DifficultyMode)
-            // Find highest Fish slot (search from index 3 down to 0)
-            let placed = false
+            if (!data.eliteFourVictories) data.eliteFourVictories = [0, 0, 0, 0]
             for (let i = 3; i >= 0; i--) {
               if (data.eliteFour[i].name === DEFAULT_SNAPSHOT.name) {
                 data.eliteFour[i] = loserSnapshot
+                data.eliteFourVictories[i] = 0
                 saveChampionData(data, this.state.difficultyMode as DifficultyMode)
-                placed = true
                 break
               }
             }
@@ -1856,9 +1913,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     }
     this.state.players.forEach((p: Player) => {
       if (!p.isBot) {
-        const { deleteSavedRun, incrementRunEnd } = require("../../services/run-save")
+        const { deleteSavedRun, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
         deleteSavedRun(p.id)
         incrementRunEnd(p.id, this.state.difficultyMode, true, !!winner, 0)
+        updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
       }
     })
   }
@@ -1871,10 +1929,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       player.life = 0
       player.alive = false
       this.syncRunHPToPlayers()
-      const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+      const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
       deleteSavedRun(player.id)
       saveRunHistory(player.id, this.state, player, false)
       incrementRunEnd(player.id, this.state.difficultyMode, false, false, 0)
+      updateVictoryRecord(player.id, player.name, player.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
       this.room.runHistoryRecorded = true
     }
   }
@@ -1896,7 +1955,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         const guestTag = player.id === "local-player" ? " - guest" : ""
         logger.info(`Player: ${player.name.padEnd(20)} stage ${String(this.state.stageLevel).padStart(2)} ${won ? "win " : "loss"}, hp: ${String(this.state.runHP).padStart(3)}, difficulty: ${modeLabel.padEnd(10)}${guestTag}`)
 
-        const baseGold = getGoldReward(node.nodeType, this.state.currentAct)
+        const baseGold = getGoldReward(node.nodeType, this.state.currentAct, node.floor)
         const bonusGold = getPassiveItemBonusGold(player.items)
         const totalGold = won ? baseGold + bonusGold : Math.floor(baseGold / 3)
         player.addMoney(totalGold, true, null)
@@ -1962,6 +2021,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             )
           } else {
             this.generateWildRewardChoice(player, node, false)
+          }
+        } else if (node.nodeType === MapNodeType.ASYNC_FIGHT) {
+          if (node.floor === 20) {
+            const rewardPool = [...ShinyItems, ...Tools]
+            const goldItemChoices = pickNRandomIn(rewardPool, 3)
+            player.choices.push(
+              new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
+            )
+          } else {
+            const componentChoices = pickNRandomIn(ItemComponentsNoFossilOrScarf, 3)
+            player.choices.push(
+              new PlayerChoice({ type: "item", items: componentChoices as any[] })
+            )
           }
         } else if (node.nodeType === MapNodeType.CHAMPION) {
           if (won) {
@@ -2043,14 +2115,37 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           if (!p.isBot) {
             p.life = 0
             p.alive = false
-            const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+            const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
             deleteSavedRun(p.id)
             saveRunHistory(p.id, this.state, p, false)
             incrementRunEnd(p.id, this.state.difficultyMode, false, false, 0)
+            updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
             this.room.runHistoryRecorded = true
           }
         })
         this.syncRunHPToPlayers()
+      }
+    }
+
+    if (currentNode?.nodeType === MapNodeType.ASYNC_FIGHT) {
+      // Submit player team to async fight pool
+      schemaValues(this.state.players).forEach((p) => {
+        if (!p.isBot) {
+          const stage = `act${this.state.currentAct}-floor${currentNode.floor}`
+          const { submitAsyncFight } = require("../../services/async-fight-pool")
+          submitAsyncFight(stage, p.name, p.avatar, this.state.playerSpireRegion || "town", snapshotPlayerTeam(p))
+        }
+      })
+
+      if (this.state.isEndless && currentNode.floor === 20) {
+        this.state.currentAct += 1
+        this.state.currentFloor = 0
+        this.state.mapNodes.clear()
+        this.state.mapEdges.clear()
+        generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode, true)
+        this.room.populateAsyncFightNodes()
+        this.state.players.forEach((p) => { p.dojoFamilies.clear() })
+        this.autoSaveRun()
       }
     }
   }
@@ -2094,14 +2189,31 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.state.gameFinished = true
             player.life = 0
             player.alive = false
-            const { deleteSavedRun, saveRunHistory, incrementRunEnd } = require("../../services/run-save")
+            const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
             deleteSavedRun(player.id)
             saveRunHistory(player.id, this.state, player, false)
             incrementRunEnd(player.id, this.state.difficultyMode, false, false, 0)
+            updateVictoryRecord(player.id, player.name, player.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
+            if (this.state.isEndless) {
+              const { checkAndUpdateEndlessRecord, loadEndlessLeaderboard } = require("../../services/endless-record")
+              const teamSnap = snapshotPlayerTeam(player)
+              const prevLeader = loadEndlessLeaderboard().records[0] ?? null
+              const { isNewRecord } = checkAndUpdateEndlessRecord(player.name, player.avatar, this.state.currentAct, this.state.currentFloor, teamSnap)
+              if (isNewRecord) {
+                discordService.announceEndlessRecord(
+                  teamSnap,
+                  this.state.currentAct,
+                  this.state.currentFloor,
+                  prevLeader?.playerName ?? null
+                )
+              }
+            }
             this.room.runHistoryRecorded = true
             this.syncRunHPToPlayers()
           }
         }
+
+        this.spawnBabyEggs(player, false)
 
         player.board.forEach((pokemon) => {
           if (pokemon.evolutionRule instanceof HatchEvolutionRule) {
@@ -2743,17 +2855,16 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
       if (this.state.encounterCrownedAt && this.state.difficultyMode < 2) {
         const elapsedMs = Date.now() - new Date(this.state.encounterCrownedAt).getTime()
-        const isEasy = this.state.difficultyMode === 0
-        const hpDecay = Math.floor(elapsedMs / ((isEasy ? 2.5 : 5) * 60 * 1000))
-        const ppPenalty = Math.floor(elapsedMs / ((isEasy ? 5 : 10) * 60 * 1000))
-        if (hpDecay > 0 || ppPenalty > 0) {
+        const hoursElapsed = elapsedMs / (1000 * 60 * 60)
+        const ratePerHour = this.state.difficultyMode === 0 ? 0.12 : 0.06
+        const decayMultiplier = Math.pow(1 - ratePerHour, hoursElapsed)
+        if (decayMultiplier < 1) {
           opponentPlayer.board.forEach((pokemon) => {
             if (pokemon.positionY <= 0) return
-            if (hpDecay > 0 && pokemon.hp > 50) {
-              const reduction = Math.min(hpDecay, pokemon.hp - 50)
-              if (reduction > 0) pokemon.addMaxHP(-reduction)
-            }
-            if (ppPenalty > 0) pokemon.maxPP = pokemon.maxPP + ppPenalty
+            const floor = Math.round(pokemon.hp * 0.3)
+            const decayedHp = Math.max(floor, Math.round(pokemon.hp * decayMultiplier))
+            const reduction = pokemon.hp - decayedHp
+            if (reduction > 0) pokemon.addMaxHP(-reduction)
           })
         }
         this.state.encounterCrownedAt = null
@@ -2790,7 +2901,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       const board: [Pkm, number, number][] = []
       const encounterItems: Item[][] = []
       Array.from(this.state.spireEncounterBoard).forEach((entry: string) => {
-        const parts = entry.split(",")
+        const [mainPart] = entry.split("|")
+        const parts = mainPart.split(",")
         board.push([parts[0] as Pkm, parseInt(parts[1]), parseInt(parts[2])])
         encounterItems.push(parts.slice(3) as Item[])
       })
