@@ -20,7 +20,7 @@ import {
 } from "../../../../types"
 import { DungeonMusic, DungeonPMDO } from "../../../../types/enum/Dungeon"
 import { GamePhaseState } from "../../../../types/enum/Game"
-import { Item, ItemRecipe, Mulches } from "../../../../types/enum/Item"
+import { Item, isItemSellable, ItemRecipe, Mulches } from "../../../../types/enum/Item"
 import { Pkm } from "../../../../types/enum/Pokemon"
 import { isIn } from "../../../../utils/array"
 import { throttle } from "../../../../utils/function"
@@ -565,7 +565,7 @@ export default class GameScene extends Scene {
           }
         } else if (gameObject instanceof ItemContainer) {
           this.itemDragged = gameObject
-          if (this.sellZone) {
+          if (this.sellZone && isItemSellable(gameObject.name as Item)) {
             this.sellZone.showForItem()
           }
         }
@@ -698,10 +698,10 @@ export default class GameScene extends Scene {
             })
           }
           // Item -> SELL-ZONE = SELL ITEM
-          else if (dropZone.name === "sell-zone") {
+          else if (dropZone.name === "sell-zone" && isItemSellable(gameObject.name as Item)) {
             this.room?.send(Transfer.SELL_ITEM, gameObject.name)
           }
-          // RETURN TO ORIGINAL SPOT
+          // RETURN TO ORIGINAL SPOT (includes unsellable items dropped on sell zone)
           else {
             const player = this.room?.state.players.get(this.uid!)
             if (player) this.itemsContainer?.render(player.items)
@@ -796,7 +796,8 @@ export default class GameScene extends Scene {
 
         if (
           dropZone.name === "sell-zone" &&
-          (gameObject instanceof PokemonSprite || gameObject instanceof ItemContainer)
+          (gameObject instanceof PokemonSprite ||
+            (gameObject instanceof ItemContainer && isItemSellable(gameObject.name as Item)))
         ) {
           this.sellZone?.onDragEnter()
         }
@@ -823,7 +824,8 @@ export default class GameScene extends Scene {
 
         if (
           dropZone.name === "sell-zone" &&
-          (gameObject instanceof PokemonSprite || gameObject instanceof ItemContainer)
+          (gameObject instanceof PokemonSprite ||
+            (gameObject instanceof ItemContainer && isItemSellable(gameObject.name as Item)))
         ) {
           this.sellZone?.onDragLeave()
         }

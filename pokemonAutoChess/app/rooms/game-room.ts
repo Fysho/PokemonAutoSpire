@@ -33,7 +33,7 @@ import {
 } from "../types"
 import { EloRank } from "../types/enum/EloRank"
 import { BattleResult, GameMode, GamePhaseState, PokemonActionState, Rarity } from "../types/enum/Game"
-import { Item, SynergyGem, SynergyGivenByGem, Wands } from "../types/enum/Item"
+import { Item, isItemSellable, SynergyGem, SynergyGivenByGem, Wands } from "../types/enum/Item"
 import { Passive } from "../types/enum/Passive"
 import {
   Pkm,
@@ -593,6 +593,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
       if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
         if (!player || !player.alive) return
+        if (!isItemSellable(itemId as Item)) return
         const idx = player.items.findIndex((i: any) => i === itemId)
         if (idx < 0) return
         player.items.splice(idx, 1)

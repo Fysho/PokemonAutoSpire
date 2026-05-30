@@ -1052,6 +1052,16 @@ export const DishesGoingToInventory = [
 export const ItemsSoldAtTown = [...Mushrooms] satisfies Item[]
 export type ItemsSoldAtTown = (typeof ItemsSoldAtTown)[number]
 
+const UnsellableSpecialItems: Item[] = [Item.CHEF_HAT]
+
+export function isItemSellable(item: Item): boolean {
+  if (Tools.includes(item)) return false
+  if (Scarves.includes(item)) return false
+  if (Wands.includes(item)) return false
+  if (UnsellableSpecialItems.includes(item)) return false
+  return true
+}
+
 export const HerbaMysticas: Dish[] = [
   Item.HERBA_MYSTICA,
   Item.HERBA_MYSTICA_SWEET,

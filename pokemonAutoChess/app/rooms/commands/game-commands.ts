@@ -173,7 +173,9 @@ import { getWeather } from "../../utils/weather"
 import GameRoom from "../game-room"
 import GameState from "../states/game-state"
 
-const E4_WIN_TAKES_SLOT = true
+// When a player LOSES partway through the Elite Four, their team is inserted
+// into the E4 lineup (see the ELITE_FOUR loss branch in OnUpdatePhaseCommand).
+const E4_LOSS_TAKES_SLOT = true
 
 export class OnBuyPokemonCommand extends Command<
   GameRoom,
@@ -1154,16 +1156,23 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                     data.championSince ?? now
                   ]
                   const oldVictories = data.eliteFourVictories ?? [0, 0, 0, 0]
-                  if (E4_WIN_TAKES_SLOT && fightNode) {
-                    const insertIndex = fightNode.floor - 1
-                    for (let i = 3; i > insertIndex; i--) {
-                      data.eliteFour[i] = data.eliteFour[i - 1]
-                      oldCrownedAt[i] = oldCrownedAt[i - 1]
-                      oldVictories[i] = oldVictories[i - 1]
+                  if (E4_LOSS_TAKES_SLOT && fightNode) {
+                    // You earned the slot just below the member who beat you:
+                    // you beat E4 #1..#(floor-1) and lost to #floor, so you slot in
+                    // immediately under #floor at index (floor - 2). The weakest
+                    // existing member (old #1) drops off. Losing to E4 #1 (floor 1)
+                    // means you beat nobody → no slot earned, lineup unchanged.
+                    const insertIndex = fightNode.floor - 2
+                    if (insertIndex >= 0) {
+                      for (let i = 0; i < insertIndex; i++) {
+                        data.eliteFour[i] = data.eliteFour[i + 1]
+                        oldCrownedAt[i] = oldCrownedAt[i + 1]
+                        oldVictories[i] = oldVictories[i + 1]
+                      }
+                      data.eliteFour[insertIndex] = loserSnapshot
+                      oldCrownedAt[insertIndex] = now
+                      oldVictories[insertIndex] = 0
                     }
-                    data.eliteFour[insertIndex] = loserSnapshot
-                    oldCrownedAt[insertIndex] = now
-                    oldVictories[insertIndex] = 0
                   } else {
                     for (let i = 3; i >= 0; i--) {
                       if (data.eliteFour[i].name === DEFAULT_SNAPSHOT.name) {

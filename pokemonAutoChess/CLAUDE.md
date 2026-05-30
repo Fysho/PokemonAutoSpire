@@ -88,16 +88,19 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | Player schema | `app/models/colyseus-models/player.ts` — Added `gameState` ref, `addRunHP()`, `getRunHP()`. See "Player Health" section. |
 | Starter selection & reroll | `app/rooms/game-room.ts` → `startGame()`, `REROLL_STARTER` handler |
 | Home Town (region choice) | `user-metadata.ts` (DB), `spire-lobby.tsx` (UI), `app.config.ts` (API), `team-snapshot.ts` (region field), `game-commands.ts` (E4/Champion map) |
+| Player name / avatar persistence | `spire-lobby.tsx` (load/save, DB source of truth), `app.config.ts` (`/api/player-name`, `/api/player-avatar`, `/api/player-search`), `user-metadata.ts` (`displayName`/`avatar`). See "Never Use Firebase/Google Real Names". |
 | Run history / stats | `app/services/run-save.ts` → `saveRunHistory()`, `incrementRunStarted()`, `incrementRunEnd()` |
 | Champion/E4 data | `app/services/champion-data.ts` → `loadChampionData()`, `promoteNewChampion()`. Tracks `championSince` timestamp and `longestReign` per difficulty. |
 | Arceus damage leaderboard | `app/services/arceus-record.ts` → Top 5 per difficulty. JSON files (`arceus-record.json`, `-easy`, `-hard`). `checkAndUpdateArceusRecord()`, `getArceusLeaderboardForClient()`. |
 | Discord announcements | `app/services/discord.ts` → `discordService.announceNewChampion()`, `announceArceusRecord()`, `announceNewLongestReign()`. Bot also listens for admin commands in `DISCORD_ADMIN_CHANNEL_ID`. |
+| Server announcements | `app/services/announcement.ts` → `broadcastAnnouncement()`. Discord `/announce` → SSE to lobby + Colyseus presence to game rooms. Popup in `spire-lobby.tsx` and `game.tsx`. |
+| Endless mode on/off toggle | `app/services/endless-config.ts` (persisted flag) → Discord `/endless enable\|disable`. Server gate in `game-room.ts` `onCreate()`; `GET /api/endless-enabled` + disabled button/tooltip in `spire-lobby.tsx`. |
 | Difficulty balancing | `spire-encounters.ts` → `addHardModeItems()`, `applyBossBoost()`, `adjustEncounterItems()`, `getStarBudgetOffset()` |
 | Dojo ticket tier | `game-commands.ts` → `getDojoTicket()` |
 | Lobby UI | `app/public/src/pages/spire-lobby.tsx` — 3 tabs: How to Play, Rooms, Dev Notes + PAC Diversions. Server status (CCU/accounts) is admin-only. Patch popup on new major.minor version, hotfix badge on patch-only bumps. Name validation blocks "Player"/"Username"/empty. |
 | Profile / run history UI | `app/public/src/pages/component/profile/player-box.tsx`, `game-history.tsx` |
 | API endpoints | `app/app.config.ts` |
-| Admin cheats (game) | `game-room.ts` (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `RESET_CHAMPION`), `game.tsx` (button panel, right side). Gated by `Role.ADMIN` on both server and client. |
+| Admin cheats (game) | `game-room.ts` (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`), `game.tsx` (button panel, right side), `game-map.tsx` (click any unvisited node). Gated by `Role.ADMIN` on both server and client. |
 | Colyseus monitor | `app/app.config.ts` → `/colyseus` route with basic auth. Requires `MONITOR_PASSWORD` env var. |
 
 ## Game Design Summary
@@ -211,6 +214,11 @@ Hatch, unique, and legendary unlock pools are combined with equal chance (instea
 ### How to Start Endless Mode
 Client sends `isEndless: true` in room creation options. Server forces `difficultyMode = 1` (Normal).
 
+### Endless Admin Toggle (enable/disable)
+Whether players may start *new* endless runs is gated by a global flag in `app/services/endless-config.ts` (`isEndlessEnabled()` / `setEndlessEnabled()`), persisted to `endless-config.json` (defaults to enabled). Admins flip it via the Discord `/endless enable|disable` command. Enforcement layers:
+- **Server gate**: `game-room.ts` `onCreate()` throws on a new endless room when disabled, unless the creator is an admin (DB role lookup) — resuming an in-progress endless save is always allowed.
+- **Client UI**: `spire-lobby.tsx` fetches `GET /api/endless-enabled` and, when disabled (and viewer isn't admin), greys out the "Start Endless" button with a hover tooltip (reuses the Impossible-mode `.hometown-help-tooltip` pattern).
+
 ## New Files (Spire-Specific)
 
 ### Server-Side
@@ -220,6 +228,7 @@ Client sends `isEndless: true` in room creation options. Server forces `difficul
 | `app/models/mongo-models/async-fight-pool.ts` | Mongoose model for endless mode async fight FIFO pools (100 per stage) |
 | `app/services/async-fight-pool.ts` | Submit/retrieve async fight opponents with recursive stage fallback and Magikarp default |
 | `app/services/endless-record.ts` | Top 5 endless leaderboard by act/floor (JSON file, mirrors arceus-record.ts pattern) |
+| `app/services/endless-config.ts` | Admin-controlled global toggle for whether players can start Endless mode. `isEndlessEnabled()` / `setEndlessEnabled()`, persisted to `endless-config.json` (defaults enabled). Set via Discord `/endless enable\|disable`. |
 | `app/core/relic-effects.ts` | 15 passive items (PASSIVE_ITEMS list). Helpers: `getRelicBonusGold()`, `getRelicPostBattleHeal()`, `getRelicDamageReduction()`, `getRelicPokemonOfferCount()`, `getRelicBonusXP()`, `getRelicRestHealBonus()`, `getRandomItemChoices()` |
 | `app/models/colyseus-models/map-node.ts` | `MapNode` (id, type, x, y, region, gymLeaderSynergy, eliteEncounterIndex, displayName) and `MapEdge` schemas. `MapNodeType` enum (includes ELITE and UNLOCK). |
 | `app/models/spire-encounters.ts` | Regional wild encounters via `getRegionalWildEncounter()` with difficulty scaling (`getDifficultyConfig()`). Dynamic gym generation via `generateGymEncounter()` with 27 synergy types and `GYM_LEADER_POKEMON` map. Elite encounter templates with act-specific tiers. Multiple boss options per act via `LEGENDARY_BOSSES` arrays. `getGoldReward()`. |
@@ -231,6 +240,7 @@ Client sends `isEndless: true` in room creation options. Server forces `difficul
 | `app/services/team-snapshot.ts` | Universal team save/load. `SnapshotPokemon` includes: name, position, items, shiny, emotion, statBoosts, skill, dishes, evolution, stacks, stacksRequired. `snapshotPlayerTeam()` uses `_cookedDishes` fallback for dishes consumed during fight. `reconstructTeamAsPlayer()` bypasses `updateSynergies()` side effects for champion/E4 opponents. |
 | `app/services/champion-data.ts` | Elite Four & Champion persistence per difficulty. JSON files (`champion-data.json`, `-easy`, `-hard`). `promoteNewChampion()` returns `PromotionResult` with reign duration and longest reign info. Tracks `championSince` timestamp and `longestReign` record per difficulty. `formatDuration()` helper. |
 | `app/services/arceus-record.ts` | Arceus damage leaderboard — top 5 per difficulty. JSON files (`arceus-record.json`, `-easy`, `-hard`). Auto-migrates from old single-record format. `checkAndUpdateArceusRecord()` returns `{ isNewRecord, rank, previousRecord }`. `resetArceusLeaderboard()` for admin reset. |
+| `app/services/announcement.ts` | Server announcement broadcast hub. `broadcastAnnouncement(message)` pushes to SSE clients (lobby) and Colyseus presence topic `"server-announcement"` (game rooms). Fire-and-forget, no persistence. |
 
 ### Client-Side
 | File | Purpose |
@@ -415,7 +425,8 @@ Browser                          Server
 | Collection | Model | Purpose |
 |---|---|---|
 | `botv2` | `app/models/mongo-models/bot-v2.ts` | Bot team data (PAC original) |
-| `usermetadatas` | `app/models/mongo-models/user-metadata.ts` | User profiles keyed by Firebase uid. Includes `spireStats` with per-difficulty counters (runsStarted, wins, champion, arceusDamage) and `spireRegion` (Home Town choice, default "town"). Created via upsert on first game. |
+| `usermetadatas` | `app/models/mongo-models/user-metadata.ts` | User profiles keyed by Firebase uid. `displayName` (lobby-chosen name, source of truth — never the Google name) and `avatar` (sprite string) are persisted from the lobby and searchable via the collation index on `displayName`. Includes `spireStats` with per-difficulty counters (runsStarted, wins, champion, arceusDamage) and `spireRegion` (Home Town choice, default "town"). Created via upsert on first game. |
+| `victoryrecords` | `app/models/mongo-models/victory-record.ts` | Win totals + streaks per `{ odToken, difficulty }`. `name`/`avatar` are denormalized fallbacks; `getVictoryLeaderboard()` overlays live `UserMetadata` values at read time. |
 | `runhistories` | `app/models/mongo-models/run-history.ts` | Completed run results with team, items, act/floor, damage, victory flag. Queried for profile run history display. |
 | `savedruns` | `app/models/mongo-models/saved-run.ts` | Active save slots for run resume. One per player (upsert). Deleted on run end. |
 
@@ -428,7 +439,16 @@ To store new data in MongoDB:
 
 ### IMPORTANT: Never Use Firebase/Google Real Names
 
-Firebase `user.displayName` contains the player's real name from their Google account. **Never use it anywhere** — not in the database, not in the UI, not in leaderboards, not in Discord messages. Always use the game name chosen by the player in the lobby (`options.displayName`). The `onAuth()` method in `game-room.ts` writes `options.displayName` to `UserMetadata.displayName` via `$set` on every game start. The login page and account tab only reveal the player's email, never their real name.
+Firebase `user.displayName` contains the player's real name from their Google account. **Never use it anywhere** — not in the database, not in the UI, not in leaderboards, not in Discord messages. Always use the game name chosen by the player in the lobby (`options.displayName`). The `onAuth()` method in `game-room.ts` writes `options.displayName` to `UserMetadata.displayName` via `$set` on every game start. The login page and account tab only reveal the player's email, never their real name. `network.ts` `authenticateUser()` hardcodes the client-side profile `displayName` to `"Player"` — it never reads `user.displayName` from Firebase.
+
+**Player identity persistence (name / avatar / Home Town).** All three live on `UserMetadata` and the DB is the source of truth — the lobby (`spire-lobby.tsx`) loads them on mount; localStorage is just a cache:
+- **Name** → `displayName`, via `PUT /api/player-name` (debounced on lobby edit) + `onAuth` `$set` on run start. On load the DB wins for real names, but the sentinels `"Player"`/`"Username"` are treated as *unset* (local value kept and re-saved). Gated by a `nameLoaded` flag so the local value can't clobber the DB before the load lands.
+- **Avatar** → `avatar` (sprite-string form), via `PUT /api/player-avatar`; reverse-mapped to a `Pkm` on load via `avatarStringToPkm()`. Gated by `avatarLoaded`. Pure DB-authoritative (no sentinel).
+- **Home Town** → `spireRegion` (see "Home Town" section). Pure DB-authoritative, gated by `regionLoaded`.
+
+**Victory leaderboard names.** `VictoryRecord` is per-`{ odToken, difficulty }` with a denormalized `name`/`avatar`; only the played difficulty's row is updated on a run. `getVictoryLeaderboard()` overlays the current `displayName`/`avatar` from `UserMetadata` (by `odToken`) at read time, so a player's latest name shows across **all** difficulty leaderboards without replaying each one (the stored copy is only a fallback).
+
+**Wiping names.** There is no automatic wipe (the old boot-time `wipeRealNamesAndSeed()` was removed from `index.ts`). The only reset is the manual Discord admin command `/wipeplayernames` → `wipeAllPlayerNames()` in `victory-record.ts`, which in-place sets `displayName` and `VictoryRecord.name` to `"Player"`. Because the DB is authoritative only for real names, an active player's local name re-seeds the DB on their next visit (a soft wipe by design).
 
 ### Guest vs Signed-In Behavior
 
@@ -446,9 +466,10 @@ Firebase `user.displayName` contains the player's real name from their Google ac
 
 - Player roles are stored in `usermetadatas.role` (MongoDB). Default is `BASIC`.
 - To grant admin: set `role: "ADMIN"` on the user's document in MongoDB Atlas (or via mongoose script).
-- **Server**: `game-room.ts` `onCreate()` fetches role from DB when creating the Player object. Message handlers (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `RESET_CHAMPION`) check `player.role !== Role.ADMIN`.
+- **Server**: `game-room.ts` `onCreate()` fetches role from DB when creating the Player object. Message handlers (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`) check `player.role !== Role.ADMIN`.
 - **Client**: `game.tsx` fetches `/api/user-role/:uid` on mount, dispatches `setRole()` to Redux. Admin buttons render when `profile.role === Role.ADMIN`.
 - Admin cheat buttons (right side panel in game): Test Victory, Skip to Act 1/2/3, Give Mewtwo (buffed, repeatable), Skip to Elite 4, Skip to Act 5, Reset E4/Champion.
+- Admin map teleport: Admins can click any unvisited node on the map to jump directly to it, bypassing path connectivity. Client sends `ADMIN_TELEPORT_NODE`, server marks the node available then delegates to `onSelectMapNode()`.
 - `MONITOR_PASSWORD` env var enables the Colyseus monitor dashboard at `/colyseus` (basic auth: admin / password).
 
 ## Discord Integration
@@ -463,18 +484,39 @@ The Discord bot handles three categories of announcements plus admin commands.
 - **Champion announcements** (champion channel): New champion with team image, defeated champion's reign duration, E4 lineup. Triggered by `endChampionFight()`.
 - **Longest reign announcements** (champion channel): When a dethroned champion held the title longer than any previous champion on that difficulty.
 - **Arceus record announcements** (Arceus channel): New #1 damage record with team image, previous record holder. Triggered by `endArceusFight()`.
-- **Admin commands** (admin channel, requires Discord Administrator permission, all with `/confirm-reset` confirmation step):
-  - `/reset-leaderboards` — Resets all Champion/E4 and Arceus leaderboards for all difficulties.
-  - `/reset-arceus [difficulty]` — Resets Arceus damage leaderboard. Optional difficulty: easy/normal/hard/impossible. Omit for all.
-  - `/reset-champions [difficulty]` — Resets Champion/E4 data. Optional difficulty: easy/normal/hard/impossible. Omit for all.
+- **Admin commands** (admin channel, requires Discord Administrator permission). Destructive resets use a two-step `/confirm-reset` flow (30s window); toggles/announcements apply immediately:
+  - `/reset-leaderboards` — Resets all Champion/E4 and Arceus leaderboards for all difficulties. (needs `/confirm-reset`)
+  - `/reset-arceus [difficulty]` — Resets Arceus damage leaderboard. Optional difficulty: easy/normal/hard/impossible. Omit for all. (needs `/confirm-reset`)
+  - `/reset-champions [difficulty]` — Resets Champion/E4 data. Optional difficulty: easy/normal/hard/impossible. Omit for all. (needs `/confirm-reset`)
+  - `/wipeplayernames` — Resets every account/victory-record player name to "Player". (needs `/confirm-reset`)
+  - `/endless enable | disable` — Toggles whether players can start Endless mode. Applies immediately. Persisted to `endless-config.json` (survives restarts); admins bypass the lock for testing, and resuming an in-progress endless run is always allowed.
+  - `/announce <message>` — Broadcasts a server announcement popup to all connected clients (lobby + in-game). Players must click OK to dismiss. Fire-and-forget (no persistence across refresh, latest replaces previous). Applies immediately, no confirmation step.
 - **Environment tag**: Bot messages are prefixed with `[development]`, `[staging]`, etc. based on `SERVER_ENV`. Production messages have no prefix.
 - **Generated image**: A composite PNG created server-side with jimp — player name header, Pokemon portraits with item icons, active synergy icons with counts.
+
+### Server Announcement System
+
+```
+Discord: /announce <message>
+  → discord.ts handler → broadcastAnnouncement()
+    ├── SSE (lobby): iterates connected EventSource clients, writes event
+    │   → spire-lobby.tsx EventSource listener → setAnnouncement() → popup
+    └── Colyseus presence (game): publishes to "server-announcement" topic
+        → game-room.ts subscriber → room.broadcast(Transfer.SERVER_ANNOUNCEMENT)
+        → game.tsx message listener → setAnnouncement() → popup
+```
+
+- SSE endpoint: `GET /api/announcements/stream` in `app.config.ts`
+- Lobby connects via `new EventSource("/api/announcements/stream")` on mount, auto-reconnects on drop
+- Game rooms subscribe to `"server-announcement"` presence topic in `onCreate()`
+- Both popups use PAC UI style (`my-container` class, `bubbly` OK button, gold `#f1c40f` header)
 
 ### Key Files
 
 | File | Role |
 |---|---|
-| `app/services/discord.ts` | Bot client + webhook clients. `announceNewChampion()` (with reign duration), `announceArceusRecord()`, `announceNewLongestReign()`. Admin commands: `/reset-leaderboards`, `/reset-arceus [difficulty]`, `/reset-champions [difficulty]`. `generateTeamImage()` composites sprites. |
+| `app/services/discord.ts` | Bot client + webhook clients. `announceNewChampion()` (with reign duration), `announceArceusRecord()`, `announceNewLongestReign()`. Admin commands: `/reset-leaderboards`, `/reset-arceus [difficulty]`, `/reset-champions [difficulty]`, `/wipeplayernames`, `/endless enable\|disable`, `/announce`. `generateTeamImage()` composites sprites. |
+| `app/services/announcement.ts` | Server announcement broadcast hub. `broadcastAnnouncement()` pushes to SSE clients (lobby) + Colyseus presence (game rooms). Fire-and-forget, in-memory only. |
 | `app/rooms/commands/game-commands.ts` | `endChampionFight()` calls `promoteNewChampion()` then Discord announcements with reign data. `endArceusFight()` calls `checkAndUpdateArceusRecord()` then Discord announcement if new #1. |
 | `app/public/src/assets/types-png/` | Pre-converted PNG versions of synergy type icons. Used by the image generator. |
 
@@ -511,10 +553,18 @@ The same `discord.ts` file also has webhook-based announcements for bans and bot
 | `/api/champion-data/:difficulty` | GET | Elite Four & Champion data (0/1/2) for lobby display. Includes `championSince` and `longestReign`. |
 | `/api/arceus-record/:difficulty` | GET | Arceus damage leaderboard (top 5) for lobby display |
 | `/api/endless-record` | GET | Endless mode leaderboard (top 5 by act/floor) |
+| `/api/endless-enabled` | GET | Returns `{ enabled: boolean }` — whether players can currently start Endless mode (admin toggle). Fails open to `true`. |
 | `/api/spire-region/:uid` | GET | Player's Home Town region choice (returns `{ region: string }`) |
 | `/api/spire-region/:uid` | PUT | Save Home Town region (`{ region: string }` body) |
+| `/api/player-name/:uid` | GET | Player's saved name (`{ name: string \| null }`), source of truth for the lobby input |
+| `/api/player-name/:uid` | PUT | Save player name (`{ name }`); validated via `USERNAME_REGEXP`, rejects "Player"/"Username" |
+| `/api/player-avatar/:uid` | GET | Player's saved avatar sprite string (`{ avatar: string \| null }`) |
+| `/api/player-avatar/:uid` | PUT | Save avatar (`{ avatar }`, sprite-string form e.g. `"0019/Normal"`) to `UserMetadata.avatar` |
+| `/api/player-search` | GET | Case-insensitive prefix search by name (`?q=`); uses the collation index on `displayName` |
+| `/api/victory-leaderboard/:difficulty` | GET | Top-10 victory totals & longest streaks; name/avatar overlaid from `UserMetadata` at read time |
 | `/api/spire-stats/:uid` | GET | Per-difficulty player stats (runs, wins, champion, arceus damage) |
 | `/api/user-role/:uid` | GET | Returns `{ role }` from UserMetadata (used by client to show admin UI) |
+| `/api/announcements/stream` | GET | SSE endpoint for server announcements. Lobby connects via `EventSource` on mount. Broadcasts fire-and-forget messages from Discord `/announce` command. |
 | `/colyseus` | GET | Colyseus monitor dashboard (basic auth: admin / `MONITOR_PASSWORD` env var) |
 | `/status` | GET | Server status: CCU (active game room clients), total accounts, version |
 | `/titles` | GET | Returns `[]` (stub to prevent PAC client 404) |
@@ -590,6 +640,17 @@ All run-ending paths must: (1) delete saved run, (2) save run history, (3) incre
 | HP death (non-fight) | `checkRunDeath()` | false | false |
 | Boss loss Act 3+ | `stopSpireFightingPhase()` boss branch | false | false |
 | HP death (fight) | `stopSpireFightingPhase()` HP branch | false | false |
+
+### Elite Four Loss → Lineup Insertion
+
+When a player loses partway through the Elite Four gauntlet (Act 4 floors 1-4, the `ELITE_FOUR` loss branch in `OnUpdatePhaseCommand`), their team can be inserted into the persistent E4 lineup, gated by the `E4_LOSS_TAKES_SLOT` constant (`game-commands.ts`, currently always `true`). The slot is earned by how far you got — you beat E4 #1..#(floor-1) and lost to #floor, so you slot in **just below** the member who beat you:
+
+- `insertIndex = fightNode.floor - 2`, guarded by `insertIndex >= 0`.
+- **Losing to E4 #1 (floor 1 → index -1) adds nothing** — you beat nobody, lineup unchanged. (This guard fixed a bug where a team that lost to #1 became the new #1 and deleted the old #4.)
+- Otherwise the lower slots shift **up** (`eliteFour[i] = eliteFour[i+1]`), dropping the weakest existing member (old #1), and your team lands at `insertIndex`. `eliteFourCrownedAt` / `eliteFourVictories` shift in lockstep; the inserted team gets `crownedAt = now`, `victories = 0`.
+- The win counter for the member who beat you is credited separately via `incrementE4Victory(fightNode.floor - 1, …)` earlier in the same branch.
+
+Contrast with becoming Champion: beating the Champion calls `promoteNewChampion()` (`champion-data.ts`), which shifts the E4 up and drops the old #1 — a separate, independent path.
 
 ## Champion/E4 Opponent Reconstruction (Important Gotchas)
 
