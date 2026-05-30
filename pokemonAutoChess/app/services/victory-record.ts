@@ -74,9 +74,27 @@ export async function getVictoryLeaderboard(difficulty: number): Promise<{
         .limit(10)
         .lean()
     ])
+    // Overlay the current account name/avatar (single source of truth) so the
+    // leaderboard reflects the player's latest name across all difficulties,
+    // not the denormalized copy that was only updated for the difficulty played.
+    const odTokens = [...new Set([...byVictories, ...byStreak].map((r) => r.odToken))]
+    const accounts = await UserMetadata.find(
+      { uid: { $in: odTokens } },
+      { uid: 1, displayName: 1, avatar: 1, _id: 0 }
+    ).lean()
+    const accountMap = new Map<string, { displayName?: string; avatar?: string }>(
+      accounts.map((a: any) => [a.uid, { displayName: a.displayName, avatar: a.avatar }])
+    )
+    const resolve = (r: any) => {
+      const acc = accountMap.get(r.odToken)
+      return {
+        name: acc?.displayName ?? r.name,
+        avatar: acc?.avatar ?? r.avatar
+      }
+    }
     return {
-      totalVictories: byVictories.map((r) => ({ name: r.name, avatar: r.avatar, value: r.totalVictories })),
-      longestStreak: byStreak.map((r) => ({ name: r.name, avatar: r.avatar, value: r.longestStreak }))
+      totalVictories: byVictories.map((r) => ({ ...resolve(r), value: r.totalVictories })),
+      longestStreak: byStreak.map((r) => ({ ...resolve(r), value: r.longestStreak }))
     }
   } catch (e) {
     logger.error("Failed to get victory leaderboard:", e)
