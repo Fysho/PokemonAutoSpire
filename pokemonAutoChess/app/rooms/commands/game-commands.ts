@@ -1421,6 +1421,38 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     })
   }
 
+  // Endless rollover to the next act: increment, wipe & regenerate the (endless)
+  // map, repopulate async-fight opponents, reset dojo families. Single source of
+  // truth, used by the floor-20 reward transition and the stranded-run safety net.
+  advanceEndlessAct() {
+    this.state.currentAct += 1
+    this.state.currentFloor = 0
+    this.state.currentNodeId = ""
+    this.state.mapNodes.clear()
+    this.state.mapEdges.clear()
+    generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode, true)
+    this.room.populateAsyncFightNodes()
+    this.state.players.forEach((p) => { p.dojoFamilies.clear() })
+  }
+
+  // Safety net so an endless run can never get hard-stuck on a fully-completed
+  // act map with no selectable node (e.g. a legacy save stranded by the old
+  // act-transition save race). If there is no way forward, roll over to the next
+  // act. Endless-only: normal acts have dedicated boss/E4/Arceus end flows and
+  // their own runComplete/eliteFourAvailable victory screens. Returns true if it
+  // recovered. Cannot loop: a fresh act map always has floor-1 available.
+  recoverIfEndlessStranded(): boolean {
+    if (!this.state.isEndless || this.state.gameFinished || this.state.runFailed) return false
+    if (this.state.mapNodes.size === 0) return false
+    const canProgress = schemaValues(this.state.mapNodes).some(
+      (n) => n.available && !n.visited
+    )
+    if (canProgress) return false
+    logger.info(`Endless run stranded on act ${this.state.currentAct} (no selectable node); rolling over to act ${this.state.currentAct + 1}`)
+    this.advanceEndlessAct()
+    return true
+  }
+
   initializeMapPhase() {
     this.state.phase = GamePhaseState.MAP
     this.state.time = 999 * 1000
@@ -1448,8 +1480,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     })
 
     if (this.state.mapNodes.size === 0) {
-      generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode)
+      generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode, this.state.isEndless)
+      if (this.state.isEndless) this.room.populateAsyncFightNodes()
     }
+
+    // Safety net: never leave an endless player stranded on a completed act map
+    // with no node left to pick — roll over to the next act instead.
+    this.recoverIfEndlessStranded()
 
     this.autoSaveRun()
   }
@@ -2282,14 +2319,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       })
 
       if (this.state.isEndless && currentNode.floor === 20) {
-        this.state.currentAct += 1
-        this.state.currentFloor = 0
-        this.state.currentNodeId = ""
-        this.state.mapNodes.clear()
-        this.state.mapEdges.clear()
-        generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode, true)
-        this.room.populateAsyncFightNodes()
-        this.state.players.forEach((p) => { p.dojoFamilies.clear() })
+        this.advanceEndlessAct()
       }
     }
 

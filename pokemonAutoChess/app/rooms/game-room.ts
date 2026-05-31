@@ -1136,6 +1136,17 @@ export default class GameRoom extends Room<{ state: GameState }> {
       else cmd.initializeEventPhase()
     } else if (this.state.phase !== GamePhaseState.REWARD) {
       this.state.phase = GamePhaseState.MAP
+      // Safety net: if this endless save was stranded on a completed act map
+      // (e.g. a legacy save from the old act-transition save race), roll it over
+      // to the next act so the player resumes with a selectable node.
+      if (this.state.isEndless) {
+        const cmd = new OnUpdatePhaseCommand()
+        cmd.setPayload({})
+        cmd.room = this
+        cmd.state = this.state
+        cmd.clock = this.clock
+        cmd.recoverIfEndlessStranded()
+      }
     }
     this.state.time = 999 * 1000
     this.state.roundTime = 999
