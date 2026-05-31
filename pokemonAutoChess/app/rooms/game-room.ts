@@ -441,6 +441,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const player = this.state.players.get(client.auth.uid)
         const node = this.state.mapNodes.get(this.state.currentNodeId)
         const isAsyncMiniBoss = node?.nodeType === "ASYNC_FIGHT" && node.floor !== 20
+        const isEndlessActBoss = node?.nodeType === "ASYNC_FIGHT" && node.floor === 20
         const cost = isAsyncMiniBoss ? 1 : 20
         if (!player || player.money < cost) return
         const choiceIdx = player.choices.findIndex((c) => c.type === "item")
@@ -454,6 +455,18 @@ export default class GameRoom extends Room<{ state: GameState }> {
         if (isAsyncMiniBoss) {
           const pool = ItemComponentsNoFossilOrScarf.filter((i: Item) => !currentItems.includes(i))
           const newItems = pickNRandomIn(pool.length >= 3 ? pool : ItemComponentsNoFossilOrScarf, 3)
+          player.choices.push(new PlayerChoice({ type: "item", items: newItems }))
+        } else if (isEndlessActBoss) {
+          // Endless floor-20 boss reward is offered from the combined
+          // ShinyItems + Tools pool, so the reroll must draw from that same
+          // combined pool (the legendary-boss branch below narrows to one pool
+          // by item type, which is wrong for a mixed offer). Just exclude the
+          // items from the previous offering.
+          const count = currentItems.length || 1
+          const fullPool = [...ShinyItems, ...Tools]
+          const filteredPool = fullPool.filter((i: Item) => !currentItems.includes(i))
+          const pool = filteredPool.length >= count ? filteredPool : fullPool
+          const newItems = pickNRandomIn(pool, count)
           player.choices.push(new PlayerChoice({ type: "item", items: newItems }))
         } else {
           // Preserve the number of choices originally offered (boss win = 3,
