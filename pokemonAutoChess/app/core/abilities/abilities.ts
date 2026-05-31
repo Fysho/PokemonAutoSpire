@@ -9561,7 +9561,7 @@ export class TorchSongStrategy extends AbilityStrategy {
     super.process(pokemon, board, target, crit, true)
     // Blow out [4,SP] raging flames to random opponents. Each flame deals 50% of ATK as SPECIAL, with [30,LK]% chance to BURN for 2 seconds, and buff the user AP by [1,2,3].
     const damagePerFlame = 0.5 * pokemon.atk
-    const apGainPerFlame = [1, 2, 3][pokemon.stars - 1] ?? 3
+    const apGain = [1, 2, 3][pokemon.stars - 1] ?? 3
 
     const enemies: PokemonEntity[] = []
     board.forEach((x: number, y: number, tg: PokemonEntity | undefined) => {
@@ -9570,8 +9570,15 @@ export class TorchSongStrategy extends AbilityStrategy {
       }
     })
 
-    const nbFlames = Math.round(
-      4 * (1 + pokemon.ap / 100) * (crit ? pokemon.critPower : 1)
+    // Flat one-time AP buff (per the ability description), applied once per cast.
+    // Applying it per flame would compound with the AP-scaled flame count below,
+    // creating a runaway feedback loop that floods pokemon.commands.
+    pokemon.addAbilityPower(apGain, pokemon, 0, false)
+
+    // Cap the flame count so the command queue stays bounded regardless of AP.
+    const nbFlames = Math.min(
+      20,
+      Math.round(4 * (1 + pokemon.ap / 100) * (crit ? pokemon.critPower : 1))
     )
     for (let i = 0; i < nbFlames; i++) {
       const randomTarget = pickRandomIn(enemies)
@@ -9582,7 +9589,6 @@ export class TorchSongStrategy extends AbilityStrategy {
               targetX: randomTarget.positionX,
               targetY: randomTarget.positionY
             })
-            pokemon.addAbilityPower(apGainPerFlame, pokemon, 0, false)
             if (randomTarget.hp > 0) {
               randomTarget.handleSpecialDamage(
                 damagePerFlame,

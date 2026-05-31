@@ -1202,6 +1202,10 @@ function SpireLobbyContent({
               <span><PacTag type="nerfed" /> <strong>Alcremie (Rainbow Swirl)</strong> — Decorate PP buff reduced from 60 to 30, AP scaling halved.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0911")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="changed" /> <strong>Skeledirge (Torch Song)</strong> — Flame count capped at 20, and the AP buff now applies once per cast instead of per flame (fixes a runaway AP feedback loop).</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
                 <img src={getPortraitSrc("0111")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
                 <img src={getPortraitSrc("0460")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />

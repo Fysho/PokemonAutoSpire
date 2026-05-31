@@ -101,12 +101,23 @@ export const EvolutionManager = {
       ) {
         pokemon.addMaxHP(30) // Spire: +30 (was +10 upstream) — see 6.9→6.10 migration doc / POKEMON-CHANGELOG Cosmog
         pokemon.stacks++
-        this.tryEvolve(pokemon, player, ...additionalArgs)
+        // STACK handler reads the count from the positional arg, not pokemon.stacks —
+        // must pass Cosmog's own stacks here (not ...additionalArgs, which is empty for
+        // count-evolution triggers, making canEvolve compare `undefined >= stacksRequired`).
+        this.tryEvolve(pokemon, player, pokemon.stacks)
       }
     })
 
-    // check evolutions again if it can evolve twice in a row
-    this.tryEvolve(pokemonEvolved, player, ...additionalArgs)
+    // check evolutions again if it can evolve twice in a row.
+    // For STACK-rule mons (Cosmoem after a Cosmog evolution) the canEvolve check reads
+    // the positional stacks arg, so feed its own current stacks (reset to -1 by
+    // Cosmoem.onAcquired) rather than the stale ...additionalArgs from the parent
+    // evolution — otherwise Cosmoem would instantly skip straight to Solgaleo/Lunala.
+    const reEvolveArgs =
+      pokemonEvolved.evolutionRule.type === EvolutionRuleType.STACK
+        ? [pokemonEvolved.stacks]
+        : additionalArgs
+    this.tryEvolve(pokemonEvolved, player, ...reEvolveArgs)
   },
 
   getEvolution(
