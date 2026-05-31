@@ -97,10 +97,10 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | Endless mode on/off toggle | `app/services/endless-config.ts` (persisted flag) → Discord `/endless enable\|disable`. Server gate in `game-room.ts` `onCreate()`; `GET /api/endless-enabled` + disabled button/tooltip in `spire-lobby.tsx`. |
 | Difficulty balancing | `spire-encounters.ts` → `addHardModeItems()`, `applyBossBoost()`, `adjustEncounterItems()`, `getStarBudgetOffset()` |
 | Dojo ticket tier | `game-commands.ts` → `getDojoTicket()` |
-| Lobby UI | `app/public/src/pages/spire-lobby.tsx` — 3 tabs: How to Play, Rooms, Dev Notes + PAC Diversions. Server status (CCU/accounts) is admin-only. Patch popup on new major.minor version, hotfix badge on patch-only bumps. Name validation blocks "Player"/"Username"/empty. |
-| Profile / run history UI | `app/public/src/pages/component/profile/player-box.tsx`, `game-history.tsx` |
+| Lobby UI | `app/public/src/pages/spire-lobby.tsx` — 3 tabs: How to Play, Rooms, Dev Notes + PAC Diversions. Server status (CCU/accounts) is admin-only. Patch popup on new major.minor version, hotfix badge on patch-only bumps. Name validation blocks "Player"/"Username"/empty. Live Runs list sorts by stage (default) or difficulty (with stage as secondary, furthest-first); sort field/direction/filter persist via `SPIRE_RUN_SORT_BY`/`_SORT_ASC`/`_FILTER_DIFFICULTY` localStore keys. |
+| Profile / run history UI | `app/public/src/pages/component/profile/player-box.tsx` (avatar fetched from `/api/player-avatar/:uid` — Redux `profile.avatar` is a hardcoded default in `network.ts`, never the saved one), `game-history.tsx`, `account-tab.tsx` (name+email behind click-to-reveal) |
 | API endpoints | `app/app.config.ts` |
-| Admin cheats (game) | `game-room.ts` (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`), `game.tsx` (button panel, right side), `game-map.tsx` (click any unvisited node). Gated by `Role.ADMIN` on both server and client. |
+| Admin cheats (game) | `game-room.ts` (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `GIVE_POKEMON`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`), `game.tsx` (button panel, right side; includes `AdminGivePokemon` searchable combobox), `game-map.tsx` (click any unvisited node). Gated by `Role.ADMIN` on both server and client. |
 | Colyseus monitor | `app/app.config.ts` → `/colyseus` route with basic auth. Requires `MONITOR_PASSWORD` env var. |
 
 ## Game Design Summary
@@ -135,6 +135,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 ### Post-Fight Rewards
 - **Wild wins** (4 choices): 2-3 Pokemon + 1-2 item components. 33% chance one option is Ditto.
 - **Wild losses** (3 choices): 1-2 Pokemon + 1-2 item components. No Ditto.
+- **Wild reward Pokemon star scaling** (`generateWildRewardPokemon()` in `spire-encounters.ts`): selection is **identical in every act** — one 1★ base form per region synergy (any rarity) + a 50% regional swap (forced to 1★ base candidates). A post-selection **upgrade pass** then offers some mons as their 2★ evolution: Act 1 never upgrades; Act 2 upgrades only COMMON/UNCOMMON mons; Act 3+ (incl. endless) upgrades any rarity. Each offered mon rolls independently at `REWARD_TWO_STAR_UPGRADE_CHANCE` (0.5). `get2StarForm()` resolves the evolution (prefers `.evolution`, falls back to a random branch from `.evolutions`, stays 1★ if the line has no 2★). Reward `act` is `state.currentAct`; **difficultyMode does not affect which reward Pokemon are offered** (only enemy encounters scale by difficulty — the sole difficulty-dependent reward is the Act 1-2 boss item pool, Tools vs ShinyItems).
 - **Elite wins** (3 choices): Main pokemon + 2 from fight, each with item component. Reroll 1g (infinite). Pick 1.
 - **Elite losses** (2 choices): 2 pokemon from the fight, no items. Pick 1.
 - **Unlock wins**: Single reward — the specific Pokemon shown on the node. Hatch mons (Act 1) are given as eggs.
@@ -234,9 +235,9 @@ Whether players may start *new* endless runs is gated by a global flag in `app/s
 | `app/models/spire-encounters.ts` | Regional wild encounters via `getRegionalWildEncounter()` with difficulty scaling (`getDifficultyConfig()`). Dynamic gym generation via `generateGymEncounter()` with 27 synergy types and `GYM_LEADER_POKEMON` map. Elite encounter templates with act-specific tiers. Multiple boss options per act via `LEGENDARY_BOSSES` arrays. `getGoldReward()`. |
 | `app/models/spire-events.ts` | 11 mystery encounter templates with per-event portrait sprites. `getRandomEvent()`, `getEventItems()`, `getEventBerries()` |
 | `app/models/spire-shops.ts` | 6 Pokemon + 2 eggs (Acts 1-2, 12g) + 6 items. Ditto weighted 3x. Pricing: `RARITY_BASE_PRICE` + `STAR_BONUS_PRICE`. `generateShopItems(act)` |
-| `app/models/mongo-models/run-history.ts` | Mongoose model for completed run history. Stores: odToken, time, act, floor, difficulty, HP, arceusDamage, victory, team Pokemon with items. |
+| `app/models/mongo-models/run-history.ts` | Mongoose model for completed run history. Stores: odToken, time, act, floor, difficulty, HP, arceusDamage, victory, team Pokemon with items, and `synergies` (server-authoritative `{type,count}` snapshot taken at save time — includes gem bonus synergies, type-changing stones, Dragon double-types. Optional; legacy records without it fall back to client-side recomputation). |
 | `app/models/mongo-models/saved-run.ts` | Mongoose model for save/resume. Stores full game state snapshot for mid-run persistence. |
-| `app/services/run-save.ts` | Save/load/delete runs, run history recording, player stat counters. `restoreRunToState()` bypasses `updateSynergies()` to avoid duplicating synergy-spawned items (scarves, artificial items, TMs, wands). Preserves egg `evolution`, `stacks`, `stacksRequired` across save/restore. |
+| `app/services/run-save.ts` | Save/load/delete runs, run history recording, player stat counters. `restoreRunToState()` bypasses `updateSynergies()` to avoid duplicating synergy-spawned items (scarves, artificial items, TMs, wands). Preserves egg `evolution`, `stacks`, `stacksRequired` across save/restore. `saveRunHistory()` snapshots `player.synergies` directly; `saveRunHistoryFromSavedRun()` (abandoned runs) recomputes them from the saved board + `bonusSynergies` via `computeSynergies()`. |
 | `app/services/team-snapshot.ts` | Universal team save/load. `SnapshotPokemon` includes: name, position, items, shiny, emotion, statBoosts, skill, dishes, evolution, stacks, stacksRequired. `snapshotPlayerTeam()` uses `_cookedDishes` fallback for dishes consumed during fight. `reconstructTeamAsPlayer()` bypasses `updateSynergies()` side effects for champion/E4 opponents. |
 | `app/services/champion-data.ts` | Elite Four & Champion persistence per difficulty. JSON files (`champion-data.json`, `-easy`, `-hard`). `promoteNewChampion()` returns `PromotionResult` with reign duration and longest reign info. Tracks `championSince` timestamp and `longestReign` record per difficulty. `formatDuration()` helper. |
 | `app/services/arceus-record.ts` | Arceus damage leaderboard — top 5 per difficulty. JSON files (`arceus-record.json`, `-easy`, `-hard`). Auto-migrates from old single-record format. `checkAndUpdateArceusRecord()` returns `{ isNewRecord, rank, previousRecord }`. `resetArceusLeaderboard()` for admin reset. |
@@ -250,7 +251,7 @@ Whether players may start *new* endless runs is gated by a global flag in `app/s
 | `game-rest.tsx` | Pokemon Center: 3 choices using event-style UI (heal/ditto+item/dojo ticket). Uses `game-choice.css` styling. |
 | `game-event.tsx` | Mystery encounter dialog with Pokemon portrait sprite and choice buttons |
 | `game-relic-bar.tsx` | Shows passive items from `player.items` filtered by `PASSIVE_ITEMS` list. Item icons with tooltips. |
-| `game-run-end.tsx` | Victory/defeat/Arceus end screen in a `DraggableWindow`. Shows stats grid + Arceus record info. Action buttons (Back to Lobby, Enter Elite Four, Challenge Arceus) rendered separately at bottom of screen. |
+| `game-run-end.tsx` | Victory/defeat/Arceus end screen in a `DraggableWindow`. Shows stats grid + Arceus record info. Action buttons (Enter Elite Four, Challenge Arceus) rendered separately at bottom of screen. (No "Back to Lobby" button here by design — the sidebar leave button and browser back already cover that, and a button next to Elite Four/Arceus risked misclicks.) |
 | `game-opponent-synergies.tsx` | Enemy synergies panel during PICK/FIGHT. Uses server-computed `encounterSynergies` for snapshot encounters (champion/E4 — includes Dragon double-types etc.), falls back to client-side computation for other encounters. |
 | `game-opponent-items.tsx` | Shows opponent inventory items (gems, relics) during PICK/FIGHT. Reads from `encounterInventory` synced state. |
 | `game-experience.tsx` | Modified to include "Start Fight" button (red bubbly) next to level-up button during PICK phase |
@@ -264,11 +265,13 @@ Whether players may start *new* endless runs is gated by a global flag in `app/s
 - `pickChoice()`: When picking Ditto, skips paired item. Auto-transitions to MAP when REWARD choices exhausted.
 - `spawnOnBench()`: Creates Pokemon on bench. Calls `pokemon.onAcquired(player)` to trigger lifecycle hooks (e.g., Deoxys gets Meteorite, Rotom gets Rotom Catalog). Used by all reward pick paths (wild, elite, unlock, gym).
 - `SELECT_MAP_NODE`, `SKIP_REWARD`, `REROLL_REWARD` message handlers
+- `REROLL_MAP` handler (map reroll button, shown only during starter selection): regenerates the act map. MUST pass `this.state.isEndless` to `generateActMap()` and call `populateAsyncFightNodes()` when endless, or the rerolled map reverts to the normal layout with empty async-fight nodes.
+- `resumeGame()`: Restores a saved run. Resumes to MAP for most phases, but re-initializes SHOP/REST/EVENT via their `initialize*Phase()` methods — those phases consume their map node on entry and rely on transient (shop miniGame carousel) or unsaved (rest/event choice) state, so dropping to MAP would strand the player on an already-visited node. Shop/event contents re-roll on resume (not persisted). REWARD is preserved as-is (choices are saved).
 - Event/rest choices handled via `choiceId === "event"` / `choiceId === "rest"`
 
 ### `app/rooms/commands/game-commands.ts`
 - `OnUpdatePhaseCommand.execute()`: Full state machine (MAP/PICK/FIGHT/REWARD/SHOP/REST/EVENT)
-- `onSelectMapNode()`: Sets player.map to region for tilemap, sets spireEncounterBoard, generates gym encounters dynamically via `generateGymEncounter()`
+- `onSelectMapNode()`: Sets player.map to region for tilemap, sets spireEncounterBoard, generates gym encounters dynamically via `generateGymEncounter()`. Clears `encounterSnapshot`/`encounterCrownedAt` up front (the E4/Champion/Async branches re-set them) so PVE nodes never inherit the previous opponent's snapshot — see the Opponent Reconstruction gotchas.
 - `initializeShopPhase()`: Calls `miniGame.initialize(state, room, true)` (skipEncounters=true) then `initializeShopCarousel()`
 - `initializeRestPhase()`: Sets up 3 choices (item component/ditto/dojo ticket by act) via spireEvent state fields
 - `initializeRewardPhase()`: Gold + passive item effects (bonus gold, heal, XP). Wild: 4 choices on win (2-3 Pokemon + items, 33% Ditto), 3 on loss (1-2 Pokemon + items). Elite: themed rewards on win, wild-loss on loss. Gym: synergy gem + choose crafted item/Pokemon+component/tool. Boss: 3 shiny items only (no Pokemon). Act transition on boss win.
@@ -279,7 +282,7 @@ Whether players may start *new* endless runs is gated by a global flag in `app/s
 - `endChampionFight()`: Ends champion fight, calls `promoteNewChampion()` (which tracks reign), triggers Discord announcements for new champion and optionally longest reign. Deletes save, saves history, increments stats.
 - `checkRunDeath()`: Triggers when runHP <= 0 outside fight phase. Deletes save, saves history, increments stats.
 - `getDojoTicket()`: Returns difficulty-adjusted dojo ticket tier.
-- `initializeMapPhase()`: Clears encounter board, avatars, floating items. Resets player.map to "town".
+- `initializeMapPhase()`: Owns the encounter-state clear-list — `spireEncounterBoard`, `encounterInventory`, `encounterSynergies`, `encounterGroundHoles`, `encounterSnapshot`, `encounterCrownedAt`, bonus stats, plus minigame avatars/floating items/portals/symbols. Resets player.map to "town". Any act transition (`ENTER_ELITE_FOUR`, `ENTER_ACT_5` in `game-room.ts`) MUST route through this rather than hand-setting `phase = MAP`, or the defeated opponent's inventory/board stays synced to the client (caused champion items to linger into the Arceus act).
 - `initializePickingPhase()`: Clears avatars/floatingItems. Infinite timer.
 - `OnUpdateCommand`: MiniGame physics update runs during SHOP phase
 - AdditionalPicksStages logic removed (no more forced add-pick rounds)
@@ -427,7 +430,7 @@ Browser                          Server
 | `botv2` | `app/models/mongo-models/bot-v2.ts` | Bot team data (PAC original) |
 | `usermetadatas` | `app/models/mongo-models/user-metadata.ts` | User profiles keyed by Firebase uid. `displayName` (lobby-chosen name, source of truth — never the Google name) and `avatar` (sprite string) are persisted from the lobby and searchable via the collation index on `displayName`. Includes `spireStats` with per-difficulty counters (runsStarted, wins, champion, arceusDamage) and `spireRegion` (Home Town choice, default "town"). Created via upsert on first game. |
 | `victoryrecords` | `app/models/mongo-models/victory-record.ts` | Win totals + streaks per `{ odToken, difficulty }`. `name`/`avatar` are denormalized fallbacks; `getVictoryLeaderboard()` overlays live `UserMetadata` values at read time. |
-| `runhistories` | `app/models/mongo-models/run-history.ts` | Completed run results with team, items, act/floor, damage, victory flag. Queried for profile run history display. |
+| `runhistories` | `app/models/mongo-models/run-history.ts` | Completed run results with team, items, synergy snapshot, act/floor, damage, victory flag. Queried for profile run history display. |
 | `savedruns` | `app/models/mongo-models/saved-run.ts` | Active save slots for run resume. One per player (upsert). Deleted on run end. |
 
 ### Adding New Persistent Data
@@ -466,9 +469,9 @@ Firebase `user.displayName` contains the player's real name from their Google ac
 
 - Player roles are stored in `usermetadatas.role` (MongoDB). Default is `BASIC`.
 - To grant admin: set `role: "ADMIN"` on the user's document in MongoDB Atlas (or via mongoose script).
-- **Server**: `game-room.ts` `onCreate()` fetches role from DB when creating the Player object. Message handlers (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`) check `player.role !== Role.ADMIN`.
+- **Server**: `game-room.ts` `onCreate()` fetches role from DB when creating the Player object. Message handlers (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `GIVE_POKEMON`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`) check `player.role !== Role.ADMIN`.
 - **Client**: `game.tsx` fetches `/api/user-role/:uid` on mount, dispatches `setRole()` to Redux. Admin buttons render when `profile.role === Role.ADMIN`.
-- Admin cheat buttons (right side panel in game): Test Victory, Skip to Act 1/2/3, Give Mewtwo (buffed, repeatable), Skip to Elite 4, Skip to Act 5, Reset E4/Champion.
+- Admin cheat buttons (right side panel in game): Test Victory, Skip to Act 1/2/3, Give 999 Gold, Give Mewtwo (buffed, repeatable), Give Ditto, Give Pokemon (searchable combobox over every `Pkm` entry — spawns at normal stats via `GIVE_POKEMON`), Heal, Skip to Elite 4, Skip to Act 5, Reset E4/Champion.
 - Admin map teleport: Admins can click any unvisited node on the map to jump directly to it, bypassing path connectivity. Client sends `ADMIN_TELEPORT_NODE`, server marks the node available then delegates to `onSelectMapNode()`.
 - `MONITOR_PASSWORD` env var enables the Colyseus monitor dashboard at `/colyseus` (basic auth: admin / password).
 
@@ -623,7 +626,7 @@ All balance diversions from upstream are listed in the lobby's **PAC Diversions*
 
 **Synergies:**
 - Light (`synergies.ts`): Triggers raised from 2/3/4/5 to 3/4/5/6
-- Amorphous (`simulation.ts`): Speed and HP bonuses per active synergy halved
+- Amorphous (`simulation.ts`): Speed and HP bonuses per active synergy reduced to ~3/4 of upstream - speedFactor `[1,2,4]`, hpFactor `[2,4,9]` (upstream `[1,3,6]`/`[3,6,12]`). Effect text in `dist/client/locales/en/translation.json` (FLUID/SHAPELESS/ETHEREAL); other locales still show upstream numbers
 - Fishing Rods (`items.ts`, `FishingRodEffect`): Only proc after wild battle encounters
 - Gyms removed: Amorphous, Light, Gourmet, Artificial (commented out in `GYM_LEADER_POKEMON`)
 
@@ -666,6 +669,7 @@ Champion and Elite Four opponents are saved player teams that fight as **real Pl
 - Server-computed synergy counts are synced via `encounterSynergies` because client-side computation from encoded board strings misses Dragon double-types and other computed bonuses.
 - Opponent ground holes are synced via `encounterGroundHoles` and rendered by `board-manager.ts renderOpponentGroundHoles()` on the opponent's board half.
 - When selecting an E4/Champion node, `player.map` is set to the snapshot's `region` field (their Home Town) for the tilemap background. Falls back to default if region is missing or "town".
+- **Snapshot hygiene**: `encounterSnapshot` is the trigger for the snapshot render/reconstruct path. PVE nodes (wild/gym/elite/boss/Arceus) never set it, so it MUST be null for them — `onSelectMapNode()` clears it (and `encounterCrownedAt`) at the top. If a stale snapshot survives into a PVE node, the snapshot branch fires and re-displays the prior opponent's `encounterInventory` items. This is also why act transitions must go through `initializeMapPhase()` (which nulls the snapshot) — the champion-items-during-Arceus bug came from `ENTER_ACT_5` bypassing it.
 
 **Gourmet dish preservation:**
 - Dishes are consumed (`pokemon.dishes.clear()`) during `Simulation.start()`, so by the time `snapshotPlayerTeam()` runs post-fight, `pokemon.dishes` is empty.
