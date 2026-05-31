@@ -2,6 +2,221 @@
   "records": [
     {
       "playerName": "Fish",
+      "damage": 100828,
+      "team": {
+        "name": "Fish",
+        "avatar": "0129/Normal",
+        "pokemon": [
+          {
+            "name": "SHROOMISH",
+            "x": 1,
+            "y": 0,
+            "items": [],
+            "evolution": "BRELOOM"
+          },
+          {
+            "name": "ALOLAN_SANDSHREW",
+            "x": 3,
+            "y": 0,
+            "items": [],
+            "evolution": "ALOLAN_SANDSLASH"
+          },
+          {
+            "name": "CUBCHOO",
+            "x": 2,
+            "y": 0,
+            "items": [],
+            "evolution": "BEARTIC"
+          },
+          {
+            "name": "CAMERUPT",
+            "x": 4,
+            "y": 3,
+            "items": [
+              "MOON_STONE",
+              "GREEN_ORB",
+              "SOUL_DEW"
+            ]
+          },
+          {
+            "name": "CUBONE",
+            "x": 2,
+            "y": 2,
+            "items": [
+              "EXP_SHARE",
+              "DUSK_STONE",
+              "POKERUS_VIAL"
+            ]
+          },
+          {
+            "name": "RHYPERIOR",
+            "x": 3,
+            "y": 3,
+            "items": [
+              "GOLD_BOTTLE_CAP",
+              "MUSCLE_BAND",
+              "SHELL_BELL"
+            ],
+            "statBoosts": {
+              "hp": 350,
+              "atk": 30,
+              "def": 0,
+              "speDef": 0,
+              "ap": 90,
+              "speed": 0
+            }
+          },
+          {
+            "name": "DITTO",
+            "x": 0,
+            "y": 0,
+            "items": []
+          },
+          {
+            "name": "HONCHKROW",
+            "x": 6,
+            "y": 0,
+            "items": []
+          },
+          {
+            "name": "GIBLE",
+            "x": 2,
+            "y": 3,
+            "items": [
+              "EXP_SHARE",
+              "PUNCHING_GLOVE",
+              "SOUL_DEW"
+            ],
+            "evolution": "GABITE"
+          },
+          {
+            "name": "AVALUGG",
+            "x": 0,
+            "y": 3,
+            "items": [
+              "POWER_LENS",
+              "DRAGON_SCALE",
+              "GREEN_ORB"
+            ]
+          },
+          {
+            "name": "MEGA_SABLEYE",
+            "x": 5,
+            "y": 3,
+            "items": [
+              "DYNAMAX_BAND",
+              "RED_ORB",
+              "RAZOR_FANG"
+            ],
+            "statBoosts": {
+              "hp": 200,
+              "atk": 10,
+              "def": 0,
+              "speDef": 0,
+              "ap": 30,
+              "speed": 0
+            }
+          },
+          {
+            "name": "NOIVERN",
+            "x": 4,
+            "y": 2,
+            "items": [
+              "METAL_COAT"
+            ]
+          },
+          {
+            "name": "REGICE",
+            "x": 1,
+            "y": 3,
+            "items": [
+              "DUSK_STONE",
+              "SHED_SHELL",
+              "GRACIDEA_FLOWER"
+            ]
+          },
+          {
+            "name": "GLALIE",
+            "x": 3,
+            "y": 2,
+            "items": [
+              "PUNCHING_GLOVE",
+              "EXP_SHARE",
+              "SOUL_DEW"
+            ],
+            "evolution": "FROSLASS"
+          }
+        ],
+        "inventory": [
+          "GHOST_GEM",
+          "EXCHANGE_TICKET",
+          "STEEL_GEM",
+          "ICE_GEM",
+          "DARK_GEM",
+          "STEEL_GEM",
+          "EXCHANGE_TICKET",
+          "GROUND_GEM",
+          "ICE_GEM",
+          "RECYCLE_TICKET",
+          "BUG_GEM"
+        ],
+        "groundHoles": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "lightX": 3,
+        "lightY": 1
+      },
+      "date": "2026-05-31T17:18:33.507Z"
+    },
+    {
+      "playerName": "Fish",
       "damage": 40274,
       "team": {
         "name": "Fish",

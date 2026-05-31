@@ -74,7 +74,7 @@ const defaultPreferences: IPreferencesState = {
   renderer: Phaser.AUTO,
   antialiasing: true,
   colorblindMode: false,
-  theme: "default",
+  theme: "pasdefault",
   keybindings: {
     sell: "E",
     buy_xp: "F",

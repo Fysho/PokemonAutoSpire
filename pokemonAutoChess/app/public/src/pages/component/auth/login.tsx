@@ -55,6 +55,14 @@ export default function Login() {
   if (!uid) {
     return (
       <div id="play-panel">
+        {/* Invisible placeholder mirrors the logged-in "Authenticated as" line
+            so the sign-in buttons render at the same vertical position the
+            Play / Sign out buttons will occupy. Prevents the layout from
+            jumping (and "Click to reveal" landing under the user's tap) when
+            auth state resolves and the views swap. */}
+        <p style={{ visibility: "hidden" }} aria-hidden="true">
+          {t("auth.authenticated_as")}: <span>Click to reveal</span>
+        </p>
         <StyledFirebaseAuth
           uiConfig={uiConfig}
           firebaseAuth={firebase.auth()}

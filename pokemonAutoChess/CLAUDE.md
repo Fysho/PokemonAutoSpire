@@ -8,7 +8,9 @@ The original PAC codebase is in `pokemonAutoChess/`. All modifications live with
 
 ## Upstream PAC Reference (`pac-upstream/`)
 
-An unmodified copy of the original Pokemon Auto Chess v6.9 source code is available at `pac-upstream/` (gitignored, `master` branch, commit `01c2ebe`). Use this to understand how the original PAC implements features like authentication, lobby rooms, database models, and game logic before adapting them for Auto Spire.
+An unmodified copy of the original Pokemon Auto Chess **v6.10** source code is available at `pac-upstream/` (gitignored, `ref-6.10` branch = `origin/prod`, commit `c6386e8`). Use this to understand how the original PAC implements features like authentication, lobby rooms, database models, and game logic before adapting them for Auto Spire.
+
+The clone retains full upstream history, so you can still diff against the **6.9** base Spire forked from (commit `01c2ebe`): `git -C pac-upstream diff 01c2ebe ref-6.10 -- <path>`.
 
 **IMPORTANT: Never edit files in `pac-upstream/`. It is a read-only reference.**
 
@@ -18,11 +20,7 @@ Useful for:
 - Comparing modified files against their originals: `diff pokemonAutoChess/app/some-file.ts pac-upstream/app/some-file.ts`
 - Finding PAC features to restore or adapt
 
-When a new PAC version releases (e.g. 6.10), the upgrade workflow is:
-1. Clone the new version into a second folder (e.g. `pac-upstream-6.10`)
-2. Diff against `pac-upstream/` to see what changed upstream
-3. Apply relevant changes (bug fixes, new Pokemon, balance) to `pokemonAutoChess/`
-4. Replace `pac-upstream/` with the new version after merging
+**Upgrading to a new PAC version** (the 6.9→6.10 upgrade is documented in detail in `MIGRATION-6.9-to-6.10.md`). The proven workflow: in `pac-upstream/`, fetch the new release; create a synthetic merge base by overlaying the current Spire `pokemonAutoChess/` files onto the old upstream base commit, then 3-way `git merge` the new release into it (gives real conflict markers against Spire's edits). Resolve conflicts (keep Spire's intentional single-player/balance divergences, take upstream bugfixes, union imports, deep-merge locale JSON to preserve Spire's custom translation keys), copy the merged tree back into `pokemonAutoChess/`, then `git checkout <new-version>` in `pac-upstream/` so it becomes the new read-only reference. The project expects `npx tsc --noEmit` to be clean (upstream is 0 errors), even though the build itself uses esbuild.
 
 ## How to Run
 
@@ -334,7 +332,7 @@ Added `price` (uint8) and `pokemonName` (string) for shop carousel
 - **Dishes**: `app/core/dishes.ts` — `DishByPkm` maps Pokemon to their dish type. RICE effect guards `player` access for PVE safety.
 - **Synergies**: 32 types with tiered bonuses
 - **Items**: 333+ items with crafting recipes
-- **Evolution**: `app/core/evolution-rules.ts`
+- **Evolution**: `app/core/evolution-logic/` (6.10 data+handler architecture — `evolution-rules.ts` was removed upstream). Rules are plain data (`app/types/EvolutionRules.ts`, `EvolutionRuleType` enum); behavior in `*-handler.ts` classes dispatched by `EvolutionManager` (`EvolutionManager.getEvolution/updateHatch/tryEvolve`). See `MIGRATION-6.9-to-6.10.md` for where Spire's evolution divergences were re-homed.
 - **Pokemon data**: `app/models/precomputed/`
 - **Board grid**: 8x8 drag-drop
 - **Pokemon sprites**: All animation and rendering
@@ -604,7 +602,7 @@ Extra random item components added to each encounter Pokemon slot (Acts 1-2 only
 ### Game Speed
 Cycles through 0.5x → 1x → 2x → 3x. State field is `float32`. Server validates allowed values in `GAME_SPEED` handler.
 
-### Balance Changes from PAC v6.9
+### Balance Changes from PAC v6.10
 All balance diversions from upstream are listed in the lobby's **PAC Diversions** panel (`spire-lobby.tsx`, events section). The panel uses colored tags (buffed/nerfed/changed/removed) with inline item/pokemon/synergy icons.
 
 **Items:**
@@ -620,8 +618,9 @@ All balance diversions from upstream are listed in the lobby's **PAC Diversions*
 - Snorlax/Munchlax (`Passive.GLUTTON`): Berry/Gourmet HP gains halved
 - Misdreavus/Mismagius (`Ability.NIGHT_SHADE`): Damage capped at 150
 - Alcremie Rainbow Swirl (`Ability.DECORATE`): PP buff 60→30, AP scaling halved
-- Cosmog/Cosmoem (`pokemon.ts`): Evolve after 3 stacks instead of 8; +30 max HP per evolution instead of +10 (`evolution-rules.ts` `afterEvolve`)
-- Tandemaus/Maushold (`pokemon.ts`): Each stage evolves 5 fights after acquisition via `TimerEvolutionRule` (hatch-style counter), instead of fixed `stageLevel >= 14`/`>= 20`
+- Cosmog/Cosmoem (`pokemon.ts`): Evolve after 3 stacks instead of 8; +30 max HP per evolution instead of +10 (`evolution-logic/evolution-manager.ts` `afterEvolve`, the COSMOG/COSMOEM stacking block)
+- Tandemaus/Maushold (`pokemon.ts`): Each stage evolves 5 fights after acquisition via a hatch-style timer — `evolutionRule = { type: EvolutionRuleType.HATCH, hatchTime: 5 }` (honored by `evolution-logic/hatch-time.ts`), instead of fixed `stageLevel >= 14`/`>= 20`. (Replaced the old `TimerEvolutionRule` class, removed in the 6.10 evolution refactor.)
+- Count evolutions: 2★+ units need only `min(numberRequired, 2)` copies (`evolution-logic/count-evolution-handler.ts`)
 - Charcadet armor & Zacian Rusted Sword (`game-commands.ts` `grantBossSignatureItems()`): Added to the player's inventory for winning any act-end boss (floor-20 Legendary Boss or Endless async fight), instead of the dead upstream `pve-stages.ts` PvE-stage reward path
 
 **Synergies:**
@@ -737,7 +736,7 @@ player.life (mirror for client rendering / legacy code)
 - Footer: version (from `package.json`), fan credit line, PAC credit, upstream version note, Discord link
 - After sign-in, shows "Authenticated as: Click to reveal" (hides real name/email until clicked)
 - Player name defaults to "Username" — Google display name is NOT auto-filled
-- Built on Pokemon Auto Chess v6.9 (`master@01c2ebe`)
+- Built on Pokemon Auto Chess v6.10 (`prod@c6386e8`)
 
 ## Map Visuals (`game-map.tsx`)
 
@@ -745,6 +744,18 @@ player.life (mirror for client rendering / legacy code)
 - Dotted path lines: `#999` (unvisited), `#aaa` (visited), `#444` (missed)
 - Border: `#999` to match path lines
 - Other PAC posters available at `assets/posters/` (non-HD: 3.8–6.9) and `assets/posters/hd/` (HD: 6.2–6.9) for future per-act backgrounds
+
+## UI Themes
+
+Theme selection (Interface → Theme) is driven by `app/config/game/theme.ts` (`THEMES` list, `VIDEO_BG_THEMES`, `Theme` type) and applied at runtime by `app/public/src/theme.ts` → `applyTheme()`. A theme = (1) an id in `THEMES`; (2) a stylesheet `app/public/dist/client/themes/<id>.css` loaded via `<link>` (runtime, **not** bundled — edit + hard-refresh, no rebuild); (3) for video themes (in `VIDEO_BG_THEMES`), `assets/theme/<id>/videobg.mp4` (a fullscreen `#videobg`, `z-index:-1`); (4) a `theme.<id>` translation; (5) the default in `app/public/src/preferences.ts`. The special id `"default"` loads no CSS/video (bare classic look). Theme CSS overrides the global palette vars from `app/public/src/style/colors.css` (`--color-bg-primary/secondary/tertiary/accent`, `--color-special`); `.my-box`/`.my-container` backgrounds derive from those vars.
+
+**Spire change:** `isThemeUnlocked()` was gutted to always return true — single-player has no title progression, so every theme is available (upstream gated most behind `TITLE_BY_THEME` titles).
+
+**Custom Spire themes** (both clone Zen Garden's `videobg.mp4` as the background video):
+- **PAS Default** (`pasdefault`) — the default theme: Zen Garden background + classic colours, **opaque** panels (CSS is just `#videobg`, no transparency).
+- **Fish's Pick** (`fishspick`) — neutral **grey** `:root` palette, with panels at ~80% alpha so the video shows through: the `.my-box` leaderboards (centre Champion/Elite Four, Arceus, Endless, Victory + Live Runs) plus the in-game HUD — top act/stage bar `#game-stage-info`, bottom level/map bar `.game-shop`, and reward panel `.game-choice > .my-container`.
+
+Adding the `THEMES` list / changing the default preference **does** require `npm run build` (those are bundled); editing a theme's `.css`, video, or translation does not (runtime-loaded — hard-refresh).
 
 ## Build Notes
 

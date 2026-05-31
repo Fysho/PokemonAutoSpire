@@ -182,6 +182,12 @@ import GameState from "../states/game-state"
 // into the E4 lineup (see the ELITE_FOUR loss branch in OnUpdatePhaseCommand).
 const E4_LOSS_TAKES_SLOT = true
 
+// Manual phases (PICK/MAP/SHOP/REST/EVENT/REWARD) never auto-advance. If a
+// player stays in one without advancing the run for this long, they are
+// disconnected (anti-AFK). Measured in real wall-clock time, reset on every
+// phase change. See OnUpdateCommand + GameRoom.disconnectIdlePlayers().
+const IDLE_DISCONNECT_MS = 15 * 60 * 1000
+
 export class OnBuyPokemonCommand extends Command<
   GameRoom,
   {
@@ -1103,32 +1109,68 @@ export class OnUpdateCommand extends Command<
 > {
   execute({ deltaTime }) {
     if (deltaTime) {
+      const realDeltaTime = deltaTime // unscaled wall-clock ms, for the idle timer
       const speed = this.state.gameSpeed || 1
       deltaTime = deltaTime * speed
       this.state.time -= deltaTime
       if (Math.round(this.state.time / 1000) != this.state.roundTime) {
         this.state.roundTime = Math.round(this.state.time / 1000)
       }
-      if (this.state.time < 0) {
-        this.state.updatePhaseNeeded = true
-      } else if (this.state.phase == GamePhaseState.FIGHT) {
-        let everySimulationFinished = true
 
-        this.state.simulations.forEach((simulation) => {
-          if (!simulation.finished) {
-            if (simulation.started) simulation.update(deltaTime)
-            everySimulationFinished = false
-          }
-        })
-
-        if (everySimulationFinished && !this.state.updatePhaseNeeded) {
-          // wait for 3 seconds victory anim before moving to next stage
-          this.state.time = 3000
-          this.state.updatePhaseNeeded = true
+      // Anti-AFK idle disconnect. The idle counter resets whenever the phase
+      // changes (any advance through the run), and accrues only outside FIGHT
+      // (FIGHT advances on its own). If the player never advances for
+      // IDLE_DISCONNECT_MS, drop them instead of letting the room hang forever
+      // (manual phases no longer auto-advance). Uses real wall-clock time so
+      // game speed doesn't shorten the timeout.
+      if (this.room.idlePhase !== this.state.phase) {
+        this.room.idlePhase = this.state.phase
+        this.room.idleTimeMs = 0
+      }
+      if (this.state.phase !== GamePhaseState.FIGHT) {
+        this.room.idleTimeMs += realDeltaTime
+        if (this.room.idleTimeMs >= IDLE_DISCONNECT_MS) {
+          this.room.disconnectIdlePlayers()
+          return
         }
-      } else if (this.state.phase === GamePhaseState.TOWN || this.state.phase === GamePhaseState.SHOP) {
+      }
+
+      // Minigame physics (shop carousel / town movement) tick independently of
+      // the timer — these phases use a large "fake infinite" timer and never
+      // auto-advance, so this must run regardless of whether time has expired.
+      if (this.state.phase === GamePhaseState.TOWN || this.state.phase === GamePhaseState.SHOP) {
         this.room.miniGame.update(deltaTime)
       }
+
+      if (this.state.phase === GamePhaseState.FIGHT) {
+        if (this.state.time < 0) {
+          this.state.updatePhaseNeeded = true
+        } else {
+          let everySimulationFinished = true
+
+          this.state.simulations.forEach((simulation) => {
+            if (!simulation.finished) {
+              if (simulation.started) simulation.update(deltaTime)
+              everySimulationFinished = false
+            }
+          })
+
+          if (everySimulationFinished && !this.state.updatePhaseNeeded) {
+            // wait for 3 seconds victory anim before moving to next stage
+            this.state.time = 3000
+            this.state.updatePhaseNeeded = true
+          }
+        }
+      }
+
+      // Only the FIGHT phase auto-advances when its timer naturally expires
+      // (battle max-duration safety + the 3s victory anim above). Every other
+      // phase (PICK, SHOP, REST, EVENT, REWARD, MAP) is manual — the player
+      // presses a button — and uses a "fake infinite" timer that must NOT
+      // auto-advance on expiry, otherwise e.g. an Elite Four fight force-starts
+      // after ~16 min (999s) of the player deliberating. Genuine manual
+      // transitions are unaffected: their handlers set updatePhaseNeeded + time=0
+      // explicitly, so this guard still fires for them regardless of phase.
       if (this.state.updatePhaseNeeded && this.state.time < 0) {
         return [new OnUpdatePhaseCommand()]
       }

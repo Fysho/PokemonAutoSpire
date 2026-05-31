@@ -1,0 +1,21 @@
+/* PAS Default: classic (default) UI — opaque panels, default colours — with
+   Zen Garden's video background behind everything. No panel transparency. */
+
+#videobg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -1;
+}
+
+/* .custom-bg panels (e.g. the Live Runs panel) are meant to show the theme
+   background. The base theme uses the default Charizard/Pikachu image; here we
+   make them a light transparent overlay so the Zen Garden video shows through
+   instead (the `background` shorthand also clears that default image). Tune the
+   0.25 dimming for readability. */
+.custom-bg {
+  background: rgba(0, 0, 0, 0.25);
+}

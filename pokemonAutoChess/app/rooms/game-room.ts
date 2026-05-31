@@ -77,6 +77,11 @@ import {
 } from "./commands/game-commands"
 import GameState from "./states/game-state"
 
+// WebSocket close code (application range 4000-4999) sent when a player is
+// dropped for inactivity. The client's room.onLeave shows the "Disconnected"
+// overlay regardless of code; this is mainly for logging/clarity.
+const IDLE_DISCONNECT_CODE = 4002
+
 export default class GameRoom extends Room<{ state: GameState }> {
   dispatcher: Dispatcher<this>
   additionalUncommonPool: Array<Pkm>
@@ -91,6 +96,11 @@ export default class GameRoom extends Room<{ state: GameState }> {
   eliteMainBonusAtk: number = 0
   eliteMainBonusAP: number = 0
   asyncFightSnapshots: Map<string, { snapshot: any; name: string; avatar: string; region: string }> = new Map()
+  // Anti-AFK idle tracking (see OnUpdateCommand). idlePhase is the phase the
+  // idle timer is currently counting against; idleTimeMs is real ms elapsed in
+  // it without advancing the run.
+  idleTimeMs: number = 0
+  idlePhase: GamePhaseState | null = null
   constructor() {
     super()
     this.dispatcher = new Dispatcher(this)
@@ -1162,6 +1172,36 @@ export default class GameRoom extends Room<{ state: GameState }> {
   async onJoin(client: Client) {
     this.dispatcher.dispatch(new OnJoinCommand(), { client })
     this.updateSpectateMetadata()
+  }
+
+  // Drop human players who have gone idle (see the anti-AFK logic in
+  // OnUpdateCommand). Signed-in players' progress is persisted first so they can
+  // resume from the lobby; the client shows the standard "Disconnected" overlay.
+  disconnectIdlePlayers() {
+    const { saveRun } = require("../services/run-save")
+    const humanUids = new Set<string>()
+    this.state.players.forEach((p: Player) => {
+      if (!p.isBot) {
+        humanUids.add(p.id)
+        if (p.alive && !this.state.gameFinished && !this.state.runFailed) {
+          try {
+            saveRun(p.id, this.state, p)
+          } catch (err) {
+            logger.error("idle disconnect: failed to save run", err)
+          }
+        }
+      }
+    })
+
+    const idleSeconds = Math.round(this.idleTimeMs / 1000)
+    this.clients.forEach((client) => {
+      if (client.auth && humanUids.has(client.auth.uid)) {
+        logger.info(
+          `Disconnecting idle player ${client.auth.uid} from game ${this.roomId} after ${idleSeconds}s inactive | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`
+        )
+        client.leave(IDLE_DISCONNECT_CODE)
+      }
+    })
   }
 
   async onLeave(client: Client, code: number) {
