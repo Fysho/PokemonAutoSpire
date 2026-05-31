@@ -110,7 +110,10 @@ export enum LocalStoreKeys {
   SPIRE_PLAYER_REGION = "spire_player_region",
   SPIRE_GAME_SPEED = "spire_game_speed",
   SPIRE_LAST_PATCH_SEEN = "spire_last_patch_seen",
-  SPIRE_LAST_VERSION_SEEN = "spire_last_version_seen"
+  SPIRE_LAST_VERSION_SEEN = "spire_last_version_seen",
+  SPIRE_RUN_SORT_BY = "spire_run_sort_by",
+  SPIRE_RUN_SORT_ASC = "spire_run_sort_asc",
+  SPIRE_RUN_FILTER_DIFFICULTY = "spire_run_filter_difficulty"
 }
 
 export const localStore = new LocalStore<LocalStoreKeys>()

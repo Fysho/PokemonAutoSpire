@@ -1052,7 +1052,11 @@ export const DishesGoingToInventory = [
 export const ItemsSoldAtTown = [...Mushrooms] satisfies Item[]
 export type ItemsSoldAtTown = (typeof ItemsSoldAtTown)[number]
 
-const UnsellableSpecialItems: Item[] = [Item.CHEF_HAT]
+const UnsellableSpecialItems: Item[] = [
+  Item.CHEF_HAT,
+  ...WeatherRocks,
+  ...FishingRods
+]
 
 export function isItemSellable(item: Item): boolean {
   if (Tools.includes(item)) return false

@@ -12,6 +12,7 @@ export function AccountTab() {
   const navigate = useNavigate()
   const uid = useAppSelector((state) => state.network.uid)
   const email = useAppSelector((state) => state.network.email)
+  const displayName = useAppSelector((state) => state.network.profile?.displayName)
   const isGuest = !uid || uid === "local-player"
   const [showDetails, setShowDetails] = useState(false)
 
@@ -24,7 +25,10 @@ export function AccountTab() {
         <>
           <p style={{ opacity: 0.7, fontSize: "12px" }}>UID: {uid}</p>
           {showDetails ? (
-            <p>{email || "Signed in"}</p>
+            <>
+              <p style={{ margin: "2px 0" }}>Name: {displayName || "—"}</p>
+              <p style={{ margin: "2px 0" }}>Email: {email || "Signed in"}</p>
+            </>
           ) : (
             <p>
               <span

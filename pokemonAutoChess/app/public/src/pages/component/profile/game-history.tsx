@@ -26,6 +26,7 @@ interface IRunHistoryRecord {
   arceusDamageDealt: number
   victory: boolean
   pokemons: { name: string; avatar: string; items: string[] }[]
+  synergies?: { type: string; count: number }[]
 }
 
 export default function GameHistory(props: {
@@ -174,7 +175,10 @@ function RunHistoryRow({
           </span>
         </span>
         <ul className="synergies">
-          {getTopSynergies(pokemons).map(([type, value]) => (
+          {(r.synergies && r.synergies.length > 0
+            ? topStoredSynergies(r.synergies)
+            : getTopSynergies(pokemons)
+          ).map(([type, value]) => (
             <li key={r.time + type}>
               <SynergyIcon type={type} />
               <span>{value}</span>
@@ -202,7 +206,24 @@ function getTopSynergies(
     })
   )
 
-  const topSynergies = [...synergies.entries()]
+  return sortTopSynergies([...synergies.entries()])
+}
+
+// Render synergies captured at save time (server-authoritative — includes gem
+// bonus synergies, type-changing stones, Dragon double-types, etc.)
+function topStoredSynergies(
+  stored: { type: string; count: number }[]
+): [Synergy, number][] {
+  const entries = stored
+    .filter((s) => s.type in SynergyTriggers)
+    .map((s) => [s.type as Synergy, s.count] as [Synergy, number])
+  return sortTopSynergies(entries)
+}
+
+function sortTopSynergies(
+  entries: [Synergy, number][]
+): [Synergy, number][] {
+  return entries
     .sort((a, b) => {
       const [typeA, valueA] = a
       const [typeB, valueB] = b
@@ -217,5 +238,4 @@ function getTopSynergies(
         : valueB - valueA
     })
     .slice(0, 4)
-  return topSynergies
 }

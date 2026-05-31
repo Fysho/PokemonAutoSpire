@@ -184,6 +184,87 @@ function showMoneyToast(value: number) {
   )
 }
 
+function AdminGivePokemon() {
+  const [query, setQuery] = useState("")
+  const [open, setOpen] = useState(false)
+  const allPokemon = Object.values(Pkm)
+  const trimmed = query.trim().toLowerCase()
+  const filtered =
+    trimmed.length === 0
+      ? allPokemon
+      : allPokemon.filter((p) => p.toLowerCase().includes(trimmed))
+
+  function give(pkm: Pkm) {
+    rooms.game?.send(Transfer.GIVE_POKEMON, { pkm })
+    setQuery("")
+    setOpen(false)
+  }
+
+  return (
+    <div style={{ position: "relative", width: "160px" }}>
+      <input
+        type="text"
+        value={query}
+        placeholder="Give Pokemon…"
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && filtered.length > 0) give(filtered[0])
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        style={{
+          width: "100%",
+          padding: "6px 8px",
+          borderRadius: "4px",
+          border: "none",
+          fontSize: "12px",
+          boxSizing: "border-box"
+        }}
+      />
+      {open && filtered.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            maxHeight: "240px",
+            overflowY: "auto",
+            background: "#2c3e50",
+            border: "1px solid #1a252f",
+            borderRadius: "4px",
+            zIndex: 400,
+            marginTop: "2px"
+          }}
+        >
+          {filtered.slice(0, 100).map((p) => (
+            <div
+              key={p}
+              onMouseDown={() => give(p)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#34495e")}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+              style={{
+                padding: "4px 8px",
+                color: "white",
+                cursor: "pointer",
+                fontSize: "12px",
+                whiteSpace: "nowrap"
+              }}
+            >
+              {p}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Game() {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
@@ -1068,7 +1149,6 @@ export default function Game() {
                   setRunFailed(false)
                   setMapHidden(false)
                 } : undefined}
-                onBackToLobby={leave}
               />
             )
           })()}
@@ -1240,6 +1320,7 @@ export default function Game() {
                 >
                   Give Ditto
                 </button>
+                <AdminGivePokemon />
                 <button
                   onClick={() => rooms.game?.send(Transfer.ADMIN_HEAL)}
                   style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}

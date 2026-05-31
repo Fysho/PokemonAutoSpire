@@ -67,7 +67,7 @@ export abstract class EvolutionRule {
         pokemonEvolved.passive !== Passive.COSMOG &&
         pokemonEvolved.passive !== Passive.COSMOEM
       ) {
-        pokemon.addMaxHP(10)
+        pokemon.addMaxHP(30)
         pokemon.stacks++
         pokemon.evolutionRule.tryEvolve(pokemon, player, stageLevel)
       }
@@ -360,6 +360,23 @@ export class HatchEvolutionRule extends EvolutionRule {
     }
 
     return pokemonEvolved
+  }
+}
+
+/* PAC diversion: turn-based evolution that ticks once per fight from the moment
+ * the Pokémon is acquired (reuses the hatch counter so the existing
+ * `instanceof HatchEvolutionRule` ticks in game-commands pick it up automatically).
+ * Used by Tandemaus/Maushold, which upstream evolved on fixed stage levels (turn 15/20)
+ * — unreachable when the family is acquired late in a run. */
+export class TimerEvolutionRule extends HatchEvolutionRule {
+  turnsRequired: number
+  constructor(turnsRequired: number, divergentEvolution?: DivergentEvolution) {
+    super(divergentEvolution)
+    this.turnsRequired = turnsRequired
+  }
+
+  getHatchTime(): number {
+    return this.turnsRequired
   }
 }
 

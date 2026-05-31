@@ -617,6 +617,9 @@ All balance diversions from upstream are listed in the lobby's **PAC Diversions*
 - Snorlax/Munchlax (`Passive.GLUTTON`): Berry/Gourmet HP gains halved
 - Misdreavus/Mismagius (`Ability.NIGHT_SHADE`): Damage capped at 150
 - Alcremie Rainbow Swirl (`Ability.DECORATE`): PP buff 60→30, AP scaling halved
+- Cosmog/Cosmoem (`pokemon.ts`): Evolve after 3 stacks instead of 8; +30 max HP per evolution instead of +10 (`evolution-rules.ts` `afterEvolve`)
+- Tandemaus/Maushold (`pokemon.ts`): Each stage evolves 5 fights after acquisition via `TimerEvolutionRule` (hatch-style counter), instead of fixed `stageLevel >= 14`/`>= 20`
+- Charcadet armor & Zacian Rusted Sword (`game-commands.ts` `grantBossSignatureItems()`): Added to the player's inventory for winning any act-end boss (floor-20 Legendary Boss or Endless async fight), instead of the dead upstream `pve-stages.ts` PvE-stage reward path
 
 **Synergies:**
 - Light (`synergies.ts`): Triggers raised from 2/3/4/5 to 3/4/5/6

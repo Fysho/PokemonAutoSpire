@@ -17,7 +17,6 @@ interface GameRunEndProps {
   previousArceusHolder?: string
   onEnterEliteFour?: () => void
   onChallengeArceus?: () => void
-  onBackToLobby?: () => void
 }
 
 const DIFFICULTY_LABELS: Record<number, string> = {
@@ -48,8 +47,7 @@ export default function GameRunEnd({
   previousArceusRecord = 0,
   previousArceusHolder = "",
   onEnterEliteFour,
-  onChallengeArceus,
-  onBackToLobby
+  onChallengeArceus
 }: GameRunEndProps) {
   const [savedPosition, setSavedPosition] = usePreference("runEndPosition")
   const diffLabel = DIFFICULTY_LABELS[difficultyMode] ?? "Normal"
@@ -186,18 +184,6 @@ export default function GameRunEnd({
             style={{ background: "#9b59b6", pointerEvents: "auto" }}
           >
             Challenge Arceus
-          </button>
-        )}
-        {onBackToLobby && (
-          <button
-            className="bubbly"
-            onClick={onBackToLobby}
-            style={{
-              background: victory ? "#2ecc71" : "#e74c3c",
-              pointerEvents: "auto"
-            }}
-          >
-            Back to Lobby
           </button>
         )}
       </div>

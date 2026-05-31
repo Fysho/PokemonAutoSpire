@@ -1456,29 +1456,54 @@ export function getRegionalPokemonForReward(region: string, act: number): Pkm | 
   return candidates.length > 0 ? pickRandomIn(candidates) : null
 }
 
+// Acts 2 and 3 select reward Pokemon exactly like Act 1 (one 1★ base form per
+// region synergy, any rarity), then roll per offered mon to upgrade it to its
+// 2★ evolution: Act 2 only upgrades common/uncommon mons, Act 3 upgrades any
+// rarity. Tunable.
+const REWARD_TWO_STAR_UPGRADE_CHANCE = 0.5
+
+// Returns the 2★ evolution of a 1★ base form, or null if it has none.
+function get2StarForm(base: Pkm): Pkm | null {
+  const data = getPokemonData(base)
+  let evo: Pkm | null = data.evolution
+  // Branching lines (no single evolution) — pick a random branch. Effectively
+  // never happens at the 1★→2★ step, but handled for safety.
+  if (!evo && data.evolutions.length > 0) {
+    evo = pickRandomIn(data.evolutions)
+  }
+  if (!evo) return null
+  return getPokemonData(evo).stars === 2 ? evo : null
+}
+
 export function generateWildRewardPokemon(region: string, act: number): Pkm[] {
   const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
-  const maxStars = act === 1 ? 1 : act === 2 ? 1 : 2
   const picks: Pkm[] = []
 
-  // Pick one Pokemon per synergy, in region synergy order
-  for (const syn of synergies) {
-    const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn] ?? []
-    const valid = typed.filter((pkm) => {
-      const data = getPokemonData(pkm)
-      return data.stars <= maxStars &&
-        data.rarity !== "HATCH" && data.rarity !== "SPECIAL" &&
-        data.rarity !== "UNIQUE" && data.rarity !== "LEGENDARY" &&
-        !picks.includes(pkm)
-    })
-    if (valid.length > 0) {
-      picks.push(pickRandomIn(valid))
-    }
+  const isOfferable = (pkm: Pkm) => {
+    const data = getPokemonData(pkm)
+    return data.rarity !== "HATCH" && data.rarity !== "SPECIAL" &&
+      data.rarity !== "UNIQUE" && data.rarity !== "LEGENDARY" &&
+      !picks.includes(pkm)
+  }
+  const isCommonOrUncommon = (pkm: Pkm) => {
+    const r = getPokemonData(pkm).rarity
+    return r === "COMMON" || r === "UNCOMMON"
   }
 
-  // 50% chance to replace a pick with a regional Pokemon, preferring a matching synergy slot
+  // Base selection — identical for all acts: one 1★ base form per synergy.
+  for (const syn of synergies) {
+    const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn] ?? []
+    const valid = typed.filter((pkm) =>
+      getPokemonData(pkm).stars === 1 && isOfferable(pkm)
+    )
+    if (valid.length > 0) picks.push(pickRandomIn(valid))
+  }
+
+  // 50% chance to replace a pick with a regional Pokemon, preferring a matching
+  // synergy slot. Use Act 1 (1★ base) candidates so the upgrade pass below
+  // applies uniformly in every act.
   if (Math.random() < 0.5 && picks.length > 0) {
-    const regionals = getRegionalCandidates(region, act)
+    const regionals = getRegionalCandidates(region, 1)
     if (regionals.length > 0) {
       const replacement = pickRandomIn(regionals)
       const replacementTypes = getPokemonData(replacement).types as string[]
@@ -1487,6 +1512,18 @@ export function generateWildRewardPokemon(region: string, act: number): Pkm[] {
       )
       const idx = matchingIdx >= 0 ? matchingIdx : randomBetween(0, picks.length - 1)
       picks[idx] = replacement
+    }
+  }
+
+  // Upgrade pass: Acts 2+ offer some mons as their 2★ evolution. Act 2 limits
+  // upgrades to common/uncommon lines; Act 3+ allows any rarity.
+  if (act >= 2) {
+    for (let i = 0; i < picks.length; i++) {
+      const eligible = act >= 3 || isCommonOrUncommon(picks[i])
+      if (eligible && Math.random() < REWARD_TWO_STAR_UPGRADE_CHANCE) {
+        const evo = get2StarForm(picks[i])
+        if (evo) picks[i] = evo
+      }
     }
   }
 

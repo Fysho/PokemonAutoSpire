@@ -155,6 +155,18 @@ Template for recording changes:
 - `app/core/simulation.ts` — Halved speedFactor and hpFactor arrays (rounded up)
 - `app/public/dist/client/locales/en/translation.json` — Updated FLUID, SHAPELESS, ETHEREAL effect descriptions
 
+### 2026-05-31 — Partially revert Amorphous nerf (½ → ¾ of upstream)
+
+**Synergy**: AMORPHOUS
+**Type**: constant change
+**Before**: Speed per active synergy: 1 / 2 / 3. HP per active synergy: 2 / 3 / 6. (≈½ of upstream)
+**After**: Speed per active synergy: 1 / 2 / 4. HP per active synergy: 2 / 4 / 9. (≈¾ of upstream 1/3/6 and 3/6/12)
+**Rationale**: The half nerf left Amorphous too weak. Restoring it to ~¾ of the upstream values keeps it in check while making it a more viable build. Fluid (tier 1) is unchanged because ¾ of the upstream tier-1 values rounds to the same numbers; the buff lands on Shapeless and Ethereal.
+**Files changed**:
+- `app/core/simulation.ts` — Updated speedFactor `[1,2,3]→[1,2,5]` and hpFactor `[2,3,6]→[2,5,9]`
+- `app/public/dist/client/locales/en/translation.json` — Updated SHAPELESS and ETHEREAL effect descriptions
+- `app/public/src/pages/spire-lobby.tsx` — Updated PAC Diversions entry
+
 ### 2026-05-27 — Enable Baby synergy eggs in Spire
 
 **Synergy**: BABY

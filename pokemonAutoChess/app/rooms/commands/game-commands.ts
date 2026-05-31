@@ -1380,6 +1380,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.currentNodeId = nodeId
     this.state.currentFloor = node.floor
 
+    // Clear snapshot-encounter state up front. The ELITE_FOUR / CHAMPION /
+    // ASYNC_FIGHT branches below re-set it; PVE nodes (wild/gym/elite/boss/
+    // Arceus) must see null so they don't inherit the previous opponent's
+    // snapshot — otherwise the snapshot branch fires and the prior opponent's
+    // inventory items get re-displayed (e.g. champion items during Arceus).
+    this.state.encounterSnapshot = null
+    this.state.encounterCrownedAt = null
+
     markAvailableNodes(nodeId, this.state.mapNodes, this.state.mapEdges)
 
     // Set player map to region for background tilemap and update regional pool
@@ -1947,6 +1955,43 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     }
   }
 
+  /* PAC diversion: Charcadet's armor and Zacian's Rusted Sword used to be handed out
+   * by fixed upstream PvE stages (turn 14 "Mewtwo & Mew" / turn 24 "Legendary Birds"),
+   * a code path that never runs in Spire. They are now granted for winning any act-end
+   * boss (floor-20 Legendary Boss, or the floor-20 Endless async fight). The item is
+   * added to the player's inventory so they can equip it themselves. */
+  grantBossSignatureItems(player: Player) {
+    const board = schemaValues(player.board)
+
+    // Charcadet -> Armarouge / Ceruledge via Auspicious / Malicious Armor
+    const hasCharcadet =
+      board.some((p) => p.passive === Passive.CHARCADET) ||
+      player.pokemonsTrainingInDojo.some(
+        (p) => p.pokemon.name === Pkm.CHARCADET
+      )
+    if (hasCharcadet) {
+      const psyLevel = player.synergies.get(Synergy.PSYCHIC) || 0
+      const ghostLevel = player.synergies.get(Synergy.GHOST) || 0
+      const armor =
+        psyLevel > ghostLevel
+          ? Item.AUSPICIOUS_ARMOR
+          : psyLevel < ghostLevel
+            ? Item.MALICIOUS_ARMOR
+            : chance(1 / 2)
+              ? Item.AUSPICIOUS_ARMOR
+              : Item.MALICIOUS_ARMOR
+      player.items.push(armor)
+    }
+
+    // Zacian -> Zacian Crowned via Rusted Sword
+    const hasZacian =
+      board.some((p) => p.name === Pkm.ZACIAN) ||
+      player.pokemonsTrainingInDojo.some((p) => p.pokemon.name === Pkm.ZACIAN)
+    if (hasZacian) {
+      player.items.push(Item.RUSTED_SWORD)
+    }
+  }
+
   initializeRewardPhase() {
     this.state.phase = GamePhaseState.REWARD
     this.state.time = 999 * 1000
@@ -2033,6 +2078,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           }
         } else if (node.nodeType === MapNodeType.ASYNC_FIGHT) {
           if (node.floor === 20) {
+            if (won) {
+              this.grantBossSignatureItems(player)
+            }
             const rewardPool = [...ShinyItems, ...Tools]
             const goldItemChoices = pickNRandomIn(rewardPool, 3)
             player.choices.push(
@@ -2071,6 +2119,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
             )
           }
+        }
+        if (won && node.nodeType === MapNodeType.LEGENDARY_BOSS) {
+          this.grantBossSignatureItems(player)
         }
         if (node.nodeType === MapNodeType.LEGENDARY_BOSS && this.state.currentAct < 3) {
           const isHardOrAbove = this.state.difficultyMode >= 2

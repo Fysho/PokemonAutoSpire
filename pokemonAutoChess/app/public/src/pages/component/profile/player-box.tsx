@@ -26,15 +26,23 @@ export default function PlayerBox(props: {
   const [favoritePokemons, setFavoritePokemons] = useState<Pkm[]>([])
   const [favoriteSynergies, setFavoriteSynergies] = useState<Synergy[]>([])
   const [spireStats, setSpireStats] = useState<ISpireStats | undefined>(props.user.spireStats)
+  const [avatar, setAvatar] = useState<string | undefined>(props.user.avatar)
 
   useEffect(() => {
+    setAvatar(props.user.avatar)
     if (props.user.uid && props.user.uid !== "local-player") {
       fetch(`/api/spire-stats/${props.user.uid}`)
         .then((r) => r.json())
         .then((data) => setSpireStats(data))
         .catch(() => {})
+      fetch(`/api/player-avatar/${props.user.uid}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (typeof data?.avatar === "string") setAvatar(data.avatar)
+        })
+        .catch(() => {})
     }
-  }, [props.user.uid])
+  }, [props.user.uid, props.user.avatar])
   const twitchUrl = props.user.twitchLogin
     ? `https://www.twitch.tv/${props.user.twitchLogin}`
     : null
@@ -75,7 +83,7 @@ export default function PlayerBox(props: {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.5em" }}>
-          <PokemonPortrait avatar={props.user.avatar} />
+          <PokemonPortrait avatar={avatar} />
           {props.user.title && (
             <p className="player-title">{t(`title.${props.user.title}`)}</p>
           )}

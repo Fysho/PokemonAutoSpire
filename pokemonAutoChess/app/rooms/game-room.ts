@@ -404,6 +404,10 @@ export default class GameRoom extends Room<{ state: GameState }> {
         if (!player || player.money < 1) return
         const choiceIdx = player.choices.findIndex((c) => c.type === "eliteReward")
         if (choiceIdx < 0) return
+        // Elite loss rewards carry no items (2 Pokemon, no components); win
+        // rewards carry a component per Pokemon. Regenerate the matching kind so
+        // a reroll can't upgrade a loss reward into a win reward.
+        const wasLossReward = player.choices[choiceIdx].items.length === 0
         player.choices.splice(choiceIdx, 1)
         player.money -= 1
         const cmd = new OnUpdatePhaseCommand()
@@ -411,7 +415,11 @@ export default class GameRoom extends Room<{ state: GameState }> {
         cmd.room = this
         cmd.state = this.state
         cmd.clock = this.clock
-        cmd.generateEliteRewardChoice(player)
+        if (wasLossReward) {
+          cmd.generateEliteLossChoice(player)
+        } else {
+          cmd.generateEliteRewardChoice(player)
+        }
       }
     })
 
@@ -435,11 +443,15 @@ export default class GameRoom extends Room<{ state: GameState }> {
           const newItems = pickNRandomIn(pool.length >= 3 ? pool : ItemComponentsNoFossilOrScarf, 3)
           player.choices.push(new PlayerChoice({ type: "item", items: newItems }))
         } else {
+          // Preserve the number of choices originally offered (boss win = 3,
+          // boss loss = 1). Re-picking a fixed 3 here turned a single loss
+          // reward into three on reroll.
+          const count = currentItems.length || 1
           const originalWasTools = currentItems.some((i: Item) => Tools.includes(i))
           const fullPool = originalWasTools ? [...Tools] : [...ShinyItems]
           const filteredPool = fullPool.filter((i: Item) => !currentItems.includes(i))
-          const pool = filteredPool.length >= 3 ? filteredPool : fullPool
-          const newItems = pickNRandomIn(pool, 3)
+          const pool = filteredPool.length >= count ? filteredPool : fullPool
+          const newItems = pickNRandomIn(pool, count)
           player.choices.push(new PlayerChoice({ type: "item", items: newItems }))
         }
       }
@@ -488,7 +500,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const { generateActMap } = require("../core/map-generator")
         this.state.mapNodes.clear()
         this.state.mapEdges.splice(0, this.state.mapEdges.length)
-        generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3)
+        generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3, this.state.isEndless)
+        if (this.state.isEndless) this.populateAsyncFightNodes()
       }
     })
 
@@ -801,9 +814,15 @@ export default class GameRoom extends Room<{ state: GameState }> {
           p.dojoFamilies.clear()
           if (!p.isBot) { p.alive = true }
         })
-        this.state.phase = GamePhaseState.MAP
-        this.state.time = 999 * 1000
-        this.state.roundTime = 999
+        // Route through initializeMapPhase so stale encounter state (opponent
+        // inventory/board/synergies/snapshot from the prior champion fight) is
+        // cleared — otherwise it lingers on screen during the next act.
+        const cmd = new OnUpdatePhaseCommand()
+        cmd.setPayload({})
+        cmd.room = this
+        cmd.state = this.state
+        cmd.clock = this.clock
+        cmd.initializeMapPhase()
       }
     })
 
@@ -827,9 +846,15 @@ export default class GameRoom extends Room<{ state: GameState }> {
           p.dojoFamilies.clear()
           if (!p.isBot) { p.alive = true }
         })
-        this.state.phase = GamePhaseState.MAP
-        this.state.time = 999 * 1000
-        this.state.roundTime = 999
+        // Route through initializeMapPhase so stale encounter state (the defeated
+        // champion's / E4 member's inventory, board, synergies, snapshot) is
+        // cleared before the Arceus act — otherwise it stays on screen.
+        const cmd = new OnUpdatePhaseCommand()
+        cmd.setPayload({})
+        cmd.room = this
+        cmd.state = this.state
+        cmd.clock = this.clock
+        cmd.initializeMapPhase()
       }
     })
 
@@ -899,6 +924,14 @@ export default class GameRoom extends Room<{ state: GameState }> {
       const player = this.state.players.get(client.auth.uid)
       if (!player || player.role !== Role.ADMIN) return
       this.spawnOnBench(player, Pkm.DITTO)
+    })
+
+    this.onMessage(Transfer.GIVE_POKEMON, (client, { pkm }: { pkm: Pkm }) => {
+      if (!client.auth) return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player || player.role !== Role.ADMIN) return
+      if (!Object.values(Pkm).includes(pkm)) return
+      this.spawnOnBench(player, pkm)
     })
 
     this.onMessage(Transfer.ADMIN_TELEPORT_NODE, (client, nodeId: string) => {
@@ -1069,7 +1102,26 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     restoreRunToState(this.state, player, savedRun.data)
 
-    if (this.state.phase !== GamePhaseState.REWARD) {
+    // SHOP/REST/EVENT phases consume their map node on entry but rely on either
+    // transient state (the shop miniGame carousel) or unsaved choice state
+    // (rest/event choices) that isn't persisted. Resuming straight to MAP would
+    // leave the player on an already-visited node with no way back in, so
+    // re-initialize the phase instead of falling back to MAP.
+    const savedPhase = savedRun.data.phase
+    if (
+      savedPhase === GamePhaseState.SHOP ||
+      savedPhase === GamePhaseState.REST ||
+      savedPhase === GamePhaseState.EVENT
+    ) {
+      const cmd = new OnUpdatePhaseCommand()
+      cmd.setPayload({})
+      cmd.room = this
+      cmd.state = this.state
+      cmd.clock = this.clock
+      if (savedPhase === GamePhaseState.SHOP) cmd.initializeShopPhase()
+      else if (savedPhase === GamePhaseState.REST) cmd.initializeRestPhase()
+      else cmd.initializeEventPhase()
+    } else if (this.state.phase !== GamePhaseState.REWARD) {
       this.state.phase = GamePhaseState.MAP
     }
     this.state.time = 999 * 1000

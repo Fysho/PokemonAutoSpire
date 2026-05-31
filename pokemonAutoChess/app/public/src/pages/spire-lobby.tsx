@@ -604,13 +604,30 @@ function SpireLobbyContent({
 }) {
   const [activeSection, setActive] = useState<string>("rooms")
   const [ascensionIndex, setAscensionIndex] = useState(0)
-  const [runSortBy, setRunSortBy] = useState<"stage" | "difficulty">("difficulty")
-  const [runSortAsc, setRunSortAsc] = useState(false)
-  const [runFilterDifficulty, setRunFilterDifficulty] = useState<number | null>(null)
+  const [runSortBy, setRunSortBy] = useState<"stage" | "difficulty">(
+    () => (localStore.get(LocalStoreKeys.SPIRE_RUN_SORT_BY) as "stage" | "difficulty") ?? "stage"
+  )
+  const [runSortAsc, setRunSortAsc] = useState<boolean>(
+    () => localStore.get(LocalStoreKeys.SPIRE_RUN_SORT_ASC) ?? false
+  )
+  const [runFilterDifficulty, setRunFilterDifficulty] = useState<number | null>(
+    () => localStore.get(LocalStoreKeys.SPIRE_RUN_FILTER_DIFFICULTY) ?? null
+  )
   const [showPatchPopup, setShowPatchPopup] = useState(false)
   const [showHotfixButton, setShowHotfixButton] = useState(false)
   const { t } = useTranslation()
   const selectedAscension = ASCENSION_RANKS[ascensionIndex]
+
+  // Persist the Live Runs sort/filter preferences across sessions
+  useEffect(() => {
+    localStore.set(LocalStoreKeys.SPIRE_RUN_SORT_BY, runSortBy)
+  }, [runSortBy])
+  useEffect(() => {
+    localStore.set(LocalStoreKeys.SPIRE_RUN_SORT_ASC, runSortAsc)
+  }, [runSortAsc])
+  useEffect(() => {
+    localStore.set(LocalStoreKeys.SPIRE_RUN_FILTER_DIFFICULTY, runFilterDifficulty)
+  }, [runFilterDifficulty])
 
   const uid = useAppSelector((state) => state.network.uid)
   const isGuest = !uid || uid === "local-player"
@@ -715,8 +732,17 @@ function SpireLobbyContent({
               })
               .sort((a, b) => {
                 const dir = runSortAsc ? 1 : -1
-                if (runSortBy === "difficulty") return (a.difficultyMode - b.difficultyMode) * dir
-                return ((a.currentAct * 100 + a.currentFloor) - (b.currentAct * 100 + b.currentFloor)) * dir
+                const stageA = a.currentAct * 100 + a.currentFloor
+                const stageB = b.currentAct * 100 + b.currentFloor
+                if (runSortBy === "difficulty") {
+                  // Primary: difficulty group (toggle flips only this order).
+                  const diff = (a.difficultyMode - b.difficultyMode) * dir
+                  if (diff !== 0) return diff
+                  // Secondary: stage, always furthest-first within a difficulty group.
+                  return stageB - stageA
+                }
+                // Stage sort: furthest-first by default; toggle flips it.
+                return (stageA - stageB) * dir
               })
             return filtered.length === 0 ? (
               <span style={{ fontSize: "13px", opacity: 0.5 }}>
@@ -1183,6 +1209,25 @@ function SpireLobbyContent({
               </div>
               <span><PacTag type="info" /> <strong>Execute Abilities</strong> — Horn Drill, Sheer Cold, and Crabhammer deal 9999 damage on execute.</span>
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+                <img src={getPortraitSrc("0789")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("0790")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+              </div>
+              <span><PacTag type="buffed" /> <strong>Cosmog / Cosmoem</strong> — Evolve after 3 evolutions instead of 8, and gain 30 permanent max HP per evolution instead of 10.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0924")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="changed" /> <strong>Tandemaus / Maushold</strong> — Each stage now evolves 5 fights after it is acquired, instead of on fixed turns 15 and 20.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0935")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="changed" /> <strong>Charcadet</strong> — Receives its Auspicious / Malicious Armor for defeating any act-end boss, instead of a fixed PvE stage.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0888")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="changed" /> <strong>Zacian</strong> — Receives its Rusted Sword for defeating any act-end boss, instead of a fixed PvE stage.</span>
+            </div>
           </div>
 
           <h3 style={{ marginTop: "8px", fontSize: "13px" }}>Synergies</h3>
@@ -1193,7 +1238,7 @@ function SpireLobbyContent({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <SynergyIcon type={Synergy.AMORPHOUS} size="28px" />
-              <span><PacTag type="nerfed" /> <strong>Amorphous</strong> — Speed and HP bonuses per active synergy halved.</span>
+              <span><PacTag type="nerfed" /> <strong>Amorphous</strong> — Speed and HP bonuses per active synergy reduced to ¾ of base.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <SynergyIcon type={Synergy.WATER} size="28px" />

@@ -728,14 +728,31 @@ export default class Player extends Schema implements IPlayer {
       return
     }
 
-    // Original PAC method — kept for reference, uses isInRegion() with variant/additional logic
-    // const newRegionalPokemons = PRECOMPUTED_REGIONAL_MONS.filter((p) =>
-    //   new PokemonClasses[p](p).isInRegion(this.map, state)
-    // )
-
-    // Spire method — uses same candidate list as reward generation (getRegionalCandidates)
+    // Spire fix: keep the existing regional list (getRegionalCandidates — the panel content
+    // players are used to), then ADD the high-star regional finals the star cap was dropping.
+    // regionalPokemons drives divergent evolutions (e.g. Quilava -> Hisuian Typhlosion in a
+    // Ghost region) via regionalPokemons.includes(<variant>), but getRegionalCandidates caps
+    // at 2★, so every 3★ regional final was silently excluded and impossible to evolve into.
+    // The extras are gated by each variant's own isInRegion() (so Hisuian Typhlosion stays
+    // Ghost-locked, not in any Fire/Field region), deduped against families already shown, and
+    // queried with state=undefined to bypass the additional-pick unlock gate (Spire has no
+    // forced add-pick rounds, so those Pokemon should always count as available).
     const { getRegionalCandidates } = require("../spire-encounters")
-    const newRegionalPokemons: Pkm[] = getRegionalCandidates(this.map, state.currentAct)
+    const baseRegional: Pkm[] = getRegionalCandidates(this.map, state.currentAct)
+    const baseFamilies = new Set(baseRegional.map((p) => PkmFamily[p]))
+    const extraFinals: Pkm[] = PRECOMPUTED_REGIONAL_MONS.filter((p) => {
+      const data = getPokemonData(p)
+      return (
+        data.stars > 2 &&
+        data.rarity !== Rarity.HATCH &&
+        data.rarity !== Rarity.SPECIAL &&
+        data.rarity !== Rarity.UNIQUE &&
+        data.rarity !== Rarity.LEGENDARY &&
+        !baseFamilies.has(PkmFamily[p]) &&
+        new PokemonClasses[p](p).isInRegion(this.map, undefined)
+      )
+    })
+    const newRegionalPokemons: Pkm[] = [...baseRegional, ...extraFinals]
 
     if (mapChanged) {
       state.shop.resetRegionalPool(this)
@@ -812,18 +829,8 @@ export default class Player extends Schema implements IPlayer {
       }
     }
 
-    // Spire: use getRegionalCandidates directly — it already handles rarity filtering,
-    // family dedup, and evolution exclusion. The original PAC filter below excluded
-    // additional-pick Pokemon not yet unlocked, which doesn't apply in spire mode.
-    // Original PAC display filter kept below for reference:
-    // newRegionalPokemons.filter((p, index, array) => {
-    //   const pkm = getPokemonData(PkmFamily[p])
-    //   const evolution = pkm.evolution
-    //   const baseVariant = PkmRegionalBaseVariants[p]
-    //   if (baseVariant) { ... additional pick filtering ... }
-    //   return pkm.rarity !== UNIQUE/LEGENDARY && family dedup && evolution exclusion
-    // })
-
+    // baseRegional is already deduped/filtered by getRegionalCandidates, and extraFinals are
+    // pre-filtered and family-deduped against it, so just sort by stars and store as-is.
     newRegionalPokemons.sort(
       (a, b) => getPokemonData(a).stars - getPokemonData(b).stars
     )

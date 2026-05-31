@@ -6,6 +6,11 @@ export interface IRunHistoryPokemon {
   items: string[]
 }
 
+export interface IRunHistorySynergy {
+  type: string
+  count: number
+}
+
 export interface IRunHistory {
   odToken: string
   time: number
@@ -16,6 +21,7 @@ export interface IRunHistory {
   arceusDamageDealt: number
   victory: boolean
   pokemons: IRunHistoryPokemon[]
+  synergies?: IRunHistorySynergy[]
 }
 
 const runHistorySchema = new Schema<IRunHistory>(
@@ -32,6 +38,10 @@ const runHistorySchema = new Schema<IRunHistory>(
       name: { type: String, required: true },
       avatar: { type: String, required: true },
       items: [{ type: String }]
+    }],
+    synergies: [{
+      type: { type: String, required: true },
+      count: { type: Number, required: true }
     }]
   },
   {

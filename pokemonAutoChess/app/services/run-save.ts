@@ -524,6 +524,12 @@ export async function saveRunHistory(
         })
       }
     })
+    // Capture the player's exact synergy counts at save time (includes gem
+    // bonus synergies, type-changing stones, Dragon double-types, etc.)
+    const synergies: { type: string; count: number }[] = []
+    player.synergies.forEach((count, type) => {
+      if (count > 0) synergies.push({ type, count })
+    })
     const historyAct = state.currentAct >= 5 ? 4 : state.currentAct
     const historyFloor = state.currentAct >= 5 ? 5 : state.currentFloor
     await RunHistory.create({
@@ -535,7 +541,8 @@ export async function saveRunHistory(
       runHP: state.runHP,
       arceusDamageDealt: state.arceusDamageDealt,
       victory,
-      pokemons
+      pokemons,
+      synergies
     })
     const result = victory ? "victory" : "defeat"
     const arceus = state.arceusDamageDealt > 0 ? ` | arceus dmg: ${state.arceusDamageDealt}` : ""
@@ -554,6 +561,25 @@ export async function saveRunHistoryFromSavedRun(odToken: string, savedData: Sav
       avatar: getAvatarString(PkmIndex[p.name] ?? "", !!p.shiny, (p.emotion as Emotion) ?? Emotion.NORMAL),
       items: (p.items ?? []) as string[]
     }))
+    // Reconstruct synergy counts from the saved board + bonus synergies (gems)
+    const bonusSynergies = new Map<Synergy, number>()
+    for (const [syn, count] of savedData.bonusSynergies ?? []) {
+      bonusSynergies.set(syn as Synergy, count)
+    }
+    const board = boardPokemon.map((p) => {
+      const pkm = PokemonFactory.createPokemonFromName(p.name as Pkm)
+      pkm.positionY = p.y
+      ;(p.items ?? []).forEach((item) => pkm.items.add(item as Item))
+      return pkm
+    })
+    const synergyCounts = computeSynergies(
+      board,
+      bonusSynergies.size > 0 ? bonusSynergies : undefined
+    )
+    const synergies: { type: string; count: number }[] = []
+    synergyCounts.forEach((count, type) => {
+      if (count > 0) synergies.push({ type, count })
+    })
     const historyAct = savedData.currentAct >= 5 ? 4 : savedData.currentAct
     const historyFloor = savedData.currentAct >= 5 ? 5 : savedData.currentFloor
     await RunHistory.create({
@@ -565,7 +591,8 @@ export async function saveRunHistoryFromSavedRun(odToken: string, savedData: Sav
       runHP: savedData.runHP,
       arceusDamageDealt: 0,
       victory: false,
-      pokemons
+      pokemons,
+      synergies
     })
     logger.info(`Abandoned run history saved | ${savedData.team.name} | act ${historyAct} floor ${historyFloor}`)
   } catch (e) {

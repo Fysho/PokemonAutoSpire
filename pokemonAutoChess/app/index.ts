@@ -12,6 +12,7 @@ import UserMetadata from "./models/mongo-models/user-metadata"
 import { RunHistory } from "./models/mongo-models/run-history"
 import { SavedRun } from "./models/mongo-models/saved-run"
 import { startLongestReignChecker } from "./services/cronjobs"
+import { startCcuSampler } from "./services/ccu-history"
 
 Encoder.BUFFER_SIZE = 512 * 1024
 
@@ -49,6 +50,7 @@ async function main() {
   }
 
   startLongestReignChecker()
+  startCcuSampler()
 }
 
 main()

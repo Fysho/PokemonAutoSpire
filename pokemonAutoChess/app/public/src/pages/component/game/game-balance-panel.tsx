@@ -37,6 +37,7 @@ export default function GameBalancePanel() {
   const currentAct = useAppSelector((state) => state.game.currentAct)
   const currentFloor = useAppSelector((state) => state.game.currentFloor)
   const difficultyMode = useAppSelector((state) => state.game.difficultyMode)
+  const isEndless = useAppSelector((state) => state.game.isEndless)
   const encounterDifficulty = useAppSelector((state) => state.game.encounterDifficulty)
   const encounterPokemonCount = useAppSelector((state) => state.game.encounterPokemonCount)
   const encounterTotalStars = useAppSelector((state) => state.game.encounterTotalStars)
@@ -51,8 +52,8 @@ export default function GameBalancePanel() {
   const offset = getStarOffset(currentAct, currentFloor, difficultyMode)
   const starMin = Math.max(1, baseMin + offset)
   const starMax = Math.max(1, baseMax + offset)
-  const modeLabel = MODE_LABELS[difficultyMode] ?? "Normal"
-  const modeColor = MODE_COLORS[difficultyMode] ?? "#f39c12"
+  const modeLabel = isEndless ? "Endless" : (MODE_LABELS[difficultyMode] ?? "Normal")
+  const modeColor = isEndless ? "#1abc9c" : (MODE_COLORS[difficultyMode] ?? "#f39c12")
   const offsetStr = offset === 0 ? "" : offset > 0 ? ` (+${offset}★)` : ` (${offset}★)`
 
   return (
@@ -70,7 +71,7 @@ export default function GameBalancePanel() {
       <header style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: "4px" }}>
         Balance Info
       </header>
-      <div>Mode: <strong>{modeLabel}</strong>{offsetStr}</div>
+      <div>Mode: <strong style={{ color: modeColor }}>{modeLabel}</strong>{offsetStr}</div>
       <div>Act {currentAct} Floor {currentFloor}</div>
       <div>Progress: {progress}/60</div>
       <div style={{ marginTop: "4px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "4px" }}>

@@ -13,7 +13,8 @@ import {
   EvolutionRule,
   HatchEvolutionRule,
   ItemEvolutionRule,
-  StackBasedEvolutionRule
+  StackBasedEvolutionRule,
+  TimerEvolutionRule
 } from "../../core/evolution-rules"
 import Simulation from "../../core/simulation"
 import GameState from "../../rooms/states/game-state"
@@ -13639,9 +13640,10 @@ export class Tandemaus extends Pokemon {
   range = 1
   skill = Ability.POPULATION_BOMB
   evolution = Pkm.MAUSHOLD_THREE
-  evolutionRule = new ConditionBasedEvolutionRule(
-    (pokemon, player, stageLevel) => stageLevel >= 14
-  )
+  // PAC diversion: was ConditionBasedEvolutionRule(stageLevel >= 14). Now evolves
+  // 5 fights after being acquired (hatch-style timer) so it works when picked up late.
+  evolutionRule = new TimerEvolutionRule(5)
+  stacksRequired = 5
   passive = Passive.FAMILY
 }
 
@@ -13658,9 +13660,10 @@ export class MausholdThree extends Pokemon {
   range = 1
   skill = Ability.POPULATION_BOMB
   evolution = Pkm.MAUSHOLD_FOUR
-  evolutionRule = new ConditionBasedEvolutionRule(
-    (pokemon, player, stageLevel) => stageLevel >= 20
-  )
+  // PAC diversion: was ConditionBasedEvolutionRule(stageLevel >= 20). Now evolves
+  // 5 more fights after Maushold (3) appears (10 total from acquiring Tandemaus).
+  evolutionRule = new TimerEvolutionRule(5)
+  stacksRequired = 5
   passive = Passive.FAMILY
 }
 
@@ -14809,7 +14812,7 @@ export class Cosmog extends Pokemon {
   rarity = Rarity.UNIQUE
   evolution = Pkm.COSMOEM
   evolutionRule = new StackBasedEvolutionRule()
-  stacksRequired = 8
+  stacksRequired = 3 // PAC diversion: was 8 (10 upstream), lowered so Cosmog evolves on a realistic number of evolutions in a Spire run
   stars = 1
   hp = 140
   atk = 5
@@ -14836,11 +14839,11 @@ export class Cosmoem extends Pokemon {
       return Pkm.SOLGALEO
     else return Pkm.LUNALA
   })
-  stacksRequired = 8
+  stacksRequired = 3 // PAC diversion: was 8 (10 upstream)
   onAcquired(player: Player) {
     this.stacks = -1 // because cosmoem will proc the passive as well after evolution
-    this.hp -= 10
-    this.hp -= 80 // revert hp buffs of cosmog
+    this.hp -= 30 // revert the immediate passive proc (+30) that fires right after this evolution
+    this.hp -= 90 // revert hp buffs of cosmog (3 stacks x 30 hp)
     this.maxHP = this.hp
   }
   hp = 220

@@ -94,6 +94,152 @@ let gameOptions: ServerOptions = {
   })
 }
 
+const CCU_PAGE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CCU History — Pokemon Auto Spire</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #1b1b22; color: #eee; }
+    header { padding: 16px 24px; border-bottom: 1px solid #333; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    h1 { font-size: 18px; margin: 0; }
+    .stat { font-size: 13px; color: #aaa; }
+    .stat b { color: #f1c40f; font-size: 15px; }
+    .controls { margin-left: auto; display: flex; gap: 8px; }
+    button { background: #2a2a33; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+    button.active { background: #f1c40f; color: #1b1b22; border-color: #f1c40f; }
+    .chart-box { padding: 16px 24px; }
+    .chart-box h2 { font-size: 14px; margin: 0 0 8px; color: #ccc; font-weight: 600; }
+    .canvas-wrap { height: 38vh; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Server Metrics</h1>
+    <span class="stat">Players: <b id="now">–</b></span>
+    <span class="stat">Peak: <b id="peak">–</b></span>
+    <span class="stat">CPU: <b id="cpu">–</b></span>
+    <span class="stat">Mem: <b id="mem">–</b></span>
+    <span class="stat">Sys mem: <b id="sysmem">–</b></span>
+    <span class="stat">Samples: <b id="count">–</b></span>
+    <span class="stat">Updated: <b id="updated">–</b></span>
+    <div class="controls">
+      <button data-h="6">6h</button>
+      <button data-h="24" class="active">24h</button>
+      <button data-h="72">3d</button>
+      <button data-h="168">7d</button>
+    </div>
+  </header>
+  <div class="chart-box">
+    <h2>Concurrent Users</h2>
+    <div class="canvas-wrap"><canvas id="chart"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h2>CPU & Memory</h2>
+    <div class="canvas-wrap"><canvas id="resChart"></canvas></div>
+  </div>
+  <script>
+    let all = [];
+    let hours = 24;
+    let chart, resChart;
+
+    function fmt(v, suffix) { return (v === undefined || v === null) ? '–' : v + suffix; }
+
+    function render() {
+      const cutoff = Date.now() - hours * 3600 * 1000;
+      const data = all.filter(s => s.t >= cutoff);
+      const peak = data.reduce((m, s) => Math.max(m, s.ccu), 0);
+      const last = all[all.length - 1];
+      document.getElementById('now').textContent = last ? last.ccu : '–';
+      document.getElementById('peak').textContent = peak;
+      document.getElementById('cpu').textContent = last ? fmt(last.cpu, '%') : '–';
+      document.getElementById('mem').textContent = last ? fmt(last.memMB, ' MB') : '–';
+      document.getElementById('sysmem').textContent = last ? fmt(last.sysMemPct, '%') : '–';
+      document.getElementById('count').textContent = data.length;
+      document.getElementById('updated').textContent = last ? new Date(last.t).toLocaleTimeString() : '–';
+
+      const points = data.map(s => ({ x: s.t, y: s.ccu }));
+      const roomPoints = data.map(s => ({ x: s.t, y: s.rooms }));
+      const cpuPoints = data.map(s => ({ x: s.t, y: s.cpu }));
+      const sysMemPoints = data.map(s => ({ x: s.t, y: s.sysMemPct }));
+      const memPoints = data.map(s => ({ x: s.t, y: s.memMB }));
+
+      if (chart) {
+        chart.data.datasets[0].data = points;
+        chart.data.datasets[1].data = roomPoints;
+        chart.update();
+        resChart.data.datasets[0].data = cpuPoints;
+        resChart.data.datasets[1].data = sysMemPoints;
+        resChart.data.datasets[2].data = memPoints;
+        resChart.update();
+        return;
+      }
+
+      const xAxis = { type: 'time', time: { tooltipFormat: 'MMM d, HH:mm' }, ticks: { color: '#999' }, grid: { color: '#2a2a33' } };
+
+      chart = new Chart(document.getElementById('chart'), {
+        type: 'line',
+        data: { datasets: [
+          { label: 'Players', data: points, borderColor: '#f1c40f', backgroundColor: 'rgba(241,196,15,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+          { label: 'Active rooms', data: roomPoints, borderColor: '#3498db', fill: false, tension: 0, pointRadius: 0, borderWidth: 1.5 }
+        ]},
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: xAxis,
+            y: { beginAtZero: true, ticks: { color: '#999', precision: 0 }, grid: { color: '#2a2a33' } }
+          },
+          plugins: { legend: { labels: { color: '#ccc' } } }
+        }
+      });
+
+      resChart = new Chart(document.getElementById('resChart'), {
+        type: 'line',
+        data: { datasets: [
+          { label: 'CPU %', data: cpuPoints, yAxisID: 'pct', borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,0.12)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+          { label: 'System mem %', data: sysMemPoints, yAxisID: 'pct', borderColor: '#9b59b6', fill: false, tension: 0, pointRadius: 0, borderWidth: 1.5 },
+          { label: 'Process RSS (MB)', data: memPoints, yAxisID: 'mb', borderColor: '#2ecc71', fill: false, tension: 0, pointRadius: 0, borderWidth: 1.5 }
+        ]},
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: xAxis,
+            pct: { position: 'left', beginAtZero: true, max: 100, ticks: { color: '#999', callback: v => v + '%' }, grid: { color: '#2a2a33' } },
+            mb: { position: 'right', beginAtZero: true, ticks: { color: '#999', callback: v => v + ' MB' }, grid: { drawOnChartArea: false } }
+          },
+          plugins: { legend: { labels: { color: '#ccc' } } }
+        }
+      });
+    }
+
+    async function load() {
+      try {
+        const r = await fetch('/api/ccu-history');
+        all = await r.json();
+        render();
+      } catch (e) { console.error(e); }
+    }
+
+    document.querySelectorAll('.controls button').forEach(b => {
+      b.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        hours = +b.dataset.h;
+        render();
+      };
+    });
+
+    load();
+    setInterval(load, 60 * 1000); // refresh every minute
+  </script>
+</body>
+</html>`
+
 export const server = defineServer({
   ...gameOptions,
 
@@ -521,6 +667,18 @@ export const server = defineServer({
         monitor()
       )
       logger.info("Colyseus monitor available at /colyseus")
+
+      const ccuAuth = basicAuth({ users: { admin: monitorPassword }, challenge: true })
+
+      app.get("/api/ccu-history", ccuAuth, async (req, res) => {
+        const { getCcuHistory } = await import("./services/ccu-history")
+        res.json(getCcuHistory())
+      })
+
+      app.get("/ccu", ccuAuth, (req, res) => {
+        res.send(CCU_PAGE_HTML)
+      })
+      logger.info("CCU graph available at /ccu")
     }
   }
 })

@@ -45,3 +45,6 @@ id_digital_ocean.pub
 champion-data.json
 champion-data-easy.json
 champion-data-hard.json
+
+# CCU history (generated)
+ccu-history.json
