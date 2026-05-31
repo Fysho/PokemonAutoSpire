@@ -2218,8 +2218,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       }
     })
 
-    this.autoSaveRun()
-
+    // NOTE: a single autoSaveRun() runs at the very end of this method, AFTER
+    // any act-transition below has mutated currentAct / regenerated the map.
+    // Do NOT save here (pre-transition): two racing saves straddling the act
+    // rollover could persist the pre-transition state last, stranding the
+    // player on a completed terminal-floor map with no way to advance on resume.
     const currentNode = this.state.mapNodes.get(this.state.currentNodeId)
     if (currentNode?.nodeType === MapNodeType.LEGENDARY_BOSS) {
       const anyPlayerWon = schemaValues(this.state.players).some(
@@ -2229,27 +2232,26 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         if (this.state.currentAct < 3) {
           this.state.currentAct += 1
           this.state.currentFloor = 0
+          this.state.currentNodeId = ""
           this.state.mapNodes.clear()
           this.state.mapEdges.clear()
           generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode)
           this.applyFisho2EliteOverride()
           this.state.players.forEach((p) => { p.dojoFamilies.clear() })
-          this.autoSaveRun()
         } else {
           // Act 3 boss beaten: show victory, allow entering Elite 4
           this.state.runComplete = true
           this.state.eliteFourAvailable = true
-          this.autoSaveRun()
         }
       } else if (this.state.currentAct < 3) {
         this.state.currentAct += 1
         this.state.currentFloor = 0
+        this.state.currentNodeId = ""
         this.state.mapNodes.clear()
         this.state.mapEdges.clear()
         generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode)
         this.applyFisho2EliteOverride()
         this.state.players.forEach((p) => { p.dojoFamilies.clear() })
-        this.autoSaveRun()
       } else {
         this.state.runFailed = true
         this.state.gameFinished = true
@@ -2282,14 +2284,20 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       if (this.state.isEndless && currentNode.floor === 20) {
         this.state.currentAct += 1
         this.state.currentFloor = 0
+        this.state.currentNodeId = ""
         this.state.mapNodes.clear()
         this.state.mapEdges.clear()
         generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode, true)
         this.room.populateAsyncFightNodes()
         this.state.players.forEach((p) => { p.dojoFamilies.clear() })
-        this.autoSaveRun()
       }
     }
+
+    // Single authoritative save for the whole reward phase. Runs after any act
+    // transition above, so the persisted run is always internally consistent
+    // (currentAct + map + currentNodeId agree). No-op once the run has ended
+    // (autoSaveRun guards on !gameFinished && !runFailed).
+    this.autoSaveRun()
   }
 
   stopSpireFightingPhase() {
