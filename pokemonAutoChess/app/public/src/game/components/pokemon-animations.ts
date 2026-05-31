@@ -2,7 +2,7 @@
   AnimationType,
   AttackSprite,
   HitSprite,
-  PokemonAnimationConfig
+  type PokemonAnimationConfig
 } from "../../../../types/Animation"
 import { Pkm } from "../../../../types/enum/Pokemon"
 
@@ -4293,7 +4293,7 @@ export const PokemonAnimations: {
     attackSprite: AttackSprite.BUG_MELEE,
     hitSprite: HitSprite.BUG_HIT
   },
-  [Pkm.VESPIQUEEN]: {
+  [Pkm.VESPIQUEN]: {
     attack: AnimationType.Attack,
     ability: AnimationType.SpAttack,
     emote: AnimationType.Shoot,
@@ -7915,8 +7915,7 @@ export const PokemonAnimations: {
     attack: AnimationType.Attack,
     ability: AnimationType.Shoot,
     emote: AnimationType.RearUp,
-    attackSprite: AttackSprite.WATER_MELEE,
-    shinyUnavailable: true
+    attackSprite: AttackSprite.WATER_MELEE
   },
   [Pkm.TATSUGIRI_CURLY]: {
     attack: AnimationType.Attack,

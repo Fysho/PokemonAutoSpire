@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises"
 import { monitor } from "@colyseus/monitor"
+import type { SavedRunData } from "./services/run-save"
 import { defineRoom, defineServer, matchMaker, ServerOptions } from "colyseus"
 import { WebSocketTransport } from "@colyseus/ws-transport"
 import cors from "cors"
@@ -628,7 +629,7 @@ export const server = defineServer({
         const { loadRun, deleteSavedRun, saveRunHistoryFromSavedRun, updateVictoryRecord } = await import("./services/run-save")
         const savedRun = await loadRun(req.params.uid)
         if (savedRun?.data) {
-          await saveRunHistoryFromSavedRun(req.params.uid, savedRun.data)
+          await saveRunHistoryFromSavedRun(req.params.uid, savedRun.data as SavedRunData)
           await updateVictoryRecord(
             req.params.uid,
             savedRun.data.team?.name ?? "Unknown",

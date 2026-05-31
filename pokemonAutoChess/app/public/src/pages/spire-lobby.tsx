@@ -810,7 +810,7 @@ function SpireLobbyContent({
                               key={i}
                               src={getPortraitSrc(idx)}
                               alt={pkm}
-                              title={t(`pkm.${pkm}`)}
+                              title={t(`pkm.${pkm}` as any)}
                               style={{ width: 32, height: 32, imageRendering: "pixelated" }}
                             />
                           ) : null
@@ -1070,9 +1070,9 @@ function SpireLobbyContent({
               <option value="" disabled>{t("search_pokemon")}</option>
               {Object.keys(PkmIndex)
                 .filter((p) => p !== "DEFAULT" && p !== "EGG")
-                .sort((a, b) => t(`pkm.${a}`).localeCompare(t(`pkm.${b}`)))
+                .sort((a, b) => t(`pkm.${a}` as any).localeCompare(t(`pkm.${b}` as any)))
                 .map((p) => (
-                  <option key={p} value={p}>{t(`pkm.${p}`)}</option>
+                  <option key={p} value={p}>{t(`pkm.${p}` as any)}</option>
                 ))}
             </select>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -1607,7 +1607,7 @@ function ChampionSlotRow({ slot, title, highlight }: { slot: ChampionSlot; title
               <img
                 src={getPortraitSrc(idx)}
                 alt={p.name}
-                title={t(`pkm.${p.name}`)}
+                title={t(`pkm.${p.name}` as any)}
                 style={{ width: 50, height: 50, imageRendering: "pixelated" }}
               />
               {p.items.length > 0 && (
@@ -1617,7 +1617,7 @@ function ChampionSlotRow({ slot, title, highlight }: { slot: ChampionSlot; title
                       key={j}
                       src={`/assets/item/${item}.png`}
                       alt={item}
-                      title={t(`item.${item}`)}
+                      title={t(`item.${item}` as any)}
                       style={{ width: 15, height: 15 }}
                     />
                   ))}

@@ -1,5 +1,5 @@
-import { Emotion, Role, Title } from ".."
-import { Language } from "../enum/Language"
+import type { Emotion, Role, Title } from ".."
+import type { Language } from "../enum/Language"
 
 export interface ISpireDiffStats {
   runsStarted: number
@@ -41,6 +41,7 @@ interface IUserMetadata {
   banned?: boolean
   pokemonCollection: Map<string, IPokemonCollectionItem>
   spireStats?: ISpireStats
+  spireRegion?: string
 }
 
 interface IPokemonCollectionItem {

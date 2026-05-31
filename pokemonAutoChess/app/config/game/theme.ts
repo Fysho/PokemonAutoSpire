@@ -1,5 +1,5 @@
 import { Title } from "../../types"
-import { IUserMetadataUnpacked } from "../../types/interfaces/UserMetadata"
+import type { IUserMetadataUnpacked } from "../../types/interfaces/UserMetadata"
 import { invertKeysValues, values } from "../../utils/object"
 import { GADGETS } from "./gadgets"
 
@@ -7,13 +7,14 @@ export const THEMES = [
   "default",
   "super",
   "lilac",
+  "rainbow",
   "unown",
+  "origin",
   "umbra",
   "autumn",
   "redsea",
   "zengarden",
-  "deerling",
-  "origin"
+  "deerling"
 ] as const
 
 export type Theme = (typeof THEMES)[number]
@@ -28,6 +29,7 @@ export const VIDEO_BG_THEMES: Theme[] = [
 
 export const TITLE_BY_THEME = {
   unown: Title.ARCHEOLOGIST,
+  rainbow: Title.HARLEQUIN,
   autumn: Title.POKEMON_RANGER,
   umbra: Title.DELINQUENT,
   redsea: Title.FISHERMAN,
@@ -45,8 +47,7 @@ export function isThemeUnlocked(
   theme: Theme,
   profile: IUserMetadataUnpacked
 ): boolean {
-  if (profile.level < GADGETS.palette.levelRequired) return false
-  const requiredTitle = TITLE_BY_THEME[theme]
-  if (!requiredTitle) return true
-  return profile.titles.includes(requiredTitle)
+  // Spire (single-player): no title progression, so every theme is always available.
+  // Upstream gated themes behind TITLE_BY_THEME titles + a palette level requirement.
+  return profile.level >= GADGETS.palette.levelRequired
 }

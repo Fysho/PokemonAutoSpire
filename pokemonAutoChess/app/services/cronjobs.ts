@@ -2,7 +2,7 @@ import { matchMaker } from "colyseus"
 import { CronJob } from "cron"
 import dayjs from "dayjs"
 import admin from "firebase-admin"
-import { UserRecord } from "firebase-admin/lib/auth/user-record"
+import type { UserRecord } from "firebase-admin/lib/auth/user-record"
 import {
   CRON_ELO_DECAY_DELAY,
   CRON_ELO_DECAY_MINIMUM_ELO,
@@ -21,6 +21,7 @@ import { GameMode } from "../types/enum/Game"
 import { GameEvent } from "../types/events"
 import { logger } from "../utils/logger"
 import { min } from "../utils/number"
+import { fetchMetaReports } from "./meta"
 import { notificationsService } from "./notifications"
 import { refreshSpriteGapData } from "./sprite-gap-scanner"
 import { DifficultyMode, checkLiveReignRecord } from "./champion-data"

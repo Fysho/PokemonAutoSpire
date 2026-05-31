@@ -2,10 +2,17 @@ import React from "react"
 import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
-import { RegionDetails } from "../../../../../config"
-import { GamePhaseState } from "../../../../../types/enum/Game"
+import {
+  AdditionalPicksStages,
+  ItemCarouselStages,
+  PortalCarouselStages,
+  RegionDetails
+} from "../../../../../config"
+import { PVEStages } from "../../../../../models/pve-stages"
+import { Emotion } from "../../../../../types"
+import { BattleResult, GamePhaseState } from "../../../../../types/enum/Game"
 import { DungeonPMDO } from "../../../../../types/enum/Dungeon"
-import { Pkm } from "../../../../../types/enum/Pokemon"
+import { Pkm, PkmIndex } from "../../../../../types/enum/Pokemon"
 import { SynergyAssociatedToWeather } from "../../../../../types/enum/Weather"
 import { selectSpectatedPlayer, useAppSelector } from "../../../hooks"
 import { addIconsToDescription } from "../../utils/descriptions"

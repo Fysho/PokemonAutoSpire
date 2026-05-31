@@ -16,7 +16,7 @@ import {
   randomWeighted
 } from "../utils/random"
 import { schemaValues } from "../utils/schemas"
-import Player from "./colyseus-models/player"
+import type Player from "./colyseus-models/player"
 
 export type PVEStagesNames =
   | `pkm.${Pkm}`
@@ -143,7 +143,7 @@ export const PVEStages: { [turn: number]: PVEStage } = {
     getRewardsPropositions(_player: Player, shinyEncounter: boolean) {
       if (shinyEncounter) {
         return pickNRandomIn(
-          ShinyItems.filter((o) => o !== Item.RED_SCALE),
+          ShinyItems,
           3
         )
       } else {

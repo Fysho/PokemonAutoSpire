@@ -1,12 +1,12 @@
-import { RoomAvailable } from "@colyseus/sdk"
+import type { RoomAvailable } from "@colyseus/sdk"
 import firebase from "firebase/compat/app"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
 import { MAX_LOADING_TIME } from "../../../../../config"
-import GameState from "../../../../../rooms/states/game-state"
-import { IGameMetadata, Role, Transfer } from "../../../../../types"
-import { GameMode } from "../../../../../types/enum/Game"
+import type GameState from "../../../../../rooms/states/game-state"
+import { type IGameMetadata, Role, Transfer } from "../../../../../types"
+import type { GameMode } from "../../../../../types/enum/Game"
 import { throttle } from "../../../../../utils/function"
 import { useAppDispatch, useAppSelector } from "../../../hooks"
 import { client, joinGame, rooms } from "../../../network"
@@ -96,7 +96,7 @@ export function IngameRoomsList({ gameMode }: { gameMode?: GameMode }) {
       const game = await client.joinById<GameState>(selectedRoom.roomId, {
         idToken: token
       })
-      joinGame(game, MAX_LOADING_TIME / 1000)
+      joinGame(game)
       dispatch(resetLobby())
       dispatch(resetBoosters())
       navigate("/game")
@@ -132,7 +132,7 @@ export function IngameRoomsList({ gameMode }: { gameMode?: GameMode }) {
           onChange={(e) => setSortBy(e.target.value as "difficulty" | "stage" | "elo" | "name")}
           style={{ padding: "4px 8px" }}
         >
-          <option value="difficulty">{t("difficulty")}</option>
+          <option value="difficulty">{t("difficulty" as any)}</option>
           <option value="stage">{t("stage")}</option>
           <option value="elo">{t("average_elo")}</option>
           <option value="name">{t("name")}</option>

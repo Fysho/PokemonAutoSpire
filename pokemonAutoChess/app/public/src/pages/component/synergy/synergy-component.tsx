@@ -2,7 +2,7 @@ import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
 import { SynergyTriggers } from "../../../../../config"
-import { Synergy } from "../../../../../types/enum/Synergy"
+import type { Synergy } from "../../../../../types/enum/Synergy"
 import { selectSpectatedPlayer, useAppSelector } from "../../../hooks"
 import { getGameScene } from "../../game"
 import SynergyIcon from "../icons/synergy-icon"
@@ -108,10 +108,10 @@ export default function SynergyComponent(props: {
         ? ReactDOM.createPortal(tooltip, document.body)
         : tooltip}
 
-      <SynergyIcon type={props.type} size="40px" />
+      <SynergyIcon type={props.type} />
       <span
         style={{
-          fontSize: "32px",
+          fontSize: "2em",
           textShadow: "2px 2px 2px #000000c0",
           textAlign: "center",
           marginRight: "4px",

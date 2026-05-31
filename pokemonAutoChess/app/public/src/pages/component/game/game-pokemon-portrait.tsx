@@ -1,15 +1,17 @@
-import React, { useEffect, useMemo, useState } from "react"
+import type React from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Tooltip } from "react-tooltip"
 import { RarityColor } from "../../../../../config"
-import { CountEvolutionRule } from "../../../../../core/evolution-rules"
-import { Pokemon } from "../../../../../models/colyseus-models/pokemon"
+import { EvolutionManager } from "../../../../../core/evolution-logic/evolution-manager"
+import type { Pokemon } from "../../../../../models/colyseus-models/pokemon"
 import {
   getPkmWithCustom,
-  PokemonCustoms
+  type PokemonCustoms
 } from "../../../../../models/colyseus-models/pokemon-customs"
 import PokemonFactory from "../../../../../models/pokemon-factory"
 import { getBuyPrice } from "../../../../../models/shop"
-import { Pkm, PkmFamily } from "../../../../../types/enum/Pokemon"
+import { EvolutionRuleType } from "../../../../../types/EvolutionRules"
+import { type Pkm, PkmFamily } from "../../../../../types/enum/Pokemon"
 import { getPortraitSrc } from "../../../../../utils/avatar"
 import { schemaValues } from "../../../../../utils/schemas"
 import {
@@ -104,10 +106,12 @@ export default function GamePokemonPortrait(props: {
   const pokemonCustom = getPkmWithCustom(pokemon.index, customs)
   const rarityColor = RarityColor[pokemon.rarity]
 
+  // Spire: defensive try/catch retained around the new EvolutionManager call — snapshot/
+  // reconstructed pokemon (team-snapshot) can carry malformed evolutionRule. See migration doc.
   let evolutionName: Pkm
   try {
     evolutionName = spectatedPlayer
-      ? pokemon.evolutionRule.getEvolution(pokemon, spectatedPlayer)
+      ? EvolutionManager.getEvolution(pokemon, spectatedPlayer)
       : (pokemon.evolutions[0] ?? pokemon.evolution)
   } catch {
     evolutionName = pokemon.evolutions[0] ?? pokemon.evolution
@@ -115,16 +119,16 @@ export default function GamePokemonPortrait(props: {
   let pokemonEvolution = PokemonFactory.createPokemonFromName(evolutionName)
 
   const willEvolve =
-    pokemon.evolutionRule instanceof CountEvolutionRule &&
+    pokemon.evolutionRule.type === EvolutionRuleType.COUNT &&
     count === pokemon.evolutionRule.numberRequired - 1
 
   const shouldShimmer =
-    pokemon.evolutionRule instanceof CountEvolutionRule &&
+    pokemon.evolutionRule.type === EvolutionRuleType.COUNT &&
     ((count > 0 && pokemon.hasEvolution) ||
       (countEvol > 0 && pokemonEvolution.hasEvolution))
 
   if (
-    pokemon.evolutionRule instanceof CountEvolutionRule &&
+    pokemon.evolutionRule.type === EvolutionRuleType.COUNT &&
     count === pokemon.evolutionRule.numberRequired - 1 &&
     countEvol === pokemon.evolutionRule.numberRequired - 1 &&
     pokemonEvolution.hasEvolution
@@ -132,7 +136,7 @@ export default function GamePokemonPortrait(props: {
     let evolutionName2: Pkm
     try {
       evolutionName2 = spectatedPlayer
-        ? pokemonEvolution.evolutionRule.getEvolution(
+        ? EvolutionManager.getEvolution(
             pokemonEvolution,
             spectatedPlayer,
             stageLevel

@@ -6,19 +6,19 @@ import {
   getRegionTint,
   RegionDetails
 } from "../../../../config"
-import { DesignTiled } from "../../../../core/design"
+import type { DesignTiled } from "../../../../core/design"
 import { FLOWER_POTS_POSITIONS_BLUE } from "../../../../core/flower-pots"
 import { canSell } from "../../../../core/pokemon-entity"
-import Player from "../../../../models/colyseus-models/player"
+import type Player from "../../../../models/colyseus-models/player"
 import { PokemonClasses } from "../../../../models/colyseus-models/pokemon"
-import GameState from "../../../../rooms/states/game-state"
+import type GameState from "../../../../rooms/states/game-state"
 import {
-  IDragDropCombineMessage,
-  IDragDropItemMessage,
-  IDragDropMessage,
+  type IDragDropCombineMessage,
+  type IDragDropItemMessage,
+  type IDragDropMessage,
   Transfer
 } from "../../../../types"
-import { DungeonMusic, DungeonPMDO } from "../../../../types/enum/Dungeon"
+import { DungeonMusic, type DungeonPMDO } from "../../../../types/enum/Dungeon"
 import { GamePhaseState } from "../../../../types/enum/Game"
 import { Item, isItemSellable, ItemRecipe, Mulches } from "../../../../types/enum/Item"
 import { Pkm } from "../../../../types/enum/Pokemon"

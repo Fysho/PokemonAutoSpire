@@ -47,7 +47,7 @@ interface SerializedFlowerPot {
   emotion: string
 }
 
-interface SavedRunData {
+export interface SavedRunData {
   // Game state
   currentAct: number
   currentFloor: number

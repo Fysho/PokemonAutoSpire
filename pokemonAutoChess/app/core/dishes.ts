@@ -1,14 +1,14 @@
 import { FIGHTING_PHASE_DURATION, getBaseAltForm } from "../config"
 import { Title } from "../types"
 import { EffectEnum } from "../types/enum/Effect"
-import { Berries, Dishes, Item } from "../types/enum/Item"
+import { Berries, type Dishes, Item } from "../types/enum/Item"
 import { Pkm } from "../types/enum/Pokemon"
 import { Synergy } from "../types/enum/Synergy"
 import { chance } from "../utils/random"
 import { schemaValues } from "../utils/schemas"
 import { AbilityStrategies } from "./abilities/abilities"
 import {
-  Effect,
+  type Effect,
   OnDishConsumedEffect,
   OnHitEffect,
   OnSpawnEffect,
@@ -38,7 +38,7 @@ export const DishByPkm: { [pkm in Pkm]?: Item | null } = {
   [Pkm.TROPIUS]: Item.NANAB_BERRY,
   [Pkm.SHUCKLE]: Item.BERRY_JUICE,
   [Pkm.COMBEE]: Item.HONEY,
-  [Pkm.VESPIQUEEN]: Item.HONEY,
+  [Pkm.VESPIQUEN]: Item.HONEY,
   [Pkm.CHANSEY]: Item.NUTRITIOUS_EGG,
   [Pkm.BLISSEY]: Item.NUTRITIOUS_EGG,
   [Pkm.NACLI]: Item.ROCK_SALT,

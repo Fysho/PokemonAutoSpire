@@ -59,7 +59,7 @@ export default function Auth() {
             <br />
             A mod of Pokemon Auto Chess — all credit to the original developers
             <br />
-            Built on Pokemon Auto Chess v6.9 (master@01c2ebe)
+            Built on Pokemon Auto Chess v6.10 (prod@c6386e8)
           </p>
         </div>
         <a

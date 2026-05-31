@@ -6,18 +6,20 @@ import {
   MAX_LOADING_TIME,
   MAX_SIMULATION_DELTA_TIME
 } from "../config"
-import { CountEvolutionRule, ItemEvolutionRule } from "../core/evolution-rules"
+import { EvolutionManager } from "../core/evolution-logic/evolution-manager"
+import { getHatchTime } from "../core/evolution-logic/hatch-time"
 import { MiniGame } from "../core/mini-game"
 import { IGameUser } from "../models/colyseus-models/game-user"
 import Player from "../models/colyseus-models/player"
 import { Egg, Pokemon } from "../models/colyseus-models/pokemon"
 import PokemonFactory from "../models/pokemon-factory"
 import {
+  getAdditionalsTier1,
   getPokemonData,
   PRECOMPUTED_REGIONAL_MONS
 } from "../models/precomputed/precomputed-pokemon-data"
 import { PRECOMPUTED_POKEMONS_PER_RARITY } from "../models/precomputed/precomputed-rarity"
-import { getAdditionalsTier1, getSellPrice } from "../models/shop"
+import { getSellPrice } from "../models/shop"
 import {
   IDragDropCombineMessage,
   IDragDropItemMessage,
@@ -31,6 +33,7 @@ import {
   Title,
   Transfer
 } from "../types"
+import { EvolutionRuleType } from "../types/EvolutionRules"
 import { EloRank } from "../types/enum/EloRank"
 import { BattleResult, GameMode, GamePhaseState, PokemonActionState, Rarity } from "../types/enum/Game"
 import { Item, isItemSellable, SynergyGem, SynergyGivenByGem, Wands } from "../types/enum/Item"
@@ -1286,13 +1289,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
     player.board.forEach((pokemon) => {
       if (
         pokemon.hasEvolution &&
-        pokemon.evolutionRule instanceof CountEvolutionRule
+        pokemon.evolutionRule.type === EvolutionRuleType.COUNT
       ) {
-        const pokemonEvolved = pokemon.evolutionRule.tryEvolve(
-          pokemon,
-          player,
-          this.state.stageLevel
-        )
+        const pokemonEvolved = EvolutionManager.tryEvolve(pokemon, player)
         if (pokemonEvolved) {
           hasEvolved = true
         }
@@ -1305,19 +1304,20 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
   checkEvolutionsAfterItemAcquired(
     playerId: string,
-    pokemon: Pokemon
+    pokemon: Pokemon,
+    itemAcquired: Item
   ): Pokemon | void {
     const player = this.state.players.get(playerId)
     if (!player) return
 
     if (
       pokemon.evolutionRule &&
-      pokemon.evolutionRule instanceof ItemEvolutionRule
+      pokemon.evolutionRule.type === EvolutionRuleType.ITEM
     ) {
-      const pokemonEvolved = pokemon.evolutionRule.tryEvolve(
+      const pokemonEvolved = EvolutionManager.tryEvolve(
         pokemon,
         player,
-        this.state.stageLevel
+        itemAcquired
       )
       return pokemonEvolved
     }
@@ -1371,7 +1371,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
           const egg = PokemonFactory.createPokemonFromName(Pkm.EGG, player) as Egg
           egg.action = PokemonActionState.SLEEP
           egg.evolution = pkm as Pkm
-          egg.stacksRequired = egg.evolutionRule.getHatchTime(egg, player)
+          egg.stacksRequired = getHatchTime(egg, player)
           const x = getFirstAvailablePositionInBench(player.board)
           if (x !== null) {
             egg.positionX = x
@@ -1421,8 +1421,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
       const pokemon = pokemonsObtained[0]
       const isEvolution =
         pokemon.evolutionRule &&
-        pokemon.evolutionRule instanceof CountEvolutionRule &&
-        pokemon.evolutionRule.canEvolveIfGettingOne(pokemon, player)
+        pokemon.evolutionRule.type === EvolutionRuleType.COUNT &&
+        EvolutionManager.canEvolveIfGettingOne(pokemon, player)
 
       const freeSpace = getFreeSpaceOnBench(player.board)
 
@@ -1448,7 +1448,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
         if (this.state.specialGameRule === SpecialGameRule.CHOSEN_ONES) {
           pokemonsObtained = pokemonsObtained.map((pkm) => {
             const evolution = pkm.hasEvolution
-              ? pkm.evolutionRule.getEvolution(
+              ? EvolutionManager.getEvolution(
                   pkm,
                   player,
                   this.state.stageLevel

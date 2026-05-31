@@ -763,7 +763,10 @@ export const SynergyGemsBuried: SynergyGem[] = [
   Item.STEEL_GEM,
   Item.DRAGON_GEM,
   Item.POISON_GEM,
-  Item.GHOST_GEM
+  Item.GHOST_GEM,
+  Item.FIELD_GEM,
+  Item.GROUND_GEM,
+  Item.AMORPHOUS_GEM
 ] satisfies SynergyGem[]
 
 export const ToolsBuried: Tool[] = [
@@ -1059,7 +1062,7 @@ const UnsellableSpecialItems: Item[] = [
 ]
 
 export function isItemSellable(item: Item): boolean {
-  if (Tools.includes(item)) return false
+  if ((Tools as readonly Item[]).includes(item)) return false
   if (Scarves.includes(item)) return false
   if (Wands.includes(item)) return false
   if (UnsellableSpecialItems.includes(item)) return false

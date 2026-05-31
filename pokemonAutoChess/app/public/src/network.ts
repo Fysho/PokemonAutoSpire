@@ -95,8 +95,16 @@ export function authenticateUser() {
 
 export const rooms: {
   game: Room<GameState> | undefined
+  // Spire is single-player: lobby/preparation/after rooms are never joined, but the
+  // (dead) multiplayer UI files still reference them, so they're typed as always-undefined.
+  lobby: Room | undefined
+  preparation: Room | undefined
+  after: Room | undefined
 } = {
-  game: undefined
+  game: undefined,
+  lobby: undefined,
+  preparation: undefined,
+  after: undefined
 }
 
 export async function leaveRoom(
@@ -198,6 +206,7 @@ export const removeBot = noop
 export const toggleReady = noop
 export const setNoElo = noop
 export const gameStartRequest = noop
+export const sendMaintenanceOrder = noop
 export const changeRoomName = noop
 export const changeRoomPassword = noop
 export const changeRoomMinMaxRanks = noop

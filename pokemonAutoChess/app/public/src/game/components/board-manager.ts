@@ -11,18 +11,22 @@ import {
 } from "../../../../config"
 import {
   FLOWER_POTS_POSITIONS_BLUE,
-  FlowerPotMons,
-  FlowerPots
+  FlowerPotMons
 } from "../../../../core/flower-pots"
-import Player from "../../../../models/colyseus-models/player"
+import type Player from "../../../../models/colyseus-models/player"
 import { PokemonAvatarModel } from "../../../../models/colyseus-models/pokemon-avatar"
 import PokemonFactory from "../../../../models/pokemon-factory"
 import { getPokemonData } from "../../../../models/precomputed/precomputed-pokemon-data"
-import { PVEStage, PVEStages } from "../../../../models/pve-stages"
-import GameState from "../../../../rooms/states/game-state"
-import { IPokemon, IPokemonEntity } from "../../../../types"
+import { type PVEStage, PVEStages } from "../../../../models/pve-stages"
+import type GameState from "../../../../rooms/states/game-state"
 import {
-  GameMode,
+  FlowerPots,
+  type IPokemon,
+  type IPokemonEntity
+} from "../../../../types"
+import { DungeonMusic } from "../../../../types/enum/Dungeon"
+import {
+  type GameMode,
   GamePhaseState,
   Orientation,
   PokemonActionState,
@@ -32,7 +36,7 @@ import {
 } from "../../../../types/enum/Game"
 import { Item } from "../../../../types/enum/Item"
 import { Pkm, PkmByIndex } from "../../../../types/enum/Pokemon"
-import { SpecialGameRule } from "../../../../types/enum/SpecialGameRule"
+import type { SpecialGameRule } from "../../../../types/enum/SpecialGameRule"
 import { Synergy } from "../../../../types/enum/Synergy"
 import { TownEncounters } from "../../../../types/enum/TownEncounter"
 import { Weather } from "../../../../types/enum/Weather"
@@ -51,10 +55,10 @@ import {
 import { preference } from "../../preferences"
 import store from "../../stores"
 import { refreshShopUI } from "../../stores/GameStore"
-import AnimationManager from "../animation-manager"
+import type AnimationManager from "../animation-manager"
 import { PokemonAnimations } from "../components/pokemon-animations"
 import { DEPTH } from "../depths"
-import GameScene from "../scenes/game-scene"
+import type GameScene from "../scenes/game-scene"
 import { displayBoost } from "./abilities-animations"
 import { BerryTree } from "./berry-tree"
 import PokemonSprite from "./pokemon"

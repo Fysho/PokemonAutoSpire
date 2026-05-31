@@ -2,9 +2,9 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getPokemonData } from "../../../../../models/precomputed/precomputed-pokemon-data"
 import { Role } from "../../../../../types"
-import { Pkm, PkmIndex } from "../../../../../types/enum/Pokemon"
-import { Synergy } from "../../../../../types/enum/Synergy"
-import {
+import { type Pkm, PkmIndex } from "../../../../../types/enum/Pokemon"
+import type { Synergy } from "../../../../../types/enum/Synergy"
+import type {
   IUserMetadataClient,
   IUserMetadataUnpacked,
   ISpireStats,
@@ -83,9 +83,9 @@ export default function PlayerBox(props: {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.5em" }}>
-          <PokemonPortrait avatar={avatar} />
+          <PokemonPortrait avatar={avatar ?? ""} />
           {props.user.title && (
-            <p className="player-title">{t(`title.${props.user.title}`)}</p>
+            <p className="player-title">{t(`title.${props.user.title}` as any)}</p>
           )}
           <RoleBadge role={props.user.role} />
           {props.user.banned && (
