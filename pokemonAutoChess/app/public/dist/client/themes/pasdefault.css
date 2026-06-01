@@ -1,5 +1,60 @@
-/* PAS Default: classic (default) UI — opaque panels, default colours — with
-   Zen Garden's video background behind everything. No panel transparency. */
+/* PAS Default: Umbra UI theme (dark palette + translucent panels) on top of
+   Zen Garden's video background. The video comes from
+   assets/theme/pasdefault/videobg.mp4 (a copy of Zen Garden's), so this CSS
+   only needs to mirror Umbra's UI styling. Keep in sync with umbra.css. */
+
+:root {
+  --color-bg-primary: #1e1e2e;
+  --color-bg-secondary: #313244;
+  --color-bg-tertiary: #36345b;
+  --color-bg-accent: #8350ad;
+
+  --border-thick: 2px solid #2f3044;
+  --border-thin: 1px solid #2f3044;
+  --border-extra-thin: 1px solid #2f3044;
+}
+
+#root .ps-sidebar-root {
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+}
+
+dialog {
+  box-shadow: 0 0 16px black;
+}
+
+.custom-bg {
+  position: relative;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Game */
+
+.draggable-window.my-container,
+.game-shop .information > div,
+#game-stage-info,
+.game-spectate-player-info.my-container {
+  background-color: rgba(30, 30, 46, 0.7);
+  backdrop-filter: blur(5px);
+}
+
+.game-shop.my-container {
+  background-color: rgba(30, 30, 46, 0.75);
+  backdrop-filter: blur(5px);
+}
+
+.team-builder-modal.my-container {
+  background-color: rgba(30, 30, 46, 0.75);
+  backdrop-filter: blur(5px);
+}
+
+.synergies-container .draggable-window-content,
+.team-builder-modal .modal-body {
+  background-color: transparent;
+}
+
+.game-final-rank .rank {
+  text-shadow: none;
+}
 
 #videobg {
   position: fixed;
@@ -9,13 +64,4 @@
   height: 100%;
   object-fit: cover;
   z-index: -1;
-}
-
-/* .custom-bg panels (e.g. the Live Runs panel) are meant to show the theme
-   background. The base theme uses the default Charizard/Pikachu image; here we
-   make them a light transparent overlay so the Zen Garden video shows through
-   instead (the `background` shorthand also clears that default image). Tune the
-   0.25 dimming for readability. */
-.custom-bg {
-  background: rgba(0, 0, 0, 0.25);
 }

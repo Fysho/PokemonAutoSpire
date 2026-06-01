@@ -980,9 +980,12 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
     })
 
-    this.presence.subscribe("server-announcement", (message: string) => {
-      this.broadcast(Transfer.SERVER_ANNOUNCEMENT, message)
-    })
+    this.onServerAnnouncement = this.onServerAnnouncement.bind(this)
+    this.presence.subscribe("server-announcement", this.onServerAnnouncement)
+  }
+
+  onServerAnnouncement(message: string) {
+    this.broadcast(Transfer.SERVER_ANNOUNCEMENT, message)
   }
 
   async populateAsyncFightNodes() {
@@ -1252,6 +1255,11 @@ export default class GameRoom extends Room<{ state: GameState }> {
     const humanPlayer = Array.from(this.state.players.values()).find(p => !p.isBot)
     const name = humanPlayer?.name || "Unknown"
     logger.info(`Dispose Game ${this.roomId} | player: ${name}`)
+
+    // Must unsubscribe the exact handler: presence is a shared EventEmitter across
+    // all rooms, so omitting the callback would drop every other live room's listener.
+    // Skipping this entirely leaks the whole room (state/board/sims). See AI-MEMORY-LEAKS.md.
+    this.presence.unsubscribe("server-announcement", this.onServerAnnouncement)
 
     if (!this.runHistoryRecorded && (this.state.runComplete || this.state.runFailed) && humanPlayer) {
       const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../services/run-save")

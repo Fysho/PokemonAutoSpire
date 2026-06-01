@@ -14,6 +14,11 @@ The clone retains full upstream history, so you can still diff against the **6.9
 
 **IMPORTANT: Never edit files in `pac-upstream/`. It is a read-only reference.**
 
+> **Server stability:** memory-leak / OOM incidents and the rules to avoid them (notably:
+> every `presence.subscribe` in a room needs a matching `presence.unsubscribe` with the same
+> handler in `onDispose`) are documented in `AI-MEMORY-LEAKS.md`. Read it before touching
+> room lifecycle code or diagnosing a production OOM.
+
 Useful for:
 - Seeing how PAC originally handles auth (`pac-upstream/app/rooms/custom-lobby-room.ts`, `preparation-room.ts`)
 - Understanding original MongoDB models (`pac-upstream/app/models/mongo-models/`)
@@ -618,6 +623,7 @@ All balance diversions from upstream are listed in the lobby's **PAC Diversions*
 - Snorlax/Munchlax (`Passive.GLUTTON`): Berry/Gourmet HP gains halved
 - Misdreavus/Mismagius (`Ability.NIGHT_SHADE`): Damage capped at 150
 - Alcremie Rainbow Swirl (`Ability.DECORATE`): PP buff 60→30, AP scaling halved
+- Skeledirge (`Ability.TORCH_SONG`): Flame count capped at 20; AP buff applied once per cast instead of per flame. Fixes a runaway feedback loop (AP-scaled flame count + per-flame AP gain) that flooded `pokemon.commands` with unbounded `DelayedCommand`s, leaking memory and OOM-crashing the production server. Was byte-identical to upstream PAC.
 - Cosmog/Cosmoem (`pokemon.ts`): Evolve after 3 stacks instead of 8; +30 max HP per evolution instead of +10 (`evolution-logic/evolution-manager.ts` `afterEvolve`, the COSMOG/COSMOEM stacking block)
 - Tandemaus/Maushold (`pokemon.ts`): Each stage evolves 5 fights after acquisition via a hatch-style timer — `evolutionRule = { type: EvolutionRuleType.HATCH, hatchTime: 5 }` (honored by `evolution-logic/hatch-time.ts`), instead of fixed `stageLevel >= 14`/`>= 20`. (Replaced the old `TimerEvolutionRule` class, removed in the 6.10 evolution refactor.)
 - Count evolutions: 2★+ units need only `min(numberRequired, 2)` copies (`evolution-logic/count-evolution-handler.ts`)

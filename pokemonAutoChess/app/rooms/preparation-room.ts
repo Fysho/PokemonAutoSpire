@@ -449,6 +449,12 @@ export default class PreparationRoom extends Room<{ state: PreparationState }> {
 
   onDispose() {
     logger.info("Dispose preparation room", this.roomId)
+    // Presence topics are subscribed on a shared EventEmitter in onCreate; without
+    // these unsubscribes each disposed room leaks its bound handlers (and the room
+    // they close over) forever. See AI-MEMORY-LEAKS.md.
+    this.presence.unsubscribe("server-announcement", this.onServerAnnouncement)
+    this.presence.unsubscribe("game-started", this.onGameStart)
+    this.presence.unsubscribe("room-deleted", this.onRoomDeleted)
     this.dispatcher.stop()
   }
 

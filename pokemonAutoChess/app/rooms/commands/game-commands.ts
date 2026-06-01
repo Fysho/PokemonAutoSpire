@@ -3037,17 +3037,25 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       if (this.state.encounterCrownedAt && this.state.difficultyMode < 2) {
         const elapsedMs = Date.now() - new Date(this.state.encounterCrownedAt).getTime()
         const hoursElapsed = elapsedMs / (1000 * 60 * 60)
+        // HP decays exponentially (Easy 12%/hr, Normal 6%/hr, floored at 30%).
         const ratePerHour = this.state.difficultyMode === 0 ? 0.12 : 0.06
         const decayMultiplier = Math.pow(1 - ratePerHour, hoursElapsed)
-        if (decayMultiplier < 1) {
-          opponentPlayer.board.forEach((pokemon) => {
-            if (pokemon.positionY <= 0) return
+        // Max PP grows linearly (Easy +12/hr, Normal +6/hr) — a nerf, since a
+        // higher PP cost makes abilities charge slower. maxPP is uint8, clamp to 255.
+        const ppPerHour = this.state.difficultyMode === 0 ? 12 : 6
+        const ppIncrease = Math.round(hoursElapsed * ppPerHour)
+        opponentPlayer.board.forEach((pokemon) => {
+          if (pokemon.positionY <= 0) return
+          if (decayMultiplier < 1) {
             const floor = Math.round(pokemon.hp * 0.3)
             const decayedHp = Math.max(floor, Math.round(pokemon.hp * decayMultiplier))
             const reduction = pokemon.hp - decayedHp
             if (reduction > 0) pokemon.addMaxHP(-reduction)
-          })
-        }
+          }
+          if (ppIncrease > 0) {
+            pokemon.maxPP = Math.min(255, pokemon.maxPP + ppIncrease)
+          }
+        })
         this.state.encounterCrownedAt = null
       }
 

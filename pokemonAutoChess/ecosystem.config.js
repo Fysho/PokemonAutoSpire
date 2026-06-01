@@ -12,6 +12,12 @@ module.exports = {
       watch: false,
       time: true,
       wait_ready: true,
+      // Safety net only — recycles a process before a leak bloats it to multi-GB and
+      // V8 OOM-aborts. NOT a fix; real leaks must be fixed at the source (unsubscribe
+      // presence handlers on dispose). See AI-MEMORY-LEAKS.md. Tune to your droplet:
+      // this is PER PROCESS, and `instances: os.cpus().length` runs one per core, so
+      // keep (instances x this limit) comfortably under total RAM.
+      max_memory_restart: "1500M",
       env_production: {
         NODE_ENV: "production"
       },
