@@ -1,10 +1,12 @@
-# PokemonAutoSpire — Memory Leaks & OOM Incidents
+# PokemonAutoSpire — Server Stability Incidents (Leaks, OOM & Runaway Loops)
 
-A running log of memory-leak / out-of-memory (OOM) bugs found in the Spire server, the
-mechanism behind each, the fix, and a playbook for diagnosing the next one. The production
-server is a single long-lived Node process behind PM2 (see `CLAUDE.md` → *Production
-Deployment*), so **anything that retains per-run state across room disposal accumulates
-until V8 aborts**. There is no request lifecycle to bail you out.
+A running log of memory-leak / out-of-memory (OOM) and runaway-loop bugs found in the Spire
+server, the mechanism behind each, the fix, and a playbook for diagnosing the next one. The
+production server is a single long-lived Node process behind PM2 (see `CLAUDE.md` →
+*Production Deployment*), so **anything that retains per-run state across room disposal
+accumulates until V8 aborts**, and **anything that runs unbounded work on the per-tick update
+loop can starve the single event loop for every other player**. There is no request lifecycle
+to bail you out.
 
 > **Golden rule:** every `this.presence.subscribe(topic, handler)` in a room's `onCreate()`
 > MUST have a matching `this.presence.unsubscribe(topic, handler)` in that room's
@@ -158,6 +160,72 @@ from *fast spike in one fight* (runaway in-simulation allocation).
 
 ---
 
+## Incident 4 — idle-disconnect runaway loop blocks new runs (CRITICAL, fixed v1.7.2)
+
+**Severity:** Critical. Not a memory leak — an **event-loop starvation** runaway. Symptom:
+players suddenly **could not start a new run**, coinciding with a flood of identical logs:
+
+```
+Disconnecting idle player <uid> from game <roomId> after 900s inactive | act: 3 floor: 13
+   (repeated dozens of times for the same player/room)
+```
+
+**Files:** `app/rooms/game-room.ts` (`disconnectIdlePlayers`), `app/rooms/commands/game-commands.ts` (`OnUpdateCommand`).
+
+**Root cause.** The anti-AFK idle disconnect (`IDLE_DISCONNECT_MS = 900s`) had **no guard
+against re-firing**. `OnUpdateCommand.execute()` runs every game tick; once
+`idleTimeMs >= IDLE_DISCONNECT_MS` it called `disconnectIdlePlayers()` and `return`ed, but:
+
+- nothing reset `idleTimeMs` or marked the disconnect as done, and the phase doesn't change,
+  so the next tick re-crossed the threshold and fired again — **every tick, indefinitely**;
+- the stale/AFK client didn't leave instantly (so it kept matching and re-logging);
+- worst of all, `disconnectIdlePlayers()` calls `saveRun(p.id, …)` **fire-and-forget (no
+  await)** for every human still in `state.players` (and `onLeave` never removes them). Each
+  call runs `snapshotPlayerTeam()` synchronously (CPU on the event loop) and launches an
+  unbounded in-flight MongoDB upsert — dozens of times per second.
+
+The single-threaded event loop got buried under per-tick team serialization + overlapping DB
+writes, so the matchmaker couldn't service `client.create("game")` and new runs stalled.
+
+**Fix.** Fire the idle path **at most once per idle window**, reset on phase advance:
+
+```ts
+// game-room.ts:110 — new guard field
+idleDisconnected: boolean = false
+
+// game-room.ts:1214 — make disconnect idempotent
+disconnectIdlePlayers() {
+  if (this.idleDisconnected) return
+  this.idleDisconnected = true
+  ...
+}
+
+// game-commands.ts — reset on phase change, skip once fired
+if (this.room.idlePhase !== this.state.phase) {
+  this.room.idlePhase = this.state.phase
+  this.room.idleTimeMs = 0
+  this.room.idleDisconnected = false       // a still-connected player can idle again later
+}
+if (this.state.phase !== GamePhaseState.FIGHT && !this.room.idleDisconnected) {
+  this.room.idleTimeMs += realDeltaTime
+  if (this.room.idleTimeMs >= IDLE_DISCONNECT_MS) {
+    this.room.disconnectIdlePlayers()
+    return
+  }
+}
+```
+
+**Lessons.**
+- Any per-tick action that depends on a threshold needs a latch: reset the accumulator or set
+  a "done" flag, or it re-fires every frame.
+- **Never call an unbounded `async` (especially a DB write) fire-and-forget from the tick
+  loop.** One stuck room ticking at frame rate can starve the whole single-process server —
+  the blast radius is global, not just that room.
+- A symptom that looks like "the whole server is down for everyone" can originate in a
+  *single* room's update loop. Grep the spamming log line to the room/command that emits it.
+
+---
+
 ## Safety net — PM2 `max_memory_restart`
 
 `ecosystem.config.js` sets `max_memory_restart: "1500M"`. PM2 recycles a process before a
@@ -199,6 +267,11 @@ a crash) but the underlying retention must still be fixed at the source. Tuning 
 5. **Distinguish slow vs fast.** Slow climb over hours → cross-room retention (listeners,
    caches, static maps keyed by run). Fast spike in one fight → runaway in-simulation
    allocation (command queues, AP/stack-scaled loops — see Incident 3).
+5b. **Server "down for everyone" with a spamming log line → suspect a per-tick runaway, not
+   only memory.** A flood of one identical message means a room's update loop is re-firing
+   something every tick (missing latch/threshold reset) and starving the event loop —
+   matchmaking and new-run creation stall even though RAM looks fine. Grep the spamming line
+   to its room/command (see Incident 4). Check for un-awaited `async`/DB calls in the loop.
 6. **Reproduce locally with a heap snapshot.** Start with `node --inspect`, take heap
    snapshots over time in Chrome DevTools, and look for retained `GameRoom` / `GameState`
    instances whose retainer path leads back to an `EventEmitter` — that's a listener leak.

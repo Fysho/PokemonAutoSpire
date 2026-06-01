@@ -101,6 +101,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
   // it without advancing the run.
   idleTimeMs: number = 0
   idlePhase: GamePhaseState | null = null
+  // Guard so the idle-disconnect path fires at most once per idle window. Without
+  // it, OnUpdateCommand re-triggers disconnectIdlePlayers() every tick once the
+  // threshold is crossed (the timer isn't reset and a stale client doesn't leave
+  // instantly), spamming client.leave() + a synchronous saveRun() per tick and
+  // starving the server. Reset on phase advance so a still-connected player who
+  // goes idle again can still be dropped.
+  idleDisconnected: boolean = false
   constructor() {
     super()
     this.dispatcher = new Dispatcher(this)
@@ -1205,6 +1212,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
   // OnUpdateCommand). Signed-in players' progress is persisted first so they can
   // resume from the lobby; the client shows the standard "Disconnected" overlay.
   disconnectIdlePlayers() {
+    if (this.idleDisconnected) return
+    this.idleDisconnected = true
     const { saveRun } = require("../services/run-save")
     const humanUids = new Set<string>()
     this.state.players.forEach((p: Player) => {

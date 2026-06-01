@@ -14,10 +14,12 @@ The clone retains full upstream history, so you can still diff against the **6.9
 
 **IMPORTANT: Never edit files in `pac-upstream/`. It is a read-only reference.**
 
-> **Server stability:** memory-leak / OOM incidents and the rules to avoid them (notably:
-> every `presence.subscribe` in a room needs a matching `presence.unsubscribe` with the same
-> handler in `onDispose`) are documented in `AI-MEMORY-LEAKS.md`. Read it before touching
-> room lifecycle code or diagnosing a production OOM.
+> **Server stability:** memory-leak / OOM and runaway-loop incidents and the rules to avoid
+> them (e.g. every `presence.subscribe` needs a matching `presence.unsubscribe` with the same
+> handler in `onDispose`; never run unbounded/un-awaited async or DB work on the per-tick
+> update loop; latch any per-tick threshold action so it can't re-fire) are documented in
+> `AI-MEMORY-LEAKS.md`. Read it before touching room lifecycle or `OnUpdateCommand` code, or
+> when diagnosing a production OOM or a "nobody can start a run" outage.
 
 Useful for:
 - Seeing how PAC originally handles auth (`pac-upstream/app/rooms/custom-lobby-room.ts`, `preparation-room.ts`)

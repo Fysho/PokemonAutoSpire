@@ -68,7 +68,6 @@ export const EvolutionManager = {
   ): Pokemon {
     const handler = this.getHandler(pokemon.evolutionRule)
     const pokemonEvolved = handler.evolve(pokemon, player, ...additionalArgs)
-    console.log(`Evolved ${pokemon.name} into ${pokemonEvolved.name}, calling afterEvolve`)
     this.afterEvolve(pokemonEvolved, pokemon, player, ...additionalArgs)
     return pokemonEvolved
   },
@@ -89,8 +88,6 @@ export const EvolutionManager = {
         }
       })
     }
-
-    console.log("After evolve")
 
     player.board.forEach((pokemon) => {
       if (

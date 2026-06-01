@@ -1126,8 +1126,9 @@ export class OnUpdateCommand extends Command<
       if (this.room.idlePhase !== this.state.phase) {
         this.room.idlePhase = this.state.phase
         this.room.idleTimeMs = 0
+        this.room.idleDisconnected = false
       }
-      if (this.state.phase !== GamePhaseState.FIGHT) {
+      if (this.state.phase !== GamePhaseState.FIGHT && !this.room.idleDisconnected) {
         this.room.idleTimeMs += realDeltaTime
         if (this.room.idleTimeMs >= IDLE_DISCONNECT_MS) {
           this.room.disconnectIdlePlayers()

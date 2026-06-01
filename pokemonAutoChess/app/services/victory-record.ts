@@ -27,7 +27,7 @@ export async function recordVictory(
         $inc: { totalVictories: 1, currentStreak: 1 },
         $set: { name, avatar }
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     )
     if (doc && doc.currentStreak > doc.longestStreak) {
       doc.longestStreak = doc.currentStreak
