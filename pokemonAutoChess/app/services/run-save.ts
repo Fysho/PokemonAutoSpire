@@ -152,7 +152,28 @@ function serializeFlowerPots(pots: Pokemon[]): SerializedFlowerPot[] {
     }))
 }
 
-export async function saveRun(odToken: string, state: GameState, player: Player): Promise<void> {
+// Per-player serialized save queues. Saves are dispatched fire-and-forget from
+// the game loop; chaining each player's writes guarantees they apply in dispatch
+// order so a slow/older write can never resolve last and clobber newer progress.
+const saveQueues = new Map<string, Promise<unknown>>()
+// Consecutive save-failure count per player. Any non-zero value means the run is
+// silently frozen in the DB and WILL rewind on resume — surfaced loudly in logs.
+const saveFailureStreak = new Map<string, number>()
+
+function recordSaveFailure(odToken: string): number {
+  const streak = (saveFailureStreak.get(odToken) ?? 0) + 1
+  saveFailureStreak.set(odToken, streak)
+  return streak
+}
+
+export function saveRun(odToken: string, state: GameState, player: Player): Promise<void> {
+  // 1) Build the payload SYNCHRONOUSLY so the queued write captures the run state
+  //    at call time, not whenever the DB write later runs. Serialization (esp.
+  //    snapshotPlayerTeam) is the most likely thing to throw — a failure here
+  //    silently froze the save before, so it's now logged loudly.
+  const expectedAct = state.currentAct
+  const expectedFloor = state.currentFloor
+  let update: Record<string, unknown>
   try {
     const team = snapshotPlayerTeam(player, { includeBench: true })
 
@@ -224,24 +245,74 @@ export async function saveRun(odToken: string, state: GameState, player: Player)
       .filter((p) => p.y > 0)
       .map((p) => p.name)
 
-    await SavedRun.findOneAndUpdate(
-      { odToken },
-      {
-        odToken,
-        savedAt: new Date(),
-        currentAct: state.currentAct,
-        currentFloor: state.currentFloor,
-        difficultyMode: state.difficultyMode,
-        isEndless: state.isEndless,
-        runHP: state.runHP,
-        teamPreview,
-        data
-      },
-      { upsert: true, returnDocument: "after" }
-    )
+    update = {
+      odToken,
+      savedAt: new Date(),
+      currentAct: state.currentAct,
+      currentFloor: state.currentFloor,
+      difficultyMode: state.difficultyMode,
+      isEndless: state.isEndless,
+      runHP: state.runHP,
+      teamPreview,
+      data
+    }
   } catch (e) {
-    logger.error("Failed to save run:", e)
+    const streak = recordSaveFailure(odToken)
+    logger.error(
+      `🛑 RUN SAVE FAILED (serialize) — ${player.name} [${odToken}] act ${expectedAct} floor ${expectedFloor}; run is FROZEN and will rewind on resume (consecutive failures: ${streak})`,
+      e
+    )
+    return Promise.resolve()
   }
+
+  // 2) Chain the DB write after any in-flight save for this player so concurrent
+  //    fire-and-forget saves apply strictly in dispatch order (no out-of-order
+  //    clobber). `returnDocument: "before"` hands us the run we're overwriting so
+  //    we can detect lost progress.
+  const prev = saveQueues.get(odToken) ?? Promise.resolve()
+  const task = prev
+    .catch(() => {})
+    .then(async () => {
+      try {
+        const before = (await SavedRun.findOneAndUpdate(
+          { odToken },
+          update,
+          { upsert: true, returnDocument: "before" }
+        )) as ISavedRun | null
+        saveFailureStreak.set(odToken, 0)
+
+        // 3) Anomaly detection: if the run we just overwrote was 2+ floors behind
+        //    where we're now saving (same act), earlier saves were dropped/lost —
+        //    exactly the symptom behind the "resume rewound me N nodes" reports.
+        if (before && before.currentAct === expectedAct) {
+          const gap = expectedFloor - before.currentFloor
+          if (gap >= 2) {
+            logger.error(
+              `⚠️ SAVE GAP — ${player.name} [${odToken}]: stored save was act ${before.currentAct} floor ${before.currentFloor} but now saving floor ${expectedFloor} (skipped ${gap} floors). Earlier saves were LOST — resume would have rewound ${gap} floors.`
+            )
+          } else if (gap < 0) {
+            logger.error(
+              `⚠️ SAVE WENT BACKWARD — ${player.name} [${odToken}]: stored save was act ${before.currentAct} floor ${before.currentFloor}, now saving floor ${expectedFloor}.`
+            )
+          }
+        }
+      } catch (e) {
+        const streak = recordSaveFailure(odToken)
+        logger.error(
+          `🛑 RUN SAVE FAILED (db write) — ${player.name} [${odToken}] act ${expectedAct} floor ${expectedFloor}; run is FROZEN and will rewind on resume (consecutive failures: ${streak})`,
+          e
+        )
+      }
+    })
+    .finally(() => {
+      // Drop the queue entry once this is the tail, to bound memory growth.
+      if (saveQueues.get(odToken) === task) {
+        saveQueues.delete(odToken)
+        if ((saveFailureStreak.get(odToken) ?? 0) === 0) saveFailureStreak.delete(odToken)
+      }
+    })
+  saveQueues.set(odToken, task)
+  return task as Promise<void>
 }
 
 export async function loadRun(odToken: string): Promise<ISavedRun | null> {

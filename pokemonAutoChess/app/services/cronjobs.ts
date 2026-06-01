@@ -58,7 +58,7 @@ export function initCronJobs() {
   // refreshSpriteGapData. Re-enable by uncommenting below when
   // online features are restored.
   logger.debug("cron jobs skipped (spire mode)")
-  return
+  return undefined
 
   /* eslint-disable no-unreachable */
   CronJob.from({

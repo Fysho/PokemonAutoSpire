@@ -1413,13 +1413,17 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     })
   }
 
-  autoSaveRun() {
+  async autoSaveRun() {
+    const { saveRun } = require("../../services/run-save")
+    const saves: Promise<void>[] = []
     this.state.players.forEach((player: Player) => {
       if (!player.isBot && player.alive && !this.state.gameFinished && !this.state.runFailed) {
-        const { saveRun } = require("../../services/run-save")
-        saveRun(player.id, this.state, player)
+        // saveRun never rejects (errors are logged inside) and serializes writes
+        // per player internally, so un-awaited callers are still safely ordered.
+        saves.push(saveRun(player.id, this.state, player))
       }
     })
+    await Promise.allSettled(saves)
   }
 
   // Endless rollover to the next act: increment, wipe & regenerate the (endless)
@@ -1509,6 +1513,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.encounterCrownedAt = null
 
     markAvailableNodes(nodeId, this.state.mapNodes, this.state.mapEdges)
+
+    // Persist the node advance immediately. Previously a combat node only became
+    // durable once its fight was WON (REWARD save), so a restart mid-fight rewound
+    // the player. Saving here caps worst-case loss to the in-progress node.
+    // (autoSaveRun never rejects; saves are ordered internally.)
+    this.autoSaveRun()
 
     // Set player map to region for background tilemap and update regional pool
     if (node.region && node.nodeType === MapNodeType.WILD_BATTLE) {
