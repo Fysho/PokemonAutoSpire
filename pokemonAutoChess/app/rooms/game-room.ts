@@ -1,7 +1,7 @@
 import { Dispatcher } from "@colyseus/command"
 import { MapSchema } from "@colyseus/schema"
 import admin from "firebase-admin"
-import { Client, Room } from "colyseus"
+import { Client, Room, matchMaker } from "colyseus"
 import {
   MAX_LOADING_TIME,
   MAX_SIMULATION_DELTA_TIME
@@ -90,6 +90,18 @@ export default class GameRoom extends Room<{ state: GameState }> {
   miniGame: MiniGame
   isResume: boolean = false
   runHistoryRecorded: boolean = false
+  // Set once the human player leaves/disconnects. There is no reconnection to the
+  // same room (a reconnect spawns a NEW room that resumes), so a left room must
+  // never auto-save again — otherwise this lingering "zombie" room keeps writing
+  // and can clobber the resumed room's newer progress (the SAVE WENT BACKWARD bug).
+  playerLeft: boolean = false
+  // The signed-in uid that owns this run ("local-player" for guests). Used to
+  // enforce one active room per account: when a new room starts for this uid it
+  // publishes "supersede-session" and any older room for the same uid disposes.
+  ownerUid: string = ""
+  // Set when this room was kicked by a newer session for the same account. Blocks
+  // all further saves so the dying room can't clobber the new session's progress.
+  superseded: boolean = false
   eliteFightPokemon: Pkm[] = []
   eliteMainPokemon: Pkm = Pkm.DEFAULT
   eliteMainBonusHP: number = 0
@@ -153,9 +165,12 @@ export default class GameRoom extends Room<{ state: GameState }> {
     const playerName = ownerName || Object.values(users || {})[0]?.name || "Unknown"
     logger.info(`Create Game ${this.roomId} | player: ${playerName} | difficulty: ${diffLabel}`)
 
+    this.ownerUid = Object.keys(users || {})[0] || ""
+
     this.setMetadata(<IGameMetadata>{
       name,
       ownerName,
+      ownerUid: this.ownerUid,
       gameMode,
       playerIds: Object.keys(users).filter((id) => users[id].isBot === false),
       playersInfo: Object.keys(users).map(
@@ -989,6 +1004,47 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     this.onServerAnnouncement = this.onServerAnnouncement.bind(this)
     this.presence.subscribe("server-announcement", this.onServerAnnouncement)
+
+    // One active room per account: subscribe so an older room for this uid can be
+    // told to dispose, then announce ourselves so any existing room steps aside.
+    // (Guests share "local-player", so they are never superseded.)
+    this.onSupersedeSession = this.onSupersedeSession.bind(this)
+    this.presence.subscribe("supersede-session", this.onSupersedeSession)
+    if (this.ownerUid && this.ownerUid !== "local-player") {
+      // Log if this account already had a live run when they entered this one
+      // (this entry will kick it), then announce ourselves to kick it.
+      try {
+        const rooms = await matchMaker.query({})
+        const existing = rooms.filter((r) => {
+          if (r.roomId === this.roomId || r.name !== "game") return false
+          const meta = typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
+          return meta?.ownerUid === this.ownerUid
+        })
+        if (existing.length > 0) {
+          logger.warn(
+            `⚠️ ${playerName} [${this.ownerUid}] entered a new run while ${existing.length} active run(s) already existed (${existing.map((r) => r.roomId).join(", ")}) — kicking the old session.`
+          )
+        }
+      } catch (e) {
+        /* query failure is non-fatal — the supersede publish below still fires */
+      }
+      this.presence.publish("supersede-session", { uid: this.ownerUid, newRoomId: this.roomId })
+    }
+  }
+
+  onSupersedeSession(msg: { uid: string; newRoomId: string }) {
+    if (msg && msg.uid === this.ownerUid && msg.newRoomId !== this.roomId && !this.superseded) {
+      this.supersedeSession()
+    }
+  }
+
+  // Kicked by a newer session for the same account. Block all further saves and
+  // dispose, so this room can never overwrite the new session's progress.
+  supersedeSession() {
+    this.superseded = true
+    this.playerLeft = true
+    logger.info(`Superseding game ${this.roomId} for ${this.ownerUid} — a newer session started`)
+    this.disconnect().catch(() => {})
   }
 
   onServerAnnouncement(message: string) {
@@ -1109,7 +1165,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     if (this.state.gameLoaded) return
     this.state.gameLoaded = true
 
-    const { loadRun, restoreRunToState } = require("../services/run-save")
+    const { loadRun, restoreRunToState, flushSaves } = require("../services/run-save")
 
     const player = schemaValues(this.state.players).find((p: Player) => !p.isBot)
     if (!player) {
@@ -1118,6 +1174,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
       return
     }
 
+    // Drain any in-flight saves for this player first so we read the freshest run,
+    // not a doc one save behind (the "resume rewound a floor" race).
+    await flushSaves(player.id)
     const savedRun = await loadRun(player.id)
     if (!savedRun?.data) {
       logger.error("resumeGame: no saved run found for " + player.id + ", falling back to new game")
@@ -1264,6 +1323,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
   // resume from the lobby; the client shows the standard "Disconnected" overlay.
   disconnectIdlePlayers() {
     if (this.idleDisconnected) return
+    // A superseded room is being torn down by a newer session; never let its idle
+    // path write a stale save over that session's progress.
+    if (this.superseded) return
     this.idleDisconnected = true
     const { saveRun } = require("../services/run-save")
     const humanUids = new Set<string>()
@@ -1300,6 +1362,10 @@ export default class GameRoom extends Room<{ state: GameState }> {
       return
     }
 
+    // Stop this (now player-less) room from auto-saving — a reconnect resumes in a
+    // fresh room, so any further save from here would race/clobber that one.
+    this.playerLeft = true
+
     const player = this.state.players.get(client.auth?.uid)
     const name = player?.name || client.auth?.uid || "Unknown"
     const location = `act: ${this.state.currentAct} floor: ${this.state.currentFloor}`
@@ -1321,6 +1387,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     // all rooms, so omitting the callback would drop every other live room's listener.
     // Skipping this entirely leaks the whole room (state/board/sims). See AI-MEMORY-LEAKS.md.
     this.presence.unsubscribe("server-announcement", this.onServerAnnouncement)
+    this.presence.unsubscribe("supersede-session", this.onSupersedeSession)
 
     if (!this.runHistoryRecorded && (this.state.runComplete || this.state.runFailed) && humanPlayer) {
       const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../services/run-save")

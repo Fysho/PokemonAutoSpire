@@ -134,6 +134,7 @@ export default function SpireLobby() {
   const [savedRun, setSavedRun] = useState<SavedRunSummary | null>(null)
   const [loadingSave, setLoadingSave] = useState(true)
   const [confirmOverwrite, setConfirmOverwrite] = useState<number | null>(null)
+  const [confirmActiveSession, setConfirmActiveSession] = useState<{ difficultyMode: number; resume: boolean; isEndless: boolean } | null>(null)
   const [lostRunPopup, setLostRunPopup] = useState<"found" | "not-found" | "error" | "searching" | null>(null)
   const [hasHardWin, setHasHardWin] = useState(false)
   const [endlessEnabled, setEndlessEnabled] = useState(true)
@@ -345,16 +346,29 @@ export default function SpireLobby() {
 
   const [nameWarning, setNameWarning] = useState(false)
 
-  async function createRoom(difficultyMode: number, resume: boolean, isEndless: boolean = false) {
+  async function createRoom(difficultyMode: number, resume: boolean, isEndless: boolean = false, skipActiveCheck: boolean = false) {
     if (starting) return
     const name = playerName.trim()
     if (!name || name === "Username" || name === "Player") {
       setNameWarning(true)
       return
     }
+    const odToken = uid || "local-player"
+    // One active session per account: warn before kicking another open tab/session.
+    if (!skipActiveCheck && odToken !== "local-player") {
+      try {
+        const res = await fetch(`/api/active-game/${odToken}`)
+        const { active } = await res.json()
+        if (active) {
+          setConfirmActiveSession({ difficultyMode, resume, isEndless })
+          return
+        }
+      } catch {
+        // If the check fails, fall through — the server still enforces one room.
+      }
+    }
     setStarting(true)
     const idToken = await getIdToken()
-    const odToken = uid || "local-player"
     try {
       const room = await client.create("game", {
         idToken,
@@ -411,6 +425,13 @@ export default function SpireLobby() {
         createRoom(endless ? 1 : diff, false, endless)
       })
       .catch(() => createRoom(endless ? 1 : diff, false, endless))
+  }
+
+  function confirmKickActiveSession() {
+    if (!confirmActiveSession) return
+    const c = confirmActiveSession
+    setConfirmActiveSession(null)
+    createRoom(c.difficultyMode, c.resume, c.isEndless, true)
   }
 
   function startEndlessRun() {
@@ -515,6 +536,9 @@ export default function SpireLobby() {
           confirmOverwrite={confirmOverwrite}
           setConfirmOverwrite={setConfirmOverwrite}
           confirmNewRun={confirmNewRun}
+          confirmActiveSession={confirmActiveSession}
+          setConfirmActiveSession={setConfirmActiveSession}
+          confirmKickActiveSession={confirmKickActiveSession}
           findLostRun={findLostRun}
           lostRunPopup={lostRunPopup}
           setLostRunPopup={setLostRunPopup}
@@ -553,6 +577,9 @@ function SpireLobbyContent({
   confirmOverwrite,
   setConfirmOverwrite,
   confirmNewRun,
+  confirmActiveSession,
+  setConfirmActiveSession,
+  confirmKickActiveSession,
   findLostRun,
   lostRunPopup,
   setLostRunPopup,
@@ -585,6 +612,9 @@ function SpireLobbyContent({
   confirmOverwrite: number | null
   setConfirmOverwrite: (v: number | null) => void
   confirmNewRun: () => void
+  confirmActiveSession: { difficultyMode: number; resume: boolean; isEndless: boolean } | null
+  setConfirmActiveSession: (v: { difficultyMode: number; resume: boolean; isEndless: boolean } | null) => void
+  confirmKickActiveSession: () => void
   findLostRun: () => void
   lostRunPopup: "found" | "not-found" | "error" | "searching" | null
   setLostRunPopup: (v: "found" | "not-found" | "error" | "searching" | null) => void
@@ -1402,6 +1432,56 @@ function SpireLobbyContent({
               <button
                 className="bubbly"
                 onClick={() => setConfirmOverwrite(null)}
+                style={{ backgroundColor: "#555" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Session Warning Dialog */}
+      {confirmActiveSession !== null && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+          onClick={() => setConfirmActiveSession(null)}
+        >
+          <div
+            className="my-container my-box"
+            style={{
+              padding: "24px",
+              maxWidth: "400px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>Active Session Detected</h3>
+            <p style={{ fontSize: "14px", opacity: 0.9 }}>
+              You already have a game open in another tab or device. Continuing here
+              will disconnect that session. Make sure you don't lose unsaved progress.
+            </p>
+            <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+              <button
+                className="bubbly red"
+                onClick={confirmKickActiveSession}
+              >
+                Disconnect & Continue
+              </button>
+              <button
+                className="bubbly"
+                onClick={() => setConfirmActiveSession(null)}
                 style={{ backgroundColor: "#555" }}
               >
                 Cancel

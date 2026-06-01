@@ -640,6 +640,7 @@ export interface IPreparationMetadata {
 export interface IGameMetadata {
   name: string
   ownerName: string
+  ownerUid?: string
   gameMode: GameMode
   playerIds: string[]
   playersInfo: string[]

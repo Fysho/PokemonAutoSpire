@@ -167,6 +167,20 @@ function recordSaveFailure(odToken: string): number {
   return streak
 }
 
+// Await any in-flight/queued saves for this player to settle. Called before a
+// resume reads the DB so loadRun can't pick up a stale doc while a newer save is
+// still draining through the queue (the "resume one floor behind" race).
+export async function flushSaves(odToken: string): Promise<void> {
+  const pending = saveQueues.get(odToken)
+  if (pending) {
+    try {
+      await pending
+    } catch {
+      /* individual save errors are already logged inside saveRun */
+    }
+  }
+}
+
 export function saveRun(odToken: string, state: GameState, player: Player): Promise<void> {
   // Guests can't save/resume, and they ALL share odToken "local-player" — saving
   // them collides every guest's run onto one shared document (the "saves swapped"
@@ -281,25 +295,38 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
     .catch(() => {})
     .then(async () => {
       try {
-        const before = (await SavedRun.findOneAndUpdate(
-          { odToken },
-          update,
-          { upsert: true, returnDocument: "before" }
-        )) as ISavedRun | null
+        // Read the run we're about to overwrite first (queue serializes saves for
+        // this player, so no other save races between this read and the write).
+        const before = (await SavedRun.findOne({ odToken }).lean()) as ISavedRun | null
+
+        // 3) Monotonic guard: within a run, (act, floor) only ever moves forward.
+        //    A SAME-ACT backward save is a regression — almost always a lingering
+        //    abandoned room saving late over a resumed room's newer progress. Refuse
+        //    it so a stale write can never rewind a live run. (Cross-act backward is
+        //    left to write but logged, since a fresh run legitimately reuses the slot
+        //    at act 1; new runs otherwise delete the old save first.)
+        if (before && before.currentAct === expectedAct && expectedFloor < before.currentFloor) {
+          logger.error(
+            `⛔ SAVE BLOCKED (regression) — ${player.name} [${odToken}]: keeping stored act ${before.currentAct} floor ${before.currentFloor}, refused to overwrite with act ${expectedAct} floor ${expectedFloor} (likely an abandoned room saving late).`
+          )
+          return
+        }
+        if (before && before.currentAct > expectedAct) {
+          logger.error(
+            `⚠️ SAVE WENT BACKWARD (cross-act) — ${player.name} [${odToken}]: stored save was act ${before.currentAct} floor ${before.currentFloor}, now saving act ${expectedAct} floor ${expectedFloor}. Allowing (could be a new run reusing the slot).`
+          )
+        }
+
+        await SavedRun.findOneAndUpdate({ odToken }, update, { upsert: true })
         saveFailureStreak.set(odToken, 0)
 
-        // 3) Anomaly detection: if the run we just overwrote was 2+ floors behind
-        //    where we're now saving (same act), earlier saves were dropped/lost —
-        //    exactly the symptom behind the "resume rewound me N nodes" reports.
+        // Anomaly detection: overwriting a save 2+ floors behind (same act) means
+        // earlier saves were dropped/lost — the "resume rewound me N nodes" symptom.
         if (before && before.currentAct === expectedAct) {
           const gap = expectedFloor - before.currentFloor
           if (gap >= 2) {
             logger.error(
-              `⚠️ SAVE GAP — ${player.name} [${odToken}]: stored save was act ${before.currentAct} floor ${before.currentFloor} but now saving floor ${expectedFloor} (skipped ${gap} floors). Earlier saves were LOST — resume would have rewound ${gap} floors.`
-            )
-          } else if (gap < 0) {
-            logger.error(
-              `⚠️ SAVE WENT BACKWARD — ${player.name} [${odToken}]: stored save was act ${before.currentAct} floor ${before.currentFloor}, now saving floor ${expectedFloor}.`
+              `⚠️ SAVE GAP — ${player.name} [${odToken}]: stored save was act ${before.currentAct} floor ${before.currentFloor} but now saving act ${expectedAct} floor ${expectedFloor} (skipped ${gap} floors). Earlier saves were LOST — resume would have rewound ${gap} floors.`
             )
           }
         }

@@ -1414,6 +1414,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   }
 
   async autoSaveRun() {
+    // A room the player has left must never save again (zombie-room clobber guard).
+    if (this.room.playerLeft) return
     const { saveRun } = require("../../services/run-save")
     const saves: Promise<void>[] = []
     this.state.players.forEach((player: Player) => {

@@ -343,6 +343,27 @@ export const server = defineServer({
       }
     })
 
+    // Whether this signed-in account already has a live game room (used by the
+    // lobby to warn that starting/resuming here will kick the existing session).
+    app.get("/api/active-game/:uid", async (req, res) => {
+      try {
+        const uid = req.params.uid
+        if (!uid || uid === "local-player") {
+          res.json({ active: false })
+          return
+        }
+        const rooms = await matchMaker.query({})
+        const active = rooms.some((r) => {
+          if (r.name !== "game" || (r.clients ?? 0) <= 0) return false
+          const meta = typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
+          return meta?.ownerUid === uid
+        })
+        res.json({ active })
+      } catch (error) {
+        res.json({ active: false })
+      }
+    })
+
     app.get("/api/public-runs-debug", async (req, res) => {
       try {
         const rooms = await matchMaker.query({})
