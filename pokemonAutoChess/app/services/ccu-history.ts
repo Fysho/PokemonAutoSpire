@@ -24,7 +24,7 @@ const CPU_CORES = Math.max(1, os.cpus().length)
 const DATA_DIR = path.resolve(__dirname, "../../")
 const DATA_FILE = path.join(DATA_DIR, "ccu-history.json")
 
-const SAMPLE_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+const SAMPLE_INTERVAL_MS = 60 * 1000 // 1 minute
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000 // keep last 7 days
 
 let samples: CcuSample[] = []
@@ -102,5 +102,5 @@ export function startCcuSampler(): void {
   // take one immediately so the graph isn't empty after a restart
   void sample()
   timer = setInterval(() => void sample(), SAMPLE_INTERVAL_MS)
-  logger.info("CCU sampler started (every 5 min)")
+  logger.info("CCU sampler started (every 1 min)")
 }

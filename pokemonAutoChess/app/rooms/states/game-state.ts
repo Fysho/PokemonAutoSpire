@@ -82,6 +82,12 @@ export default class GameState extends Schema {
   challengeItem: string = ""
   encounterSnapshot: TeamSnapshot | null = null
   encounterCrownedAt: string | null = null
+  // The combat node the player is currently picking/fighting, set on node select
+  // and cleared once the fight resolves (reward/map phase). Persisted in the save
+  // so a mid-PICK/FIGHT disconnect resumes back into that fight instead of being
+  // stranded on the map with the node already consumed (hard-locks on the floor-20
+  // boss, which has no successor node). Non-synced — server/persistence only.
+  pendingFightNodeId: string = ""
   @type(["uint8"]) encounterGroundHoles = new ArraySchema<number>()
   @type(["string"]) encounterSynergies = new ArraySchema<string>()
   @type("uint32") arceusDamageDealt: number = 0

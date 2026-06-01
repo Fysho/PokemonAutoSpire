@@ -1138,22 +1138,79 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     restoreRunToState(this.state, player, savedRun.data)
 
+    // Repopulate endless async-fight opponents BEFORE any node re-select below:
+    // the pending-fight resume path regenerates the encounter via onSelectMapNode,
+    // which reads asyncFightSnapshots for ASYNC_FIGHT nodes. Awaited so the DB
+    // lookups land first.
+    if (this.state.isEndless) await this.populateAsyncFightNodes()
+
+    const cmd = new OnUpdatePhaseCommand()
+    cmd.setPayload({})
+    cmd.room = this
+    cmd.state = this.state
+    cmd.clock = this.clock
+
+    // A combat node was selected but its fight never resolved (mid-PICK/FIGHT
+    // disconnect): pendingFightNodeId points at it. The encounter board isn't
+    // persisted, so re-enter that node's PICK phase by regenerating the encounter.
+    // The node was consumed (available=false) on selection, so flip it back on
+    // for the re-select (onSelectMapNode early-returns on !available). Without
+    // this the player drops to MAP with the node already visited — a hard-lock on
+    // the floor-20 boss (no successor node) and a silent fight-skip mid-act.
+    const savedPhase = savedRun.data.phase
+    let pendingNodeId = savedRun.data.pendingFightNodeId
+    let pendingNode = pendingNodeId ? this.state.mapNodes.get(pendingNodeId) : undefined
+
+    // Legacy fallback: saves written before pendingFightNodeId existed can be
+    // stranded on the floor-20 boss with no marker. That state is uniquely
+    // identifiable — the boss is the only node with no successor, so when nothing
+    // on the map is available and the current node is a visited combat node, the
+    // player is hard-locked. Recover by re-entering that fight. (Endless strands
+    // are handled separately by recoverIfEndlessStranded, which advances the act.)
+    if (
+      !pendingNode &&
+      !this.state.isEndless &&
+      this.state.phase !== GamePhaseState.REWARD &&
+      savedPhase !== GamePhaseState.SHOP &&
+      savedPhase !== GamePhaseState.REST &&
+      savedPhase !== GamePhaseState.EVENT
+    ) {
+      const { MapNodeType } = require("../models/colyseus-models/map-node")
+      const COMBAT_NODE_TYPES = [
+        MapNodeType.WILD_BATTLE, MapNodeType.GYM_LEADER, MapNodeType.ELITE,
+        MapNodeType.UNLOCK, MapNodeType.LEGENDARY_BOSS, MapNodeType.ELITE_FOUR,
+        MapNodeType.CHAMPION, MapNodeType.ARCEUS_BOSS, MapNodeType.ASYNC_FIGHT
+      ]
+      let anyAvailable = false
+      this.state.mapNodes.forEach((n: any) => { if (n.available) anyAvailable = true })
+      const current = this.state.currentNodeId
+        ? this.state.mapNodes.get(this.state.currentNodeId)
+        : undefined
+      if (
+        !anyAvailable &&
+        current &&
+        current.visited &&
+        COMBAT_NODE_TYPES.includes(current.nodeType)
+      ) {
+        pendingNodeId = this.state.currentNodeId
+        pendingNode = current
+        logger.info(`Recovered stranded run for ${player.name} — re-entering fight on a ${current.nodeType} node (Act ${this.state.currentAct}, Floor ${current.floor})`)
+      }
+    }
+
     // SHOP/REST/EVENT phases consume their map node on entry but rely on either
     // transient state (the shop miniGame carousel) or unsaved choice state
     // (rest/event choices) that isn't persisted. Resuming straight to MAP would
     // leave the player on an already-visited node with no way back in, so
     // re-initialize the phase instead of falling back to MAP.
-    const savedPhase = savedRun.data.phase
-    if (
+    if (pendingNode) {
+      pendingNode.available = true
+      cmd.onSelectMapNode(pendingNodeId)
+    } else if (
       savedPhase === GamePhaseState.SHOP ||
       savedPhase === GamePhaseState.REST ||
       savedPhase === GamePhaseState.EVENT
     ) {
-      const cmd = new OnUpdatePhaseCommand()
-      cmd.setPayload({})
-      cmd.room = this
-      cmd.state = this.state
-      cmd.clock = this.clock
       if (savedPhase === GamePhaseState.SHOP) cmd.initializeShopPhase()
       else if (savedPhase === GamePhaseState.REST) cmd.initializeRestPhase()
       else cmd.initializeEventPhase()
@@ -1163,11 +1220,6 @@ export default class GameRoom extends Room<{ state: GameState }> {
       // (e.g. a legacy save from the old act-transition save race), roll it over
       // to the next act so the player resumes with a selectable node.
       if (this.state.isEndless) {
-        const cmd = new OnUpdatePhaseCommand()
-        cmd.setPayload({})
-        cmd.room = this
-        cmd.state = this.state
-        cmd.clock = this.clock
         cmd.recoverIfEndlessStranded()
       }
     }
@@ -1176,7 +1228,6 @@ export default class GameRoom extends Room<{ state: GameState }> {
     player.alive = true
     player.loadingProgress = 100
 
-    if (this.state.isEndless) this.populateAsyncFightNodes()
     logger.info(`Run resumed for ${player.name} (Act ${this.state.currentAct}, Floor ${this.state.currentFloor}${this.state.isEndless ? ", Endless" : ""})`)
   }
 

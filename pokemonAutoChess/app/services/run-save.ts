@@ -66,6 +66,7 @@ export interface SavedRunData {
   mapNodes: SerializedMapNode[]
   mapEdges: { from: string; to: string }[]
   currentNodeId: string
+  pendingFightNodeId: string
 
   // Player team (full snapshot with bench)
   team: TeamSnapshot
@@ -167,6 +168,11 @@ function recordSaveFailure(odToken: string): number {
 }
 
 export function saveRun(odToken: string, state: GameState, player: Player): Promise<void> {
+  // Guests can't save/resume, and they ALL share odToken "local-player" — saving
+  // them collides every guest's run onto one shared document (the "saves swapped"
+  // / SAVE WENT BACKWARD reports). Skip them entirely. (Mirrors saveRunHistory.)
+  if (odToken === "local-player") return Promise.resolve()
+
   // 1) Build the payload SYNCHRONOUSLY so the queued write captures the run state
   //    at call time, not whenever the DB write later runs. Serialization (esp.
   //    snapshotPlayerTeam) is the most likely thing to throw — a failure here
@@ -194,6 +200,7 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
       mapNodes: serializeMapNodes(state.mapNodes),
       mapEdges: serializeMapEdges(state.mapEdges),
       currentNodeId: state.currentNodeId,
+      pendingFightNodeId: state.pendingFightNodeId,
 
       team,
 
@@ -364,6 +371,7 @@ export function restoreRunToState(
   state.lightX = savedData.gameLightX
   state.lightY = savedData.gameLightY
   state.currentNodeId = savedData.currentNodeId
+  state.pendingFightNodeId = savedData.pendingFightNodeId ?? ""
 
   // Restore map
   state.mapNodes.clear()

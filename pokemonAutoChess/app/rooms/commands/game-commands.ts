@@ -1462,6 +1462,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.phase = GamePhaseState.MAP
     this.state.time = 999 * 1000
     this.state.roundTime = 999
+    // Back on the map (post-reward or act transition) — no fight in progress.
+    this.state.pendingFightNodeId = ""
     this.syncRunHPToPlayers()
     resetArraySchema(this.state.spireEncounterBoard, [])
     resetArraySchema(this.state.encounterInventory, [])
@@ -1513,6 +1515,26 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.encounterCrownedAt = null
 
     markAvailableNodes(nodeId, this.state.mapNodes, this.state.mapEdges)
+
+    // Mark this node as the in-progress fight BEFORE saving so the persisted run
+    // knows the fight is unresolved. On resume we re-enter this node's PICK phase
+    // (the encounter board isn't persisted, so it's regenerated). Without it, the
+    // node is saved as consumed (visited, no successor available) yet the player
+    // is dropped to MAP — which hard-locks on the floor-20 boss (no node after it)
+    // and silently skips mid-act fights. Cleared once the fight resolves
+    // (initializeRewardPhase / initializeMapPhase). Non-combat nodes clear it.
+    const COMBAT_NODE_TYPES = [
+      MapNodeType.WILD_BATTLE,
+      MapNodeType.GYM_LEADER,
+      MapNodeType.ELITE,
+      MapNodeType.UNLOCK,
+      MapNodeType.LEGENDARY_BOSS,
+      MapNodeType.ELITE_FOUR,
+      MapNodeType.CHAMPION,
+      MapNodeType.ARCEUS_BOSS,
+      MapNodeType.ASYNC_FIGHT
+    ]
+    this.state.pendingFightNodeId = COMBAT_NODE_TYPES.includes(node.nodeType) ? nodeId : ""
 
     // Persist the node advance immediately. Previously a combat node only became
     // durable once its fight was WON (REWARD save), so a restart mid-fight rewound
@@ -2126,6 +2148,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.phase = GamePhaseState.REWARD
     this.state.time = 999 * 1000
     this.state.roundTime = 999
+    // Fight resolved — the node is genuinely consumed now, so clear the
+    // resume-into-fight marker before this phase's durable save.
+    this.state.pendingFightNodeId = ""
     resetArraySchema(this.state.spireEncounterBoard, [])
 
     const node = this.state.mapNodes.get(this.state.currentNodeId)
