@@ -1232,8 +1232,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
     const idleSeconds = Math.round(this.idleTimeMs / 1000)
     this.clients.forEach((client) => {
       if (client.auth && humanUids.has(client.auth.uid)) {
+        const name = this.state.players.get(client.auth.uid)?.name || client.auth.uid
         logger.info(
-          `Disconnecting idle player ${client.auth.uid} from game ${this.roomId} after ${idleSeconds}s inactive | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`
+          `Disconnecting idle player ${name} (${client.auth.uid}) from game ${this.roomId} after ${idleSeconds}s inactive | act: ${this.state.currentAct} floor: ${this.state.currentFloor}`
         )
         client.leave(IDLE_DISCONNECT_CODE)
       }

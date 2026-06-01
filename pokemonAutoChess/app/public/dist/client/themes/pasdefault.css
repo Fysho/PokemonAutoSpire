@@ -27,6 +27,23 @@ dialog {
   background: rgba(0, 0, 0, 0.25);
 }
 
+/* Lobby — slightly-transparent panels so the Zen Garden video shows through.
+   Keeps Umbra's dark colours (same vars .my-box uses), just lowers the alpha.
+   Covers the centre Champion/Elite Four, Arceus, Endless & Victory
+   leaderboards and the Live Runs list. Tune the 80% to taste. */
+.my-box {
+  background-color: color-mix(in srgb, var(--color-bg-secondary) 80%, transparent);
+}
+
+/* Alternating leaderboard rows (Live Runs / victory lists) */
+.leaderboard [data-react-window-index]:nth-child(odd) .my-box {
+  background-color: color-mix(in srgb, var(--color-bg-secondary) 80%, transparent);
+}
+
+.leaderboard [data-react-window-index]:nth-child(even) .my-box {
+  background-color: color-mix(in srgb, var(--color-bg-tertiary) 80%, transparent);
+}
+
 /* Game */
 
 .draggable-window.my-container,
