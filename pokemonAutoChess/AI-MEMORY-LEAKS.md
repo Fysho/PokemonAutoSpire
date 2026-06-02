@@ -226,6 +226,29 @@ if (this.state.phase !== GamePhaseState.FIGHT && !this.room.idleDisconnected) {
 
 ---
 
+## Incident 5 — Rotom Drone `PLASMA_FLASH` runaway commands (CRITICAL, fixed v1.8.1)
+
+Same failure mode as Incident 3 (Skeledirge), different ability. Details in
+`ABILITY-CHANGELOG.md` → *Plasma Flash flash-count cap*.
+
+**File:** `app/core/abilities/abilities.ts` (`PlasmaFlashStrategy`).
+
+**Root cause.** Flash count = `4 + pokemon.count.ult`, uncapped. `count.ult` increments every
+cast, so over a long fight it climbs without bound and each cast queues `4 + count.ult`
+`DelayedCommand`s staggered over `100ms * i`. The queue filled faster than it drained, flooding
+`pokemon.commands` (production logs: ROTOM_DRONE with 200–260+ "pending commands" warnings).
+Byte-identical to upstream PAC; exposed by Spire's longer fights letting `count.ult` ramp high.
+
+**Fix.** Flash count capped at 20 — `Math.min(20, 4 + pokemon.count.ult)`.
+
+**Lesson.** The "pending commands" warning naming the same Pokemon repeatedly is the
+fingerprint of this class of bug. Any per-cast count that scales with a monotonically growing
+quantity (`count.ult`, AP, stacks) and pushes one `DelayedCommand` per unit **must** be capped.
+When this warning appears, grep the named Pokemon's ability strategy for an uncapped loop that
+pushes to `pokemon.commands`.
+
+---
+
 ## Safety net — PM2 `max_memory_restart`
 
 `ecosystem.config.js` sets `max_memory_restart: "1500M"`. PM2 recycles a process before a

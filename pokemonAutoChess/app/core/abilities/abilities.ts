@@ -15535,8 +15535,14 @@ export class PlasmaFlashStrategy extends AbilityStrategy {
     // Define base damage per flash
     const damage = 20
 
-    // Calculate total number of flashes based on pokemon's ult count
-    const flashCount = 4 + pokemon.count.ult
+    // Calculate total number of flashes based on pokemon's ult count.
+    // Cap it so the command queue stays bounded: count.ult grows unbounded over
+    // a long fight (Spire's high-HP bosses run far longer than PAC PvP rounds),
+    // and each flash queues a DelayedCommand spread over 100ms*i. Uncapped this
+    // floods pokemon.commands with hundreds of pending DelayedCommands faster
+    // than they drain, leaking memory and OOM-crashing the server (same failure
+    // mode as the Skeledirge / Torch Song flame cap).
+    const flashCount = Math.min(20, 4 + pokemon.count.ult)
 
     // Loop through each flash
     for (let i = 0; i < flashCount; i++) {

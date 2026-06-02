@@ -17,6 +17,17 @@ Covers: damage values, effect durations, scaling, targeting, cooldowns, and new/
 
 ## Changes
 
+### 2026-06-03 — Plasma Flash flash-count cap (runaway-command fix)
+
+**Ability**: PLASMA_FLASH
+**Type**: mechanic change (bug fix)
+**Before**: Flash count = `4 + pokemon.count.ult`, uncapped. `count.ult` increments on every cast, so over a long fight it grows without bound and each cast queues `4 + count.ult` `DelayedCommand`s spread across `100ms * i`. The queue filled faster than it drained, flooding `pokemon.commands` (confirmed in production: ROTOM_DRONE generating 200–260+ "pending commands" warnings), leaking memory and risking OOM — the same failure mode as the Skeledirge / Torch Song fix below.
+**After**: Flash count hard-capped at 20 — `Math.min(20, 4 + pokemon.count.ult)` — bounding the command queue regardless of how many times the unit has ulted. Per-flash damage (20), animation, and 100ms stagger are unchanged.
+**Affected Pokemon**: Rotom Drone (Rotom line)
+**Rationale**: Bug — unbounded command-queue growth threatened the production server. Byte-identical to upstream PAC; masked there by short PvP rounds, exposed by Spire's longer single-player fights (high-HP bosses let `count.ult` ramp into the hundreds).
+**Files changed**:
+- `app/core/abilities/abilities.ts` — `PlasmaFlashStrategy`: capped `flashCount` at 20 via `Math.min`.
+
 <!-- 
 Template for recording changes:
 

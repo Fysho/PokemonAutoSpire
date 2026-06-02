@@ -1270,6 +1270,10 @@ function SpireLobbyContent({
               <span><PacTag type="changed" /> <strong>Skeledirge (Torch Song)</strong> — Flame count capped at 20, and the AP buff now applies once per cast instead of per flame (fixes a runaway AP feedback loop).</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0479-0008")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="changed" /> <strong>Rotom Drone (Plasma Flash)</strong> — Flash count capped at 20, so it no longer ramps without limit over a long fight (fixes a runaway command-queue buildup).</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
                 <img src={getPortraitSrc("0111")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
                 <img src={getPortraitSrc("0460")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
