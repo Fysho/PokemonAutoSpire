@@ -80,6 +80,11 @@ export default class GameState extends Schema {
   @type("uint8") encounterBonusAP: number = 0
   @type("uint8") encounterBonusPP: number = 0
   challengeItem: string = ""
+  // Unique id for this run (assigned at start, preserved across resume). Used by
+  // the save layer to fence stale writes: a backward save is only blocked when it
+  // belongs to the SAME run; a different run (e.g. a freshly started one) may take
+  // over the save slot. Plain field — not synced to clients.
+  runId: string = ""
   encounterSnapshot: TeamSnapshot | null = null
   encounterCrownedAt: string | null = null
   // The combat node the player is currently picking/fighting, set on node select

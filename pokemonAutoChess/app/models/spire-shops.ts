@@ -53,11 +53,12 @@ function getItemPrice(item: Item): number {
   return 6
 }
 
-function pickShopPokemon(act: number): Pkm[] {
+function pickShopPokemon(act: number, hasMysteryBox = false): Pkm[] {
   const pool: Pkm[] = []
 
-  // Ditto is common in shops
-  for (let i = 0; i < 3; i++) pool.push(Pkm.DITTO)
+  // Ditto is common in shops. Melmetal's Mystery Box turns them into Meltan.
+  const ditto = hasMysteryBox ? Pkm.MELTAN : Pkm.DITTO
+  for (let i = 0; i < 3; i++) pool.push(ditto)
 
   if (act === 1) {
     const maxStars = 2
@@ -104,10 +105,10 @@ function pickShopItems(): Item[] {
   return items.slice(0, 6)
 }
 
-export function generateShopItems(act: number): ShopItem[] {
+export function generateShopItems(act: number, hasMysteryBox = false): ShopItem[] {
   const result: ShopItem[] = []
 
-  const pokemons = pickShopPokemon(act)
+  const pokemons = pickShopPokemon(act, hasMysteryBox)
   pokemons.forEach((pkm) => {
     result.push({
       type: "pokemon",

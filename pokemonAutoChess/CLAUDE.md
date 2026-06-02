@@ -243,8 +243,8 @@ Whether players may start *new* endless runs is gated by a global flag in `app/s
 | `app/models/mongo-models/run-history.ts` | Mongoose model for completed run history. Stores: odToken, time, act, floor, difficulty, HP, arceusDamage, victory, team Pokemon with items, and `synergies` (server-authoritative `{type,count}` snapshot taken at save time — includes gem bonus synergies, type-changing stones, Dragon double-types. Optional; legacy records without it fall back to client-side recomputation). |
 | `app/models/mongo-models/saved-run.ts` | Mongoose model for save/resume. Stores full game state snapshot for mid-run persistence. |
 | `app/services/run-save.ts` | Save/load/delete runs, run history recording, player stat counters. `restoreRunToState()` bypasses `updateSynergies()` to avoid duplicating synergy-spawned items (scarves, artificial items, TMs, wands). Preserves egg `evolution`, `stacks`, `stacksRequired` across save/restore. `saveRunHistory()` snapshots `player.synergies` directly; `saveRunHistoryFromSavedRun()` (abandoned runs) recomputes them from the saved board + `bonusSynergies` via `computeSynergies()`. |
-| `app/services/team-snapshot.ts` | Universal team save/load. `SnapshotPokemon` includes: name, position, items, shiny, emotion, statBoosts, skill, dishes, evolution, stacks, stacksRequired. `snapshotPlayerTeam()` uses `_cookedDishes` fallback for dishes consumed during fight. `reconstructTeamAsPlayer()` bypasses `updateSynergies()` side effects for champion/E4 opponents. |
-| `app/services/champion-data.ts` | Elite Four & Champion persistence per difficulty. JSON files (`champion-data.json`, `-easy`, `-hard`). `promoteNewChampion()` returns `PromotionResult` with reign duration and longest reign info. Tracks `championSince` timestamp and `longestReign` record per difficulty. `formatDuration()` helper. |
+| `app/services/team-snapshot.ts` | Universal team save/load. `SnapshotPokemon` includes: name, position, items, shiny, emotion, statBoosts (incl. luck), skill, tm, dishes, evolution, stacks, stacksRequired. `snapshotPlayerTeam()` uses `_cookedDishes` fallback for dishes consumed during fight. `tm` (the applied TM's `Ability`, saved when `pkm.tm !== DEFAULT`) is the flag distinguishing a TM-changed ability from a Skill-Swap/Sketch-changed one: on reconstruct a `tm` is re-applied as `tm + skill + maxPP=100`, otherwise `skill` alone is restored. `reconstructTeamAsPlayer()` bypasses `updateSynergies()` side effects for champion/E4 opponents. |
+| `app/services/champion-data.ts` | Elite Four & Champion persistence per difficulty. JSON files (`champion-data.json`, `-easy`, `-hard`). `promoteNewChampion()` returns `PromotionResult` with reign duration and longest reign info. Tracks `championSince` timestamp and `longestReign` record per difficulty. Per-slot defense records: `championVictories`/`eliteFourVictories` (challenger lost) and `championTies`/`eliteFourTies` (draw — neither side won before the timer; `incrementChampionTie`/`incrementE4Tie`); both surfaced on the lobby leaderboard as "N wins" / "N draws". `formatDuration()` helper. |
 | `app/services/arceus-record.ts` | Arceus damage leaderboard — top 5 per difficulty. JSON files (`arceus-record.json`, `-easy`, `-hard`). Auto-migrates from old single-record format. `checkAndUpdateArceusRecord()` returns `{ isNewRecord, rank, previousRecord }`. `resetArceusLeaderboard()` for admin reset. |
 | `app/services/announcement.ts` | Server announcement broadcast hub. `broadcastAnnouncement(message)` pushes to SSE clients (lobby) and Colyseus presence topic `"server-announcement"` (game rooms). Fire-and-forget, no persistence. |
 
@@ -335,7 +335,7 @@ Added `price` (uint8) and `pokemonName` (string) for shop carousel
 - **Battle simulation**: `app/core/simulation.ts` (modified: `start()` now processes dishes for PVE opponents via `refToBoardPokemon`, guards `player` access for PVE in `applyDishEffects`)
 - **Pokemon entities**: `app/core/pokemon-entity.ts`
 - **Abilities**: `app/core/abilities/` (200+)
-- **Effects**: `app/core/effects/` (item, passive, synergy). `chefCookEffect` in `items.ts` records dishes to `pokemon._cookedDishes` for snapshot preservation.
+- **Effects**: `app/core/effects/` (item, passive, synergy). `chefCookEffect` in `items.ts` records dishes to `pokemon._cookedDishes` for snapshot preservation. Spire change: dishes are distributed **synchronously** at stage start (the `COOK` broadcast still fires for the cook animation, but the upstream 1000ms+2000ms `room.clock.setTimeout` delays were removed) so a player can't start the fight before the Chef Hat dishes land.
 - **Dishes**: `app/core/dishes.ts` — `DishByPkm` maps Pokemon to their dish type. RICE effect guards `player` access for PVE safety.
 - **Synergies**: 32 types with tiered bonuses
 - **Items**: 333+ items with crafting recipes
@@ -604,27 +604,33 @@ Extra random item components added to each encounter Pokemon slot (Acts 1-2 only
 - **Impossible Act 3**: +Mega Rayquaza +Roaring Moon (each with Soul Dew), +300 HP, +8 ATK, +3 DEF, +3 SpeDef, extra class item per Pokemon.
 
 ### Arceus (Act 5 Boss)
-14 items, +10000 HP, +150 ATK, +60 DEF, +60 SpDEF, +500 AP. Arceus fight always ends in "defeat" — score is damage dealt. Top 5 damage scores per difficulty tracked in `arceus-record*.json`. Tilemap set to "In the Nightmare" region. Can be challenged after winning OR losing the champion fight (guard: `currentAct === 4`, admin bypass).
+15 items (incl. the boss-only **Legend Plate**, see below), +10000 HP, +150 ATK, +60 DEF, +60 SpDEF, +500 AP. Items set in `getArceusEncounter()` in `spire-encounters.ts`. Arceus fight always ends in "defeat" — score is damage dealt. Top 5 damage scores per difficulty tracked in `arceus-record*.json`. Tilemap set to "In the Nightmare" region. Can be challenged after winning OR losing the champion fight (guard: `currentAct === 4`, admin bypass).
 
 ### Game Speed
 Cycles through 0.5x → 1x → 2x → 3x. State field is `float32`. Server validates allowed values in `GAME_SPEED` handler.
 
 ### Balance Changes from PAC v6.10
-All balance diversions from upstream are listed in the lobby's **PAC Diversions** panel (`spire-lobby.tsx`, events section). The panel uses colored tags (buffed/nerfed/changed/removed) with inline item/pokemon/synergy icons.
+All balance diversions from upstream are listed in the lobby's **PAC Diversions** panel (`spire-lobby.tsx`, events section). The panel uses colored tags (buffed/nerfed/changed/removed/new) with inline item/pokemon/synergy icons. The `new` tag (teal `PacTag`) flags Spire-original additions like Legend Plate.
 
 **Items:**
+- Legend Plate (`Item.LEGEND_PLATE`): NEW Spire-original item, **boss-only — held by Arceus, never offered to players** (not in any reward/shop/craft pool; only registered in the enum + `ItemStats: {}` + Arceus's item list). Pure effect, no stats: (1) **theft immunity** — the holder's items and stat boosts can't be stolen, knocked off, or transformed, guarded in the 6 item/stat-stealing ability strategies (`abilities.ts`): THIEF, KNOCK_OFF, PICKUP, SHADOW_CLONE, TRICK_OR_TREAT (all check `target.items.has(Item.LEGEND_PLATE)`), and SPECTRAL_THIEF / Marshadow (added alongside the existing TWIST_BAND guard). Ability *damage* still lands; only the steal is blocked. (2) **1000 damage cap** — any single instance of damage the holder takes is capped at 1000 (`pokemon-state.ts`, just before `pokemon.hp -= residualDamage`, so both HP loss and the recorded `takenDamage` → Arceus damage leaderboard respect it). Stops execute / %-max-HP cheese (Rhydon `HORN_DRILL`'s 9999, Bidoof `SUPER_FANG`) from one-shotting Arceus or spiking the leaderboard. Sprite: `assets/item/LEGEND_PLATE.png` (individual PNG for React UI) + a frame baked into the `item` multiatlas (`item.json`/`item.png`) for the in-game board.
 - Gold Bottle Cap (`items.ts`): Crit power bonus capped at 200 gold (was uncapped)
 - Tea (`dishes.ts`): PP reduced from 80 to 40
 - Smoked Filet (`dishes.ts`): ATK 5→3, AP 10→5
-- Rainbow Swirl (`abilities.ts`, `DecorateStrategy`): PP buff 60→30, AP scaling 1→0.5
+- Rainbow Swirl (`abilities.ts`, `DecorateStrategy`): PP buff 60→30 (AP scaling on the PP also removed — see PP Batteries below)
 - Dojo Tickets: Apply instantly (not after 3 fights), one per Pokemon per act
-- Repeat Ball: Removed (commented out of shiny item pool)
-- Red Scale: Removed (commented out of shiny item pool)
+- Repeat Ball: Removed (commented out of the shiny item pool — excludes it from both reward offerings AND golden eggs)
+- Red Scale: Removed (commented out of the shiny item pool — excludes it from both reward offerings AND golden eggs)
+- Berries: All berries are removable — added `...Berries` to `RemovableItems` (`app/types/enum/Item.ts`). Benching a Pokémon (`onPokemonChangePosition()` in `game-commands.ts`, plus Arceus's `RKS_SYSTEM` passive) returns its berries to the player's inventory instead of leaving them stuck on the unit. Upstream PAC leaves berries non-removable.
+- Mushrooms (Oinkologne drops — Tiny/Big/Balm): Auto-sold for gold (1/2/5g via `ItemSellPricesAtTown`) on entering a PokeMart (SHOP) or Pokemon Center (REST). Implemented as `autoSellTownItems()` in `game-commands.ts`, called at the top of `initializeShopPhase()`/`initializeRestPhase()` **before `autoSaveRun()`** so the save reflects the cashed-out inventory (resume can't re-sell). Reuses the legacy PAC town-sell logic (`ItemsSoldAtTown` is exactly the three mushrooms); the PAC TOWN phase that originally did this is unused in Spire, so without this hook mushrooms never sold. Sends `Transfer.PLAYER_INCOME` → client gold toast (`game.tsx`). En description text updated in `dist/client/locales/en/translation.json` ("...at a PokeMart or Pokemon Center"); other locales still say "when returning to town".
+
+> **Shiny item pool is a single source of truth.** `ShinyItems` (`app/types/enum/Item.ts`) is the one curated Spire list used for *all* shiny-item reward offerings (boss/legendary/async floor-20 rewards, shop carousel) **and** golden eggs. `GoldenEggItems` (`app/config/game/synergies.ts`) is just an alias: `export const GoldenEggItems = ShinyItems`. Golden eggs come from the BABY synergy (count 3/5/7) and award `pickRandomIn(GoldenEggItems)` when a shiny `EGG` hatches (`hatch-evolution-handler.ts`). To add/remove a shiny item, edit `ShinyItems` only — both paths follow automatically. Repeat Ball and Red Scale are the two items currently commented out of it.
 
 **Pokemon:**
 - Snorlax/Munchlax (`Passive.GLUTTON`): Berry/Gourmet HP gains halved
 - Misdreavus/Mismagius (`Ability.NIGHT_SHADE`): Damage capped at 150
-- Alcremie Rainbow Swirl (`Ability.DECORATE`): PP buff 60→30, AP scaling halved
+- Alcremie Rainbow Swirl (`Ability.DECORATE`): PP buff 60→30 (AP scaling on the PP removed — see PP Batteries below)
+- PP Batteries (`abilities.ts`): The PP these abilities grant to **allies** no longer scales with the caster's AP — the `addPP(...)` call passes `apBoost = 0` (was `1` full, or `0.5` for Fairy Wind/Decorate). Affects FAIRY_WIND (Flabébé/Floette/Florges), DECORATE (Alcremie Rainbow Swirl), MISTY_SURGE (Tapu Fini), FORECAST (Castform Rain), IVY_CUDGEL (Ogerpon Wellspring), AFTER_YOU (Indeedee Male), TERRAIN_PULSE (Smoliv/Dolliv/Arboliva), SPITE (Yamask/Cofagrigus). Only the PP gain changed; co-located heals/shields/buffs/damage keep their AP scaling. SOAK and the DRUMMER passive already granted flat PP (unchanged).
 - Skeledirge (`Ability.TORCH_SONG`): Flame count capped at 20; AP buff applied once per cast instead of per flame. Fixes a runaway feedback loop (AP-scaled flame count + per-flame AP gain) that flooded `pokemon.commands` with unbounded `DelayedCommand`s, leaking memory and OOM-crashing the production server. Was byte-identical to upstream PAC.
 - Cosmog/Cosmoem (`pokemon.ts`): Evolve after 3 stacks instead of 8; +30 max HP per evolution instead of +10 (`evolution-logic/evolution-manager.ts` `afterEvolve`, the COSMOG/COSMOEM stacking block)
 - Tandemaus/Maushold (`pokemon.ts`): Each stage evolves 5 fights after acquisition via a hatch-style timer — `evolutionRule = { type: EvolutionRuleType.HATCH, hatchTime: 5 }` (honored by `evolution-logic/hatch-time.ts`), instead of fixed `stageLevel >= 14`/`>= 20`. (Replaced the old `TimerEvolutionRule` class, removed in the 6.10 evolution refactor.)
@@ -660,7 +666,7 @@ When a player loses partway through the Elite Four gauntlet (Act 4 floors 1-4, t
 
 - `insertIndex = fightNode.floor - 2`, guarded by `insertIndex >= 0`.
 - **Losing to E4 #1 (floor 1 → index -1) adds nothing** — you beat nobody, lineup unchanged. (This guard fixed a bug where a team that lost to #1 became the new #1 and deleted the old #4.)
-- Otherwise the lower slots shift **up** (`eliteFour[i] = eliteFour[i+1]`), dropping the weakest existing member (old #1), and your team lands at `insertIndex`. `eliteFourCrownedAt` / `eliteFourVictories` shift in lockstep; the inserted team gets `crownedAt = now`, `victories = 0`.
+- Otherwise the lower slots shift **up** (`eliteFour[i] = eliteFour[i+1]`), dropping the weakest existing member (old #1), and your team lands at `insertIndex`. `eliteFourCrownedAt` / `eliteFourVictories` / `eliteFourTies` shift in lockstep; the inserted team gets `crownedAt = now`, `victories = 0`, `ties = 0`.
 - The win counter for the member who beat you is credited separately via `incrementE4Victory(fightNode.floor - 1, …)` earlier in the same branch.
 
 Contrast with becoming Champion: beating the Champion calls `promoteNewChampion()` (`champion-data.ts`), which shifts the E4 up and drops the old #1 — a separate, independent path.
@@ -680,8 +686,8 @@ Champion and Elite Four opponents are saved player teams that fight as **real Pl
 
 **Gourmet dish preservation:**
 - Dishes are consumed (`pokemon.dishes.clear()`) during `Simulation.start()`, so by the time `snapshotPlayerTeam()` runs post-fight, `pokemon.dishes` is empty.
-- Solution: `chefCookEffect` in `items.ts` records each assigned dish to `pokemon._cookedDishes` (non-schema runtime field). `snapshotPlayerTeam()` falls back to `_cookedDishes` when `dishes` is empty. `_cookedDishes` is reset at the start of each stage in `updatePlayerBetweenStages()`.
-- `reconstructTeamAsPlayer()` restores dishes to `pokemon.dishes` (schema field) so they're visible to the client during PICK phase. `encodeSnapshotForClient()` includes dishes alongside items in the encoded board string for client-side rendering.
+- Solution: dishes are recorded to `pokemon._cookedDishes` (non-schema runtime field) via the `Pokemon.addDish()` helper (`dishes.add` + `_cookedDishes.push`). **All** player-side dish sources use it — chef cooking (`chefCookEffect`), manual drag-drop equip (`game-commands.ts`), Picnic Set sandwiches, and dish carry-over on evolution — so non-cooked dishes (e.g. mushrooms dragged from inventory) aren't lost from the post-fight E4/Champion snapshot. `snapshotPlayerTeam()` falls back to `_cookedDishes` when `dishes` is empty. `_cookedDishes` is reset at the start of each stage in `updatePlayerBetweenStages()`.
+- `reconstructTeamAsPlayer()` restores dishes to `pokemon.dishes` (schema field) so they're visible to the client during PICK phase. `encodeSnapshotForClient()` encodes dishes in a **separate** `|`-segment (format `name,x,y[,items][|boosts[|dishes]]`), NOT merged into the items list — so `board-manager.ts addPvePokemons()` can add them to `pokemon.dishes` and the `PokemonSprite` renders them *below* the unit (via `updateDishes()`) instead of as held items to the right. (Earlier they were merged into items and wrongly shown in the items panel.)
 - `Simulation.start()` consumes the restored dishes normally, applying effects and clearing them.
 
 **PVE Gourmet cooking:**

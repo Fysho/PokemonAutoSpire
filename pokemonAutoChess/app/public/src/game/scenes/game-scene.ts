@@ -566,7 +566,7 @@ export default class GameScene extends Scene {
         } else if (gameObject instanceof ItemContainer) {
           this.itemDragged = gameObject
           if (this.sellZone && isItemSellable(gameObject.name as Item)) {
-            this.sellZone.showForItem()
+            this.sellZone.showForItem(gameObject.name as Item)
           }
         }
       }

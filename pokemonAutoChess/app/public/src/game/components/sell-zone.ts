@@ -2,6 +2,8 @@ import { t } from "i18next"
 import type Phaser from "phaser"
 import { GameObjects } from "phaser"
 import { getSellPrice } from "../../../../models/shop"
+import { getItemSellValue } from "../../../../config/game/items"
+import type { Item } from "../../../../types/enum/Item"
 import { transformBoardCoordinates } from "../../pages/utils/utils"
 import { DEPTH } from "../depths"
 import type GameScene from "../scenes/game-scene"
@@ -64,9 +66,10 @@ export class SellZone extends GameObjects.Container {
     this.setVisible(true)
   }
 
-  showForItem() {
+  showForItem(item: Item) {
+    const price = getItemSellValue(item)
     this.text.setText(
-      `${t("drop_here_to_sell")} ${t("for_price_gold", { price: 1 })}`
+      `${t("drop_here_to_sell")} ${t("for_price_gold", { price })}`
     )
     this.rectangle.setFillStyle(this.bgColor)
     this.setVisible(true)

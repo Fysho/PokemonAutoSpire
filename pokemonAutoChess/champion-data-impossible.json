@@ -1,0 +1,434 @@
+{
+  "champion": {
+    "name": "Fish",
+    "avatar": "0129/Normal",
+    "pokemon": [
+      {
+        "name": "MEWTWO",
+        "x": 3,
+        "y": 3,
+        "items": [],
+        "statBoosts": {
+          "hp": 4500,
+          "atk": 1800,
+          "def": 900,
+          "speDef": 900,
+          "ap": 1800,
+          "speed": 0,
+          "luck": 0
+        }
+      },
+      {
+        "name": "MEWTWO",
+        "x": 1,
+        "y": 1,
+        "items": [],
+        "statBoosts": {
+          "hp": 4000,
+          "atk": 1600,
+          "def": 800,
+          "speDef": 800,
+          "ap": 1600,
+          "speed": 0,
+          "luck": 0
+        }
+      },
+      {
+        "name": "MEWTWO",
+        "x": 2,
+        "y": 1,
+        "items": [],
+        "statBoosts": {
+          "hp": 3500,
+          "atk": 1400,
+          "def": 700,
+          "speDef": 700,
+          "ap": 1400,
+          "speed": 0,
+          "luck": 0
+        }
+      },
+      {
+        "name": "MEWTWO",
+        "x": 3,
+        "y": 1,
+        "items": [],
+        "statBoosts": {
+          "hp": 3000,
+          "atk": 1200,
+          "def": 600,
+          "speDef": 600,
+          "ap": 1200,
+          "speed": 0,
+          "luck": 0
+        }
+      },
+      {
+        "name": "MEWTWO",
+        "x": 4,
+        "y": 1,
+        "items": [],
+        "statBoosts": {
+          "hp": 2500,
+          "atk": 1000,
+          "def": 500,
+          "speDef": 500,
+          "ap": 1000,
+          "speed": 0,
+          "luck": 0
+        }
+      },
+      {
+        "name": "MEWTWO",
+        "x": 5,
+        "y": 1,
+        "items": [],
+        "statBoosts": {
+          "hp": 2000,
+          "atk": 800,
+          "def": 400,
+          "speDef": 400,
+          "ap": 800,
+          "speed": 0,
+          "luck": 0
+        }
+      },
+      {
+        "name": "MEWTWO",
+        "x": 6,
+        "y": 1,
+        "items": [],
+        "statBoosts": {
+          "hp": 1500,
+          "atk": 600,
+          "def": 300,
+          "speDef": 300,
+          "ap": 600,
+          "speed": 0,
+          "luck": 0
+        }
+      },
+      {
+        "name": "MEWTWO",
+        "x": 0,
+        "y": 1,
+        "items": [],
+        "statBoosts": {
+          "hp": 1000,
+          "atk": 400,
+          "def": 200,
+          "speDef": 200,
+          "ap": 400,
+          "speed": 0,
+          "luck": 0
+        }
+      },
+      {
+        "name": "MEWTWO",
+        "x": 0,
+        "y": 2,
+        "items": [],
+        "statBoosts": {
+          "hp": 500,
+          "atk": 200,
+          "def": 100,
+          "speDef": 100,
+          "ap": 200,
+          "speed": 0,
+          "luck": 0
+        }
+      }
+    ],
+    "inventory": [
+      "SILVER_DOJO_TICKET"
+    ],
+    "groundHoles": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "lightX": 6,
+    "lightY": 2,
+    "region": "DeepDarkCrater"
+  },
+  "eliteFour": [
+    {
+      "name": "Fish",
+      "avatar": "0129/Normal",
+      "pokemon": [
+        {
+          "name": "MAGIKARP",
+          "x": 4,
+          "y": 2,
+          "items": []
+        }
+      ],
+      "inventory": [],
+      "groundHoles": [],
+      "lightX": 3,
+      "lightY": 2
+    },
+    {
+      "name": "Fish",
+      "avatar": "0129/Normal",
+      "pokemon": [
+        {
+          "name": "MAGIKARP",
+          "x": 4,
+          "y": 2,
+          "items": []
+        }
+      ],
+      "inventory": [],
+      "groundHoles": [],
+      "lightX": 3,
+      "lightY": 2
+    },
+    {
+      "name": "Fish",
+      "avatar": "0129/Normal",
+      "pokemon": [
+        {
+          "name": "MAGIKARP",
+          "x": 4,
+          "y": 2,
+          "items": []
+        }
+      ],
+      "inventory": [],
+      "groundHoles": [],
+      "lightX": 3,
+      "lightY": 2
+    },
+    {
+      "name": "Fish",
+      "avatar": "0129/Normal",
+      "pokemon": [
+        {
+          "name": "SANDSHREW",
+          "x": 0,
+          "y": 3,
+          "items": [],
+          "evolution": "SANDSLASH"
+        },
+        {
+          "name": "MEWTWO",
+          "x": 0,
+          "y": 1,
+          "items": [],
+          "statBoosts": {
+            "hp": 3000,
+            "atk": 1200,
+            "def": 600,
+            "speDef": 600,
+            "ap": 1200,
+            "speed": 0,
+            "luck": 0
+          }
+        },
+        {
+          "name": "MEWTWO",
+          "x": 1,
+          "y": 1,
+          "items": [],
+          "statBoosts": {
+            "hp": 2500,
+            "atk": 1000,
+            "def": 500,
+            "speDef": 500,
+            "ap": 1000,
+            "speed": 0,
+            "luck": 0
+          }
+        },
+        {
+          "name": "MEWTWO",
+          "x": 2,
+          "y": 1,
+          "items": [],
+          "statBoosts": {
+            "hp": 2000,
+            "atk": 800,
+            "def": 400,
+            "speDef": 400,
+            "ap": 800,
+            "speed": 0,
+            "luck": 0
+          }
+        },
+        {
+          "name": "MEWTWO",
+          "x": 3,
+          "y": 1,
+          "items": [],
+          "statBoosts": {
+            "hp": 1500,
+            "atk": 600,
+            "def": 300,
+            "speDef": 300,
+            "ap": 600,
+            "speed": 0,
+            "luck": 0
+          }
+        },
+        {
+          "name": "MEWTWO",
+          "x": 4,
+          "y": 1,
+          "items": [],
+          "statBoosts": {
+            "hp": 1000,
+            "atk": 400,
+            "def": 200,
+            "speDef": 200,
+            "ap": 400,
+            "speed": 0,
+            "luck": 0
+          }
+        },
+        {
+          "name": "MEWTWO",
+          "x": 5,
+          "y": 1,
+          "items": [],
+          "statBoosts": {
+            "hp": 500,
+            "atk": 200,
+            "def": 100,
+            "speDef": 100,
+            "ap": 200,
+            "speed": 0,
+            "luck": 0
+          }
+        }
+      ],
+      "inventory": [
+        "SILVER_DOJO_TICKET"
+      ],
+      "groundHoles": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "lightX": 3,
+      "lightY": 2,
+      "region": "town"
+    }
+  ],
+  "eliteFourCrownedAt": [
+    "2026-06-02T20:26:19.392Z",
+    "2026-06-02T20:26:19.392Z",
+    "2026-06-02T20:26:19.392Z",
+    "2026-06-02T20:26:19.392Z"
+  ],
+  "eliteFourVictories": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "eliteFourTies": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "championSince": "2026-06-02T20:27:47.717Z",
+  "championVictories": 0,
+  "championTies": 0,
+  "longestReign": {
+    "name": "Fish",
+    "durationMs": 88325,
+    "date": "2026-06-02T20:27:47.717Z"
+  }
+}

@@ -571,9 +571,10 @@ export const server = defineServer({
           inventory: snap.inventory || []
         })
         const e4Victories = data.eliteFourVictories ?? [0, 0, 0, 0]
+        const e4Ties = data.eliteFourTies ?? [0, 0, 0, 0]
         res.json({
-          champion: { ...simplify(data.champion), victories: data.championVictories ?? 0 },
-          eliteFour: data.eliteFour.map((snap, i) => ({ ...simplify(snap), victories: e4Victories[i] ?? 0 })),
+          champion: { ...simplify(data.champion), victories: data.championVictories ?? 0, ties: data.championTies ?? 0 },
+          eliteFour: data.eliteFour.map((snap, i) => ({ ...simplify(snap), victories: e4Victories[i] ?? 0, ties: e4Ties[i] ?? 0 })),
           championSince: data.championSince ?? null,
           longestReign: data.longestReign
             ? { name: data.longestReign.name, durationMs: data.longestReign.durationMs }

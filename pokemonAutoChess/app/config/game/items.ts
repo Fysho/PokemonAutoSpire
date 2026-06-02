@@ -2,6 +2,9 @@ import { Stat } from "../../types/enum/Game"
 import { Item, type ItemsSoldAtTown } from "../../types/enum/Item"
 
 export const ItemStats: { [item in Item]?: { [stat in Stat]?: number } } = {
+  // Boss-only item held by Arceus (Act 5). Pure effect, no stats:
+  // grants item-theft immunity and caps any single damage instance at 1000.
+  [Item.LEGEND_PLATE]: {},
   [Item.TWISTED_SPOON]: { [Stat.AP]: 10 },
   [Item.MAGNET]: { [Stat.SPEED]: 10 },
   [Item.BLACK_GLASSES]: { [Stat.CRIT_CHANCE]: 10 },
@@ -115,4 +118,11 @@ export const ItemSellPricesAtTown: { [item in ItemsSoldAtTown]?: number } = {
   [Item.TINY_MUSHROOM]: 1,
   [Item.BIG_MUSHROOM]: 2,
   [Item.BALM_MUSHROOM]: 5
+}
+
+// Gold gained when an item is sold (dragged to the sell zone). Most items sell
+// for the default 1 gp; special items (e.g. higher-quality Oinkologne mushrooms)
+// sell for more via ItemSellPricesAtTown.
+export function getItemSellValue(item: Item): number {
+  return ItemSellPricesAtTown[item as ItemsSoldAtTown] ?? 1
 }

@@ -26,7 +26,7 @@ import {
 import { CloseCodes, CloseCodesMessages } from "../../../types/enum/CloseCodes"
 import { ConnectionStatus } from "../../../types/enum/ConnectionStatus"
 import { GamePhaseState, Team } from "../../../types/enum/Game"
-import type { Item } from "../../../types/enum/Item"
+import { Item } from "../../../types/enum/Item"
 import { Passive } from "../../../types/enum/Passive"
 import { Pkm } from "../../../types/enum/Pokemon"
 import type { Synergy } from "../../../types/enum/Synergy"
@@ -257,6 +257,94 @@ function AdminGivePokemon() {
               }}
             >
               {p}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AdminGiveItem() {
+  const [query, setQuery] = useState("")
+  const [open, setOpen] = useState(false)
+  const allItems = Object.values(Item)
+  const trimmed = query.trim().toLowerCase()
+  const filtered =
+    trimmed.length === 0
+      ? allItems
+      : allItems.filter((i) => i.toLowerCase().includes(trimmed))
+
+  function give(item: Item) {
+    rooms.game?.send(Transfer.GIVE_ITEM, { item })
+    setQuery("")
+    setOpen(false)
+  }
+
+  return (
+    <div style={{ position: "relative", width: "160px" }}>
+      <input
+        type="text"
+        value={query}
+        placeholder="Give Item…"
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && filtered.length > 0) give(filtered[0])
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        style={{
+          width: "100%",
+          padding: "6px 8px",
+          borderRadius: "4px",
+          border: "none",
+          fontSize: "12px",
+          boxSizing: "border-box"
+        }}
+      />
+      {open && filtered.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            maxHeight: "240px",
+            overflowY: "auto",
+            background: "#2c3e50",
+            border: "1px solid #1a252f",
+            borderRadius: "4px",
+            zIndex: 400,
+            marginTop: "2px"
+          }}
+        >
+          {filtered.slice(0, 100).map((i) => (
+            <div
+              key={i}
+              onMouseDown={() => give(i)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#34495e")}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "4px 8px",
+                color: "white",
+                cursor: "pointer",
+                fontSize: "12px",
+                whiteSpace: "nowrap"
+              }}
+            >
+              <img
+                src={`assets/item/${i}.png`}
+                style={{ width: "20px", height: "20px", imageRendering: "pixelated", flexShrink: 0 }}
+              />
+              {i}
             </div>
           ))}
         </div>
@@ -1321,6 +1409,7 @@ export default function Game() {
                   Give Ditto
                 </button>
                 <AdminGivePokemon />
+                <AdminGiveItem />
                 <button
                   onClick={() => rooms.game?.send(Transfer.ADMIN_HEAL)}
                   style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}

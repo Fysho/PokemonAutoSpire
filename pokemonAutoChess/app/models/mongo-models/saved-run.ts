@@ -9,6 +9,7 @@ export interface ISavedRunSummary {
   runHP: number
   teamPreview: string[]
   isEndless?: boolean
+  runId?: string
 }
 
 export interface ISavedRun extends ISavedRunSummary {
@@ -25,6 +26,7 @@ const savedRunSchema = new Schema<ISavedRun>(
     runHP: { type: Number, required: true },
     teamPreview: [{ type: String }],
     isEndless: { type: Boolean, default: false },
+    runId: { type: String, default: "" },
     data: { type: Schema.Types.Mixed, required: true }
   },
   {

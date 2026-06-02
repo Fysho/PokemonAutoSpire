@@ -255,19 +255,22 @@ export class PickupStrategy extends AbilityStrategy {
     super.process(pokemon, board, target, crit)
     const damage = [30, 60, 120][pokemon.stars - 1] ?? 30
 
-    if (target.items.size > 0 && pokemon.items.size < 3) {
-      const item = target.items.values().next().value
-      if (item) {
-        target.removeItem(item)
-        pokemon.addItem(item)
-      }
-    } else {
-      if (target.player) {
-        const moneyStolen = max(target.player.money)(pokemon.stars)
-        target.player.addMoney(-moneyStolen, false, target)
-        if (pokemon.player) {
-          pokemon.player.addMoney(moneyStolen, true, pokemon)
-          pokemon.count.moneyCount += moneyStolen
+    // Legend Plate (Arceus) makes the holder immune to item/money pickup
+    if (!target.items.has(Item.LEGEND_PLATE)) {
+      if (target.items.size > 0 && pokemon.items.size < 3) {
+        const item = target.items.values().next().value
+        if (item) {
+          target.removeItem(item)
+          pokemon.addItem(item)
+        }
+      } else {
+        if (target.player) {
+          const moneyStolen = max(target.player.money)(pokemon.stars)
+          target.player.addMoney(-moneyStolen, false, target)
+          if (pokemon.player) {
+            pokemon.player.addMoney(moneyStolen, true, pokemon)
+            pokemon.count.moneyCount += moneyStolen
+          }
         }
       }
     }
@@ -665,7 +668,7 @@ export class MistySurgeStrategy extends AbilityStrategy {
         pokemon.team === ally.team &&
         ally.types.has(Synergy.FAIRY)
       ) {
-        ally.addPP(ppGain, pokemon, 1, crit)
+        ally.addPP(ppGain, pokemon, 0, crit)
         ally.handleHeal(hpGain, pokemon, 1, crit)
       }
     })
@@ -1520,7 +1523,7 @@ export class FairyWindStrategy extends AbilityStrategy {
     const ppGain = [5, 10, 20][pokemon.stars - 1] ?? 0
     board.forEach((x: number, y: number, tg: PokemonEntity | undefined) => {
       if (tg && pokemon.team === tg.team && tg.id !== pokemon.id) {
-        tg.addPP(ppGain, pokemon, 0.5, crit)
+        tg.addPP(ppGain, pokemon, 0, crit)
       }
     })
   }
@@ -1858,7 +1861,8 @@ export class ShadowCloneStrategy extends AbilityStrategy {
         shiny: pokemon.shiny
       })
       let itemStolen: Item | null = null
-      if (target.items.size > 0) {
+      // Legend Plate (Arceus) prevents the clone from stealing an item
+      if (target.items.size > 0 && !target.items.has(Item.LEGEND_PLATE)) {
         itemStolen = pickRandomIn(schemaValues(target.items))
         target.removeItem(itemStolen)
       }
@@ -4338,7 +4342,11 @@ export class SpectralThiefStrategy extends AbilityStrategy {
           `Spectral Thief: No class found for ${target.name} [index ${target.index}]`
         )
 
-      if (target.items.has(Item.TWIST_BAND) === false) {
+      // Twist Band, or Legend Plate (Arceus), prevents the stat boosts from being stolen
+      if (
+        target.items.has(Item.TWIST_BAND) === false &&
+        target.items.has(Item.LEGEND_PLATE) === false
+      ) {
         const base = new PkmClass(target.name)
         const boostAtk = min(0)(target.atk - target.baseAtk)
         const boostSpeed = min(0)(target.speed - base.speed)
@@ -4413,10 +4421,13 @@ export class ThiefStrategy extends AbilityStrategy {
       damage = 60
     }
 
-    target.items.forEach((item) => {
-      pokemon.addItem(item)
-      target.removeItem(item)
-    })
+    // Legend Plate (Arceus) makes the holder's items unstealable
+    if (!target.items.has(Item.LEGEND_PLATE)) {
+      target.items.forEach((item) => {
+        pokemon.addItem(item)
+        target.removeItem(item)
+      })
+    }
 
     target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)
   }
@@ -4432,9 +4443,12 @@ export class KnockOffStrategy extends AbilityStrategy {
     super.process(pokemon, board, target, crit)
     const damage = 90 + target.items.size * 30
 
-    target.items.forEach((item) => {
-      target.removeItem(item)
-    })
+    // Legend Plate (Arceus) protects the holder's items from being knocked off
+    if (!target.items.has(Item.LEGEND_PLATE)) {
+      target.items.forEach((item) => {
+        target.removeItem(item)
+      })
+    }
 
     target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)
   }
@@ -5060,7 +5074,7 @@ export class ForecastStrategy extends AbilityStrategy {
           p.addAttack(4, pokemon, 1, crit)
         }
         if (pokemon.name === Pkm.CASTFORM_RAIN) {
-          p.addPP(8, pokemon, 1, crit)
+          p.addPP(8, pokemon, 0, crit)
         }
         if (pokemon.name === Pkm.CASTFORM_HAIL) {
           p.addDefense(2, pokemon, 1, crit)
@@ -7443,9 +7457,9 @@ export class SuperFangStrategy extends AbilityStrategy {
     crit: boolean
   ) {
     super.process(pokemon, board, target, crit)
-    const damage = Math.ceil(
+    const damage = Math.min(500, Math.ceil(
       0.25 * target.maxHP * (1 + (0.5 * pokemon.ap) / 100)
-    )
+    ))
     target.handleSpecialDamage(
       damage,
       board,
@@ -10657,7 +10671,7 @@ export class IvyCudgelStrategy extends AbilityStrategy {
         .getAdjacentCells(pokemon.positionX, pokemon.positionY, false)
         .forEach((cell) => {
           if (cell.value && cell.value.team === pokemon.team) {
-            cell.value.addPP(25, pokemon, 1, crit)
+            cell.value.addPP(25, pokemon, 0, crit)
             cell.value.handleHeal(50, pokemon, 1, crit)
           }
         })
@@ -10989,7 +11003,9 @@ export class TrickOrTreatStrategy extends AbilityStrategy {
   ) {
     super.process(pokemon, board, target, crit)
 
-    if (target.items.size > 0) {
+    if (target.items.has(Item.LEGEND_PLATE)) {
+      // Legend Plate (Arceus): immune to both item theft and the Magikarp transform
+    } else if (target.items.size > 0) {
       const item = schemaValues(target.items)[0]!
       target.removeItem(item)
       pokemon.addItem(item)
@@ -12641,7 +12657,7 @@ export class DecorateStrategy extends AbilityStrategy {
       } else if (pokemon.name === Pkm.ALCREMIE_CARAMEL_SWIRL) {
         strongestNearestAlly.addCritPower(80, pokemon, 1, crit)
       } else if (pokemon.name === Pkm.ALCREMIE_RAINBOW_SWIRL) {
-        strongestNearestAlly.addPP(30, pokemon, 0.5, crit)
+        strongestNearestAlly.addPP(30, pokemon, 0, crit)
       }
     }
   }
@@ -13641,7 +13657,7 @@ export class AfterYouStrategy extends AbilityStrategy {
     const nearestAllies = pokemon.state.getNearestAllies(pokemon, board)
     const strongestNearestAlly = getStrongestUnit(nearestAllies)
     if (strongestNearestAlly) {
-      strongestNearestAlly.addPP(15, pokemon, 1, crit)
+      strongestNearestAlly.addPP(15, pokemon, 0, crit)
       strongestNearestAlly.addSpeed(10, pokemon, 1, crit)
     }
   }
@@ -14225,7 +14241,7 @@ export class TerrainPulseStrategy extends AbilityStrategy {
         }
         case "psychicField": {
           const ppGain = [10, 12, 15][pokemon.stars - 1] ?? 15
-          pkm.addPP(ppGain, pokemon, 1, crit)
+          pkm.addPP(ppGain, pokemon, 0, crit)
           break
         }
         case "fairyField": {
@@ -14372,7 +14388,7 @@ export class SpiteStrategy extends AbilityStrategy {
             targetX: ally.positionX,
             targetY: ally.positionY
           })
-          ally.addPP(ppDrain / adjacentAllies.length, pokemon, 1, crit) //divide by number of allies to redistribute
+          ally.addPP(ppDrain / adjacentAllies.length, pokemon, 0, crit) //divide by number of allies to redistribute
         }
       }
     }

@@ -64,7 +64,7 @@ import {
   getWildEncounter,
   SpireEncounter
 } from "../../models/spire-encounters"
-import { loadChampionData, saveChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, DEFAULT_SNAPSHOT, incrementChampionVictory, incrementE4Victory, type DifficultyMode } from "../../services/champion-data"
+import { loadChampionData, saveChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, DEFAULT_SNAPSHOT, incrementChampionVictory, incrementE4Victory, incrementChampionTie, incrementE4Tie, type DifficultyMode } from "../../services/champion-data"
 import { discordService } from "../../services/discord"
 import { snapshotPlayerTeam, reconstructTeamAsPlayer, encodeSnapshotForClient } from "../../services/team-snapshot"
 import { getEventBerries, getEventItems, getRandomEvent } from "../../models/spire-events"
@@ -805,7 +805,7 @@ export class OnDragDropItemCommand extends Command<
 
     if (isIn(Dishes, item)) {
       if (pokemon.canEat && !pokemon.dishes.has(item)) {
-        pokemon.dishes.add(item)
+        pokemon.addDish(item)
         pokemon.action = PokemonActionState.EAT
         removeInArray(player.items, item)
         client.send(Transfer.DRAG_DROP_CANCEL, message)
@@ -1198,15 +1198,20 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         this.stopSpireFightingPhase()
 
         if (fightNode && (fightNode.nodeType === MapNodeType.ELITE_FOUR || fightNode.nodeType === MapNodeType.CHAMPION)) {
-          const playerLost = schemaValues(this.state.players).some(
-            (p) => !p.isBot && p.history.at(-1)?.result !== BattleResult.WIN
-          )
-          if (playerLost) {
-            if (fightNode.nodeType === MapNodeType.CHAMPION) {
-              incrementChampionVictory(this.state.difficultyMode as DifficultyMode)
-            } else {
-              incrementE4Victory(fightNode.floor - 1, this.state.difficultyMode as DifficultyMode)
-            }
+          const humanResult = schemaValues(this.state.players).find(
+            (p) => !p.isBot
+          )?.history.at(-1)?.result
+          const isChampion = fightNode.nodeType === MapNodeType.CHAMPION
+          const e4Index = fightNode.floor - 1
+          const mode = this.state.difficultyMode as DifficultyMode
+          if (humanResult === BattleResult.DRAW) {
+            // Neither side won before the timer ended — credit the defending team a tie
+            if (isChampion) incrementChampionTie(mode)
+            else incrementE4Tie(e4Index, mode)
+          } else if (humanResult !== BattleResult.WIN) {
+            // Player lost outright — credit the defending team a victory
+            if (isChampion) incrementChampionVictory(mode)
+            else incrementE4Victory(e4Index, mode)
           }
         }
 
@@ -1239,6 +1244,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                     data.championSince ?? now
                   ]
                   const oldVictories = data.eliteFourVictories ?? [0, 0, 0, 0]
+                  const oldTies = data.eliteFourTies ?? [0, 0, 0, 0]
                   if (E4_LOSS_TAKES_SLOT && fightNode) {
                     // You earned the slot just below the member who beat you:
                     // you beat E4 #1..#(floor-1) and lost to #floor, so you slot in
@@ -1251,10 +1257,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                         data.eliteFour[i] = data.eliteFour[i + 1]
                         oldCrownedAt[i] = oldCrownedAt[i + 1]
                         oldVictories[i] = oldVictories[i + 1]
+                        oldTies[i] = oldTies[i + 1]
                       }
                       data.eliteFour[insertIndex] = loserSnapshot
                       oldCrownedAt[insertIndex] = now
                       oldVictories[insertIndex] = 0
+                      oldTies[insertIndex] = 0
                     }
                   } else {
                     for (let i = 3; i >= 0; i--) {
@@ -1262,20 +1270,17 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                         data.eliteFour[i] = loserSnapshot
                         oldCrownedAt[i] = now
                         oldVictories[i] = 0
+                        oldTies[i] = 0
                         break
                       }
                     }
                   }
                   data.eliteFourCrownedAt = oldCrownedAt as [string, string, string, string]
                   data.eliteFourVictories = oldVictories as [number, number, number, number]
+                  data.eliteFourTies = oldTies as [number, number, number, number]
                   saveChampionData(data, this.state.difficultyMode as DifficultyMode)
                 }
-                const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
-                deleteSavedRun(p.id)
-                saveRunHistory(p.id, this.state, p, false)
-                incrementRunEnd(p.id, this.state.difficultyMode, true, false, 0)
-                updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
-                this.room.runHistoryRecorded = true
+                this.recordRunEndOnce(p)
               }
             })
             this.syncRunHPToPlayers()
@@ -1323,10 +1328,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       pokemonPool.push(p)
     }
 
-    // Ditto: 33% chance to replace a random Pokemon on win (never on reroll)
+    // Ditto: 33% chance to replace a random Pokemon on win (never on reroll).
+    // Melmetal's Mystery Box turns every Ditto into a Meltan.
     if (won && !rerolled && Math.random() < 0.33 && pokemonPool.length > 0) {
       const idx = Math.floor(Math.random() * pokemonPool.length)
-      pokemonPool[idx] = Pkm.DITTO
+      pokemonPool[idx] = player.items.includes(Item.MYSTERY_BOX)
+        ? Pkm.MELTAN
+        : Pkm.DITTO
     }
 
     const pokemons: (Pkm | typeof Pkm.DEFAULT)[] = []
@@ -1426,6 +1434,42 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       }
     })
     await Promise.allSettled(saves)
+  }
+
+  // Counts the run victory exactly once, the instant the act-3 boss is beaten.
+  // This is the single source of truth for wins / victory leaderboard / streak —
+  // Elite Four (act 4) and Arceus (act 5) are bonus content and must never
+  // re-count it. Living here (rather than at the various run-end paths) is what
+  // makes it resume-safe: the boss-reward phase is never replayed on resume, so a
+  // resumed bonus run can't re-trigger the count.
+  recordActThreeVictoryOnce() {
+    if (this.room.actThreeVictoryCounted) return
+    this.room.actThreeVictoryCounted = true
+    const { incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
+    schemaValues(this.state.players).forEach((p) => {
+      if (!p.isBot) {
+        incrementRunEnd(p.id, this.state.difficultyMode, true, false, 0)
+        updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, true, this.state.isEndless)
+      }
+    })
+  }
+
+  // The single terminal run-end accounting path. Idempotent across the whole run
+  // via runHistoryRecorded, so the champion → Arceus → onDispose chain can't
+  // double-record. Win + victory are already counted at the act-3 boss, so here we
+  // only persist run history, delete the save, credit the champion stat / Arceus
+  // damage once, and record a loss (streak reset) for runs that never won.
+  recordRunEndOnce(player: Player, opts?: { arceusDamage?: number }) {
+    if (this.room.runHistoryRecorded) return
+    this.room.runHistoryRecorded = true
+    const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord, isRunVictory } = require("../../services/run-save")
+    const won = isRunVictory(this.state)
+    deleteSavedRun(player.id)
+    saveRunHistory(player.id, this.state, player, won)
+    incrementRunEnd(player.id, this.state.difficultyMode, false, this.room.becameChampion, opts?.arceusDamage ?? 0)
+    if (!won) {
+      updateVictoryRecord(player.id, player.name, player.avatar, this.state.difficultyMode, false, this.state.isEndless)
+    }
   }
 
   // Endless rollover to the next act: increment, wipe & regenerate the (endless)
@@ -1752,13 +1796,46 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     }
   }
 
+  // Oinkologne mushrooms (Tiny/Big/Balm) are dishes that route to the player's
+  // item inventory; left unconsumed they are sell-for-gold drops. Auto-sell any
+  // sitting in inventory when the player reaches a PokeMart or Pokemon Center,
+  // reusing the legacy town-sell logic (ItemsSoldAtTown is exactly the three
+  // mushrooms). Run before autoSaveRun() so the save reflects the cashed-out
+  // inventory and a resume can't re-sell.
+  autoSellTownItems() {
+    this.state.players.forEach((player: Player) => {
+      if (!player.alive) return
+      const itemsToSell = player.items.filter((item) =>
+        isIn(ItemsSoldAtTown, item)
+      )
+      let totalMoneyGained = 0
+      itemsToSell.forEach((item) => {
+        const value = ItemSellPricesAtTown[item as ItemsSoldAtTown] ?? 0
+        player.money += value
+        totalMoneyGained += value
+        removeInArray<Item>(player.items, item)
+      })
+      if (totalMoneyGained > 0) {
+        const client = this.room.clients.find(
+          (cli) => cli.auth.uid === player.id
+        )
+        client?.send(Transfer.PLAYER_INCOME, totalMoneyGained)
+      }
+    })
+  }
+
   initializeShopPhase() {
     this.state.phase = GamePhaseState.SHOP
     this.state.time = 999 * 1000
     this.state.roundTime = 999
+    this.autoSellTownItems()
     this.autoSaveRun()
 
-    const shopItems = generateShopItems(this.state.currentAct)
+    // Melmetal's Mystery Box turns shop Dittos into Meltan.
+    const hasMysteryBox = Array.from(this.state.players.values()).some(
+      (p) => !p.isBot && p.items.includes(Item.MYSTERY_BOX)
+    )
+    const shopItems = generateShopItems(this.state.currentAct, hasMysteryBox)
 
     this.room.miniGame.initialize(this.state, this.room, true)
     this.room.miniGame.initializeShopCarousel(
@@ -1775,17 +1852,23 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.phase = GamePhaseState.REST
     this.state.time = 999 * 1000
     this.state.roundTime = 999
+    this.autoSellTownItems()
     this.autoSaveRun()
 
     const dojoTicket = this.getDojoTicket()
 
     const randomComponent = pickRandomIn(ItemComponentsNoFossilOrScarf)
 
+    // Melmetal's Mystery Box turns the Ditto choice into a Meltan.
+    const hasMysteryBox = Array.from(this.state.players.values()).some(
+      (p) => !p.isBot && p.items.includes(Item.MYSTERY_BOX)
+    )
+
     this.state.spireEventName = "Pokemon Center"
     this.state.spireEventDescription = "Choose one:"
     resetArraySchema(this.state.spireEventChoiceLabels, [
       "Heal 30",
-      "Ditto",
+      hasMysteryBox ? "Meltan" : "Ditto",
       dojoTicket.replace(/_/g, " ")
     ])
     resetArraySchema(this.state.spireEventChoiceDescs, [
@@ -1803,7 +1886,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       this.state.runHP = Math.min(100, this.state.runHP + 30)
       this.syncRunHPToPlayers()
     } else if (choiceIndex === 1) {
-      this.room.spawnOnBench(player, Pkm.DITTO)
+      this.room.spawnOnBench(
+        player,
+        player.items.includes(Item.MYSTERY_BOX) ? Pkm.MELTAN : Pkm.DITTO
+      )
     } else if (choiceIndex === 2) {
       player.items.push(this.getDojoTicket())
     }
@@ -2010,12 +2096,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       if (!p.isBot) {
         p.life = 0
         p.alive = false
-        const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
-        deleteSavedRun(p.id)
-        saveRunHistory(p.id, this.state, p, false)
-        incrementRunEnd(p.id, this.state.difficultyMode, true, false, this.state.arceusDamageDealt)
-        updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
-        this.room.runHistoryRecorded = true
+        this.recordRunEndOnce(p, { arceusDamage: this.state.arceusDamageDealt })
       }
     })
     this.syncRunHPToPlayers()
@@ -2028,6 +2109,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     )
     if (winner) {
       this.state.runComplete = true
+      // Credited once at the terminal run-end (Arceus end or onDispose), not here —
+      // the champion fight isn't the end of the run (Arceus can still follow).
+      this.room.becameChampion = true
 
       const snapshot = snapshotPlayerTeam(winner, { includeBench: true })
       snapshot.region = this.state.playerSpireRegion || "town"
@@ -2069,10 +2153,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           if (loserSnapshot.pokemon.length > 0) {
             const data = loadChampionData(this.state.difficultyMode as DifficultyMode)
             if (!data.eliteFourVictories) data.eliteFourVictories = [0, 0, 0, 0]
+            if (!data.eliteFourTies) data.eliteFourTies = [0, 0, 0, 0]
             for (let i = 3; i >= 0; i--) {
               if (data.eliteFour[i].name === DEFAULT_SNAPSHOT.name) {
                 data.eliteFour[i] = loserSnapshot
                 data.eliteFourVictories[i] = 0
+                data.eliteFourTies[i] = 0
                 saveChampionData(data, this.state.difficultyMode as DifficultyMode)
                 break
               }
@@ -2082,12 +2168,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       })
       this.syncRunHPToPlayers()
     }
+    // No win/victory accounting here — the champion fight isn't a terminal run-end
+    // (Arceus may follow). The single terminal path (endArceusFight or onDispose)
+    // records run history + the champion stat (via becameChampion). We only drop
+    // the save so the finished champion run can't be resumed back into the fight.
     this.state.players.forEach((p: Player) => {
       if (!p.isBot) {
-        const { deleteSavedRun, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
+        const { deleteSavedRun } = require("../../services/run-save")
         deleteSavedRun(p.id)
-        incrementRunEnd(p.id, this.state.difficultyMode, true, !!winner, 0)
-        updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
       }
     })
   }
@@ -2100,12 +2188,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       player.life = 0
       player.alive = false
       this.syncRunHPToPlayers()
-      const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
-      deleteSavedRun(player.id)
-      saveRunHistory(player.id, this.state, player, false)
-      incrementRunEnd(player.id, this.state.difficultyMode, false, false, 0)
-      updateVictoryRecord(player.id, player.name, player.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
-      this.room.runHistoryRecorded = true
+      this.recordRunEndOnce(player)
     }
   }
 
@@ -2203,8 +2286,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           }
         } else if (node.nodeType === MapNodeType.UNLOCK && node.eliteEncounterIndex >= 0) {
           if (won) {
-            const unlockPokemon = getUnlockEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct)
-            const unlockType = getUnlockEncounterType(node.eliteEncounterIndex, this.state.currentAct)
+            const unlockPokemon = getUnlockEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct, this.state.isEndless)
+            const unlockType = getUnlockEncounterType(node.eliteEncounterIndex, this.state.currentAct, this.state.isEndless)
             if (unlockType === "hatch") {
               const component = pickRandomIn(ItemComponentsNoFossilOrScarf)
               player.choices.push(
@@ -2314,9 +2397,11 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           this.applyFisho2EliteOverride()
           this.state.players.forEach((p) => { p.dojoFamilies.clear() })
         } else {
-          // Act 3 boss beaten: show victory, allow entering Elite 4
+          // Act 3 boss beaten: show victory, allow entering Elite 4. This is the
+          // canonical Spire victory — count it exactly once, here and nowhere else.
           this.state.runComplete = true
           this.state.eliteFourAvailable = true
+          this.recordActThreeVictoryOnce()
         }
       } else if (this.state.currentAct < 3) {
         this.state.currentAct += 1
@@ -2334,12 +2419,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           if (!p.isBot) {
             p.life = 0
             p.alive = false
-            const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
-            deleteSavedRun(p.id)
-            saveRunHistory(p.id, this.state, p, false)
-            incrementRunEnd(p.id, this.state.difficultyMode, false, false, 0)
-            updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
-            this.room.runHistoryRecorded = true
+            this.recordRunEndOnce(p)
           }
         })
         this.syncRunHPToPlayers()
@@ -2407,11 +2487,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.state.gameFinished = true
             player.life = 0
             player.alive = false
-            const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
-            deleteSavedRun(player.id)
-            saveRunHistory(player.id, this.state, player, false)
-            incrementRunEnd(player.id, this.state.difficultyMode, false, false, 0)
-            updateVictoryRecord(player.id, player.name, player.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
+            this.recordRunEndOnce(player)
             if (this.state.isEndless) {
               const { checkAndUpdateEndlessRecord, loadEndlessLeaderboard } = require("../../services/endless-record")
               const teamSnap = snapshotPlayerTeam(player)
@@ -2426,7 +2502,6 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                 )
               }
             }
-            this.room.runHistoryRecorded = true
             this.syncRunHPToPlayers()
           }
         }

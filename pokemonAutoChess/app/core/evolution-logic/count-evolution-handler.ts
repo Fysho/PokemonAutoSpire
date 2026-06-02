@@ -170,7 +170,7 @@ export class CountEvolutionHandler extends EvolutionHandler {
       while (pokemonEvolved.canEat && dishes.length > 0) {
         const dish = dishes.pop()
         if (dish && !pokemonEvolved.dishes.has(dish)) {
-          pokemonEvolved.dishes.add(dish)
+          pokemonEvolved.addDish(dish)
         }
       }
     }

@@ -34,7 +34,7 @@ import { WandererBehavior, WandererType } from "../../types/enum/Wanderer"
 import { isIn, removeInArray } from "../../utils/array"
 import { getFreeSpaceOnBench, isOnBench } from "../../utils/board"
 import { distanceC } from "../../utils/distance"
-import { max, min } from "../../utils/number"
+import { max, min, roundToNDigits } from "../../utils/number"
 import {
   chance,
   pickNRandomIn,
@@ -344,9 +344,18 @@ export class DojoTicketOnItemDroppedEffect extends OnItemDroppedEffect {
       if (NonPkm.includes(pokemon.name)) return false
       const baseline = getPokemonBaseline(pokemon.name)
       if (player.dojoFamilies.includes(baseline)) return false
-      const hpBonus = [50, 100, 150][ticketLevel - 1] ?? 0
-      const atkBonus = [5, 10, 15][ticketLevel - 1] ?? 0
-      const apBonus = [15, 30, 45][ticketLevel - 1] ?? 0
+      let hpBonus = [50, 100, 150][ticketLevel - 1] ?? 0
+      let atkBonus = [5, 10, 15][ticketLevel - 1] ?? 0
+      let apBonus = [15, 30, 45][ticketLevel - 1] ?? 0
+      // Big Eater Belt amplifies stat gains by 25% (must be equipped before the
+      // ticket is applied — the bonus is baked into base stats at apply-time).
+      // Mirrors applyBigEaterBeltStatBuff() in pokemon-entity.ts, which only
+      // runs on the battle entity and so never sees these board-model gains.
+      if (pokemon.items.has(Item.BIG_EATER_BELT)) {
+        hpBonus = roundToNDigits(hpBonus * 1.25, 0, "down")
+        atkBonus = roundToNDigits(atkBonus * 1.25, 0, "down")
+        apBonus = roundToNDigits(apBonus * 1.25, 0, "down")
+      }
       pokemon.addMaxHP(hpBonus)
       pokemon.addAttack(atkBonus)
       pokemon.addAbilityPower(apBonus)
@@ -404,62 +413,60 @@ const chefCookEffect = new OnStageStartEffect(({ pokemon, player, room }) => {
     if (dish === Item.SWEETS) {
       dishes = pickNRandomIn(Sweets, nbDishes)
     }
-    room.clock.setTimeout(async () => {
-      room.broadcast(Transfer.COOK, {
-        pokemonId: chef.id,
-        dishes
-      })
-      room.clock.setTimeout(() => {
-        dishes.forEach((dish, i) => {
-          if (pokemon.name === Pkm.SKWOVET || pokemon.name === Pkm.GREEDENT) {
-            if (pokemon.items.size < 3) {
-              pokemon.addItem(dish, player)
-            } else {
-              player.items.push(dish)
-            }
-          } else if (isIn(DishesGoingToInventory, dish)) {
-            player.items.push(dish)
-          } else {
-            let candidates = schemaValues(player.board).filter(
-              (p) =>
-                p.canEat &&
-                !p.dishes.has(dish) &&
-                isOnBench(chef) === isOnBench(p) &&
-                distanceC(
-                  chef.positionX,
-                  chef.positionY,
-                  p.positionX,
-                  p.positionY
-                ) === 1
-            )
-            if (dish === Item.HERBA_MYSTICA) {
-              candidates = candidates.filter((p) =>
-                HerbaMysticas.every((herba) => p.dishes.has(herba) === false)
-              )
-            }
-            candidates.sort((a, b) => getUnitScore(b) - getUnitScore(a))
-            const pokemon = candidates[0] ?? chef // idx 0 equals the strongest unit
-            if (!pokemon.canEat) return
-            if (dish === Item.HERBA_MYSTICA) {
-              const flavors: Dish[] = []
-              if (pokemon.types.has(Synergy.FAIRY))
-                flavors.push(Item.HERBA_MYSTICA_SWEET)
-              if (pokemon.types.has(Synergy.PSYCHIC))
-                flavors.push(Item.HERBA_MYSTICA_SPICY)
-              if (pokemon.types.has(Synergy.ELECTRIC))
-                flavors.push(Item.HERBA_MYSTICA_SOUR)
-              if (pokemon.types.has(Synergy.GRASS))
-                flavors.push(Item.HERBA_MYSTICA_BITTER)
-              if (flavors.length === 0) flavors.push(Item.HERBA_MYSTICA_SALTY)
-              dish = pickRandomIn(flavors)
-            }
-            pokemon.dishes.add(dish)
-            pokemon._cookedDishes.push(dish)
-            pokemon.action = PokemonActionState.EAT
-          }
-        })
-      }, 2000)
-    }, 1000)
+    // Broadcast the cook animation, but apply the dishes synchronously so they
+    // are guaranteed distributed before the player can start the fight (the old
+    // 1000ms+2000ms timeouts let players begin combat before dishes were dealt).
+    room.broadcast(Transfer.COOK, {
+      pokemonId: chef.id,
+      dishes
+    })
+    dishes.forEach((dish, i) => {
+      if (pokemon.name === Pkm.SKWOVET || pokemon.name === Pkm.GREEDENT) {
+        if (pokemon.items.size < 3) {
+          pokemon.addItem(dish, player)
+        } else {
+          player.items.push(dish)
+        }
+      } else if (isIn(DishesGoingToInventory, dish)) {
+        player.items.push(dish)
+      } else {
+        let candidates = schemaValues(player.board).filter(
+          (p) =>
+            p.canEat &&
+            !p.dishes.has(dish) &&
+            isOnBench(chef) === isOnBench(p) &&
+            distanceC(
+              chef.positionX,
+              chef.positionY,
+              p.positionX,
+              p.positionY
+            ) === 1
+        )
+        if (dish === Item.HERBA_MYSTICA) {
+          candidates = candidates.filter((p) =>
+            HerbaMysticas.every((herba) => p.dishes.has(herba) === false)
+          )
+        }
+        candidates.sort((a, b) => getUnitScore(b) - getUnitScore(a))
+        const pokemon = candidates[0] ?? chef // idx 0 equals the strongest unit
+        if (!pokemon.canEat) return
+        if (dish === Item.HERBA_MYSTICA) {
+          const flavors: Dish[] = []
+          if (pokemon.types.has(Synergy.FAIRY))
+            flavors.push(Item.HERBA_MYSTICA_SWEET)
+          if (pokemon.types.has(Synergy.PSYCHIC))
+            flavors.push(Item.HERBA_MYSTICA_SPICY)
+          if (pokemon.types.has(Synergy.ELECTRIC))
+            flavors.push(Item.HERBA_MYSTICA_SOUR)
+          if (pokemon.types.has(Synergy.GRASS))
+            flavors.push(Item.HERBA_MYSTICA_BITTER)
+          if (flavors.length === 0) flavors.push(Item.HERBA_MYSTICA_SALTY)
+          dish = pickRandomIn(flavors)
+        }
+        pokemon.addDish(dish)
+        pokemon.action = PokemonActionState.EAT
+      }
+    })
   }
 })
 
@@ -1201,7 +1208,7 @@ export const ItemEffects: { [i in Item]?: (Effect | (() => Effect))[] } = {
               pokemon.positionY
             ) <= 1
           ) {
-            pkm.dishes.add(Item.SANDWICH)
+            pkm.addDish(Item.SANDWICH)
             pkm.action = PokemonActionState.EAT
             nbSandwiches++
           }

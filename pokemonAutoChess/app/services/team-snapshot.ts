@@ -5,7 +5,7 @@ import Synergies, { computeSynergies } from "../models/colyseus-models/synergies
 import { Effects } from "../models/effects"
 import PokemonFactory from "../models/pokemon-factory"
 import GameState from "../rooms/states/game-state"
-import { AbilityPerTM, Emotion, Role, TMs } from "../types"
+import { Emotion, Role, TMs } from "../types"
 import { Ability } from "../types/enum/Ability"
 import { EffectEnum } from "../types/enum/Effect"
 import { Team } from "../types/enum/Game"
@@ -20,6 +20,7 @@ export interface PokemonStatBoosts {
   speDef: number
   ap: number
   speed: number
+  luck: number
 }
 
 export interface SnapshotPokemon {
@@ -31,6 +32,7 @@ export interface SnapshotPokemon {
   emotion?: Emotion
   statBoosts?: PokemonStatBoosts
   skill?: Ability
+  tm?: Ability
   dishes?: Item[]
   evolution?: Pkm
   stacks?: number
@@ -64,9 +66,10 @@ export function snapshotPlayerTeam(
       def: pkm.def - baseline.def,
       speDef: pkm.speDef - baseline.speDef,
       ap: pkm.ap - baseline.ap,
-      speed: pkm.speed - baseline.speed
+      speed: pkm.speed - baseline.speed,
+      luck: pkm.luck - baseline.luck
     }
-    const hasBoosts = boosts.hp || boosts.atk || boosts.def || boosts.speDef || boosts.ap || boosts.speed
+    const hasBoosts = boosts.hp || boosts.atk || boosts.def || boosts.speDef || boosts.ap || boosts.speed || boosts.luck
 
     const snap: SnapshotPokemon = {
       name: pkm.name as Pkm,
@@ -79,6 +82,7 @@ export function snapshotPlayerTeam(
     if (pkm.emotion !== Emotion.NORMAL) snap.emotion = pkm.emotion
     if (hasBoosts) snap.statBoosts = boosts
     if (pkm.skill !== baseline.skill) snap.skill = pkm.skill
+    if (pkm.tm !== Ability.DEFAULT) snap.tm = pkm.tm
     if (pkm.dishes?.size > 0) {
       snap.dishes = [...pkm.dishes] as Item[]
     } else if (pkm._cookedDishes?.length > 0) {
@@ -121,20 +125,19 @@ export function reconstructTeamAsBoard(snapshot: TeamSnapshot): {
 
     if (snap.items) {
       for (const item of snap.items) {
-        if (TMs.includes(item)) {
-          const ability = AbilityPerTM[item]
-          if (ability && pkm.types.has(Synergy.HUMAN)) {
-            pkm.tm = ability
-            pkm.skill = ability
-            pkm.maxPP = 100
-          }
-        } else if (!pkm.items.has(item)) {
-          pkm.items.add(item)
-        }
+        if (TMs.includes(item)) continue // TMs aren't held items; restored via snap.tm below
+        if (!pkm.items.has(item)) pkm.items.add(item)
       }
     }
 
-    if (snap.skill && !snap.items?.some((i) => TMs.includes(i))) {
+    // Restore the ability. A TM takes precedence (sets the tm marker + skill +
+    // 100 PP, like applying the TM); otherwise a non-TM skill change (Skill Swap
+    // or Sketch-learned) just sets the skill.
+    if (snap.tm) {
+      pkm.tm = snap.tm
+      pkm.skill = snap.tm
+      pkm.maxPP = 100
+    } else if (snap.skill) {
       pkm.skill = snap.skill
     }
 
@@ -146,6 +149,7 @@ export function reconstructTeamAsBoard(snapshot: TeamSnapshot): {
       if (b.speDef) pkm.addSpecialDefense(b.speDef)
       if (b.ap) pkm.addAbilityPower(b.ap)
       if (b.speed) pkm.addSpeed(b.speed)
+      if (b.luck) pkm.addLuck(b.luck)
     }
 
     if (snap.dishes) {
@@ -216,20 +220,19 @@ export function reconstructTeamAsPlayer(
 
     if (snap.items) {
       for (const item of snap.items) {
-        if (TMs.includes(item)) {
-          const ability = AbilityPerTM[item]
-          if (ability && pkm.types.has(Synergy.HUMAN)) {
-            pkm.tm = ability
-            pkm.skill = ability
-            pkm.maxPP = 100
-          }
-        } else if (!pkm.items.has(item)) {
-          pkm.items.add(item)
-        }
+        if (TMs.includes(item)) continue // TMs aren't held items; restored via snap.tm below
+        if (!pkm.items.has(item)) pkm.items.add(item)
       }
     }
 
-    if (snap.skill && !snap.items?.some((i) => TMs.includes(i))) {
+    // Restore the ability. A TM takes precedence (sets the tm marker + skill +
+    // 100 PP, like applying the TM); otherwise a non-TM skill change (Skill Swap
+    // or Sketch-learned) just sets the skill.
+    if (snap.tm) {
+      pkm.tm = snap.tm
+      pkm.skill = snap.tm
+      pkm.maxPP = 100
+    } else if (snap.skill) {
       pkm.skill = snap.skill
     }
 
@@ -241,6 +244,7 @@ export function reconstructTeamAsPlayer(
       if (b.speDef) pkm.addSpecialDefense(b.speDef)
       if (b.ap) pkm.addAbilityPower(b.ap)
       if (b.speed) pkm.addSpeed(b.speed)
+      if (b.luck) pkm.addLuck(b.luck)
     }
 
     if (snap.dishes) {
@@ -296,16 +300,26 @@ export function reconstructTeamAsPlayer(
 }
 
 export function encodeSnapshotForClient(snapshot: TeamSnapshot): string[] {
+  // Format: name,x,y[,items...][|boosts[|dishes...]]
+  // Dishes are kept in their own segment (NOT merged into items) so the client
+  // can render them below the Pokemon via updateDishes() rather than as held
+  // items to the right. Segments are positional: when dishes exist but boosts
+  // don't, an empty boost segment is emitted to keep dishes at index 2.
   return snapshot.pokemon
     .filter((p) => p.y > 0)
     .map((p) => {
-      const allItems = [...p.items, ...(p.dishes ?? [])]
-      const itemStr = allItems.length > 0 ? `,${allItems.join(",")}` : ""
+      const itemStr = p.items.length > 0 ? `,${p.items.join(",")}` : ""
       const b = p.statBoosts
-      const boostStr =
+      const hasBoosts =
         b && (b.hp || b.atk || b.def || b.speDef || b.ap || b.speed)
-          ? `|${b.hp},${b.atk},${b.def},${b.speDef},${b.ap},${b.speed}`
-          : ""
-      return `${p.name},${p.x},${p.y}${itemStr}${boostStr}`
+      const dishes = p.dishes ?? []
+      let suffix = ""
+      if (hasBoosts || dishes.length > 0) {
+        suffix += `|${hasBoosts ? `${b!.hp},${b!.atk},${b!.def},${b!.speDef},${b!.ap},${b!.speed},${b!.luck}` : ""}`
+      }
+      if (dishes.length > 0) {
+        suffix += `|${dishes.join(",")}`
+      }
+      return `${p.name},${p.x},${p.y}${itemStr}${suffix}`
     })
 }

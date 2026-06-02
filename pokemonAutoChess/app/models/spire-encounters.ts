@@ -1006,12 +1006,27 @@ export function getLateGymLeaderCount(): number {
   return GYM_SYNERGIES.length
 }
 
+// Gym rewards offer an evolved (2★) themed Pokémon rather than a weak 1★ base
+// form (e.g. a Flora gym should never reward a 1★ Sprigatito/Sunkern). Upgrade
+// each 1★ roster member to its 2★ evolution and union with any 2★ already in
+// the roster, deduped. SPECIAL-rarity Pokémon are excluded from the pool.
+// get2StarForm() is hoisted (function declaration) so it is safe to call here.
 export function getGymLeaderBaseFormPokemon(synergy: Synergy): Pkm[] {
   const roster = GYM_LEADER_POKEMON[synergy] ?? []
-  return roster.filter(pkm => {
+  const result = new Set<Pkm>()
+  const addIfNotSpecial = (pkm: Pkm) => {
+    if (getPokemonData(pkm).rarity !== "SPECIAL") result.add(pkm)
+  }
+  for (const pkm of roster) {
     const data = getPokemonData(pkm)
-    return data.stars === 1
-  })
+    if (data.stars === 2) {
+      addIfNotSpecial(pkm)
+    } else if (data.stars === 1) {
+      const evo = get2StarForm(pkm)
+      if (evo) addIfNotSpecial(evo)
+    }
+  }
+  return [...result]
 }
 
 export function getGymLeaderGem(synergy: Synergy): Item {
@@ -1888,7 +1903,8 @@ export function getArceusEncounter(mode: DifficultyMode = 1): SpireEncounter {
     ],
     items: [
       [Item.CHOICE_SPECS, Item.SCOPE_LENS, Item.SHELL_BELL, Item.MUSCLE_BAND, Item.UPGRADE, Item.SOUL_DEW,
-       Item.ROCKY_HELMET, Item.SAFETY_GOGGLES, Item.GREEN_ORB, Item.BLUE_ORB, Item.RED_ORB, Item.MAX_REVIVE, Item.STICKY_BARB, Item.POWER_LENS]
+       Item.ROCKY_HELMET, Item.SAFETY_GOGGLES, Item.GREEN_ORB, Item.BLUE_ORB, Item.RED_ORB, Item.MAX_REVIVE, Item.STICKY_BARB, Item.POWER_LENS,
+       Item.TWIST_BAND, Item.LEGEND_PLATE]
     ],
     bonusHP: 100000,
     bonusAtk: 150,

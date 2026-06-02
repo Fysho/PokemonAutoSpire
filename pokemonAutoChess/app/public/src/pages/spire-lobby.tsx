@@ -92,10 +92,11 @@ const PAC_TAG_COLORS: Record<string, { bg: string; text: string }> = {
   nerfed: { bg: "#6a2d2d", text: "#ff7f7f" },
   changed: { bg: "#6a5a2d", text: "#ffd27f" },
   removed: { bg: "#4a2d4a", text: "#d07fd0" },
-  info: { bg: "#2d4a6a", text: "#7fbfff" }
+  info: { bg: "#2d4a6a", text: "#7fbfff" },
+  new: { bg: "#1d6e6e", text: "#6ffaff" }
 }
 
-function PacTag({ type }: { type: "buffed" | "nerfed" | "changed" | "removed" | "info" }) {
+function PacTag({ type }: { type: "buffed" | "nerfed" | "changed" | "removed" | "info" | "new" }) {
   const colors = PAC_TAG_COLORS[type]
   return (
     <span style={{
@@ -1201,7 +1202,7 @@ function SpireLobbyContent({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src="assets/item/RAINBOW_SWIRL_FLAVOR.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Rainbow Swirl</strong> — Decorate PP buff reduced from 60 to 30, AP scaling halved.</span>
+              <span><PacTag type="nerfed" /> <strong>Rainbow Swirl</strong> — Decorate PP buff reduced from 60 to 30.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src="assets/item/GOLD_DOJO_TICKET.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
@@ -1214,6 +1215,18 @@ function SpireLobbyContent({
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src="assets/item/RED_SCALE.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
               <span><PacTag type="removed" /> <strong>Red Scale</strong> — Removed from the game.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src="assets/item/LEGEND_PLATE.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="new" /> <strong>Legend Plate</strong> — A new Arceus-only item: its items and stat boosts can't be stolen or knocked off (Thief, Knock Off, Spectral Thief, etc.), and any single instance of damage it takes is capped at 1000.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src="assets/item/ORAN_BERRY.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="changed" /> <strong>Berries</strong> — All berries are now removable: benching a Pokemon returns its berries to your inventory.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src="assets/item/BIG_MUSHROOM.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="changed" /> <strong>Mushrooms</strong> — Tiny/Big/Balm Mushrooms are automatically sold for gold (1/2/5g) when you reach a PokeMart or Pokemon Center.</span>
             </div>
           </div>
 
@@ -1229,7 +1242,28 @@ function SpireLobbyContent({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0869-0056")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Alcremie (Rainbow Swirl)</strong> — Decorate PP buff reduced from 60 to 30, AP scaling halved.</span>
+              <span><PacTag type="nerfed" /> <strong>Alcremie (Rainbow Swirl)</strong> — Decorate PP buff reduced from 60 to 30.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "2px", flexShrink: 0, flexWrap: "wrap" }}>
+                <img src={getPortraitSrc("0671")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("0869-0056")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("0788")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("0351-0002")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("1017-0001")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("0876")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("0930")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+                <img src={getPortraitSrc("0563")} style={{ width: "40px", height: "40px", imageRendering: "pixelated" }} />
+              </div>
+              <span><PacTag type="nerfed" /> <strong>PP Batteries</strong> — The PP these Pokemon grant to allies no longer scales with AP.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0810")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="nerfed" /> <strong>Grookey / Thwackey / Rillaboom</strong> — Max PP increased from 60 to 80, so the Drummer line takes longer to cast its own ability while it feeds PP to adjacent allies.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0440")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="nerfed" /> <strong>Happiny / Chansey / Blissey</strong> — Max PP increased from 120 to 140, so the line casts Soft-Boiled less often.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0911")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
@@ -1261,6 +1295,10 @@ function SpireLobbyContent({
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0888")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
               <span><PacTag type="changed" /> <strong>Zacian</strong> — Receives its Rusted Sword for defeating any act-end boss, instead of a fixed PvE stage.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0399")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="nerfed" /> <strong>Bidoof / Bibarel</strong> — Super Fang damage capped at 500.</span>
             </div>
           </div>
 
@@ -1532,6 +1570,7 @@ interface ChampionSlot {
   pokemon: { name: string; items: string[] }[]
   inventory: string[]
   victories: number
+  ties: number
 }
 
 interface ChampionData {
@@ -1675,6 +1714,13 @@ function ChampionSlotRow({ slot, title, highlight }: { slot: ChampionSlot; title
           background: "rgba(255,255,255,0.08)"
         }}>{slot.victories} win{slot.victories !== 1 ? "s" : ""}</span>
       )}
+      {slot.ties > 0 && (
+        <span style={{
+          fontSize: "11px", opacity: 0.7, flexShrink: 0,
+          padding: "1px 5px", borderRadius: "8px",
+          background: "rgba(255,255,255,0.08)"
+        }}>{slot.ties} draw{slot.ties !== 1 ? "s" : ""}</span>
+      )}
       <div style={{ display: "flex", gap: "2px", alignItems: "center", flexShrink: 0 }}>
         {topSynergies.map(([type, value]) => (
           <div key={type} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -1777,7 +1823,8 @@ function ArceusRecordDisplay() {
                     avatar: entry.avatar,
                     pokemon: entry.pokemon,
                     inventory: entry.inventory || [],
-                    victories: 0
+                    victories: 0,
+                    ties: 0
                   }
                   return (
                     <ChampionSlotRow
@@ -1853,7 +1900,8 @@ function EndlessLeaderboardDisplay() {
                 avatar: entry.avatar,
                 pokemon: entry.pokemon,
                 inventory: [],
-                victories: 0
+                victories: 0,
+                ties: 0
               }
               return (
                 <ChampionSlotRow

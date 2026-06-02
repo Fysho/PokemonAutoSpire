@@ -18,6 +18,7 @@ import { cc } from "../../utils/jsx"
 import AdminPanel from "../admin/admin-panel"
 import Booster from "../booster/booster"
 import TeamBuilderModal from "../bot-builder/team-builder-modal"
+import EliteDesignerModal from "../bot-builder/elite-designer-modal"
 import PokemonCollection from "../collection/pokemon-collection"
 import Jukebox from "../jukebox/jukebox"
 import HowToPlay from "../how-to-play/how-to-play"
@@ -237,6 +238,16 @@ export function MainSidebar(props: MainSidebarProps) {
           </NavLink>
         )}
 
+        {profileLevel >= GADGETS.team_planner.levelRequired && (
+          <NavLink
+            svg="team-builder"
+            location="elite-designer"
+            handleClick={changeModal}
+          >
+            {t("elite_designer")}
+          </NavLink>
+        )}
+
         {page !== "game" &&
           ((!GADGETS.pokeguesser.disabled &&
             profileLevel >= GADGETS.pokeguesser.levelRequired) ||
@@ -451,6 +462,7 @@ export type Modals =
   | "sprite-tracker"
   | "synergy-wheel"
   | "team-builder"
+  | "elite-designer"
   | "tier-list"
   | "wiki"
 
@@ -533,6 +545,10 @@ function Modals({
       </Modal>
       <TeamBuilderModal
         show={modal === "team-builder"}
+        handleClose={closeModal}
+      />
+      <EliteDesignerModal
+        show={modal === "elite-designer"}
         handleClose={closeModal}
       />
       <TierListMakerModal

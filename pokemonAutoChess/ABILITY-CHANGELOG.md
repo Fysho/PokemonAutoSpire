@@ -32,6 +32,17 @@ Template for recording changes:
 - `path/to/file.ts` — description of change
 -->
 
+### 2026-06-03 — Remove AP scaling from PP-battery abilities
+
+**Abilities**: FAIRY_WIND, DECORATE, MISTY_SURGE, FORECAST, IVY_CUDGEL, AFTER_YOU, TERRAIN_PULSE, SPITE
+**Type**: scaling change
+**Before**: The PP granted to allies scaled with the caster's AP — `apBoost` of `1` (full) for MISTY_SURGE, FORECAST, IVY_CUDGEL, AFTER_YOU, TERRAIN_PULSE, SPITE, and `0.5` (half) for FAIRY_WIND and DECORATE. High-AP support units could dump huge PP onto carries.
+**After**: All eight pass `apBoost = 0` to `addPP(...)`, so the PP granted is the flat base value regardless of the caster's AP. Only the PP-granting effect changed; co-located heals/shields/buffs/damage keep their existing AP scaling.
+**Affected Pokemon**: Flabébé/Floette/Florges (Fairy Wind), Milcery/Alcremie Rainbow Swirl (Decorate), Tapu Fini (Misty Surge), Castform Rain (Forecast), Ogerpon Wellspring (Ivy Cudgel), Indeedee Male (After You), Smoliv/Dolliv/Arboliva (Terrain Pulse), Yamask/Cofagrigus (Spite).
+**Rationale**: AP-scaled PP batteries made AP-stacked support snowball ally cast frequency too hard; flat PP keeps them useful as enablers without runaway scaling. Note: SOAK (Poliwag line, Tatsugiri) and the DRUMMER passive (Grookey line) already granted flat PP and were unchanged.
+**Files changed**:
+- `app/core/abilities/abilities.ts` — set the `apBoost` arg to `0` on the ally `addPP(...)` call in the 8 ability strategies above.
+
 ### 2026-06-01 — Torch Song runaway-feedback fix
 
 **Ability**: TORCH_SONG

@@ -23,6 +23,9 @@ export interface ChampionFileData {
   longestReign?: LongestReign
   championVictories?: number
   eliteFourVictories?: [number, number, number, number]
+  // Draws: challenger fought this team but neither side won before the timer ended
+  championTies?: number
+  eliteFourTies?: [number, number, number, number]
 }
 
 // Legacy format for migration
@@ -88,7 +91,7 @@ function migrateLegacySlot(slot: LegacyChampionSlotData): TeamSnapshot {
     }
     const b = slot.statBoosts?.[i]
     if (b && (b.hp || b.atk || b.def || b.speDef || b.ap || b.speed)) {
-      snap.statBoosts = b
+      snap.statBoosts = { ...b, luck: 0 } // legacy snapshots predate luck
     }
     return snap
   })
@@ -214,6 +217,8 @@ export function promoteNewChampion(
 
   const oldVictories = data.eliteFourVictories ?? [0, 0, 0, 0]
   const previousChampionVictories = data.championVictories ?? 0
+  const oldTies = data.eliteFourTies ?? [0, 0, 0, 0]
+  const previousChampionTies = data.championTies ?? 0
 
   data.eliteFour[0] = { ...data.eliteFour[1] }
   data.eliteFour[1] = { ...data.eliteFour[2] }
@@ -231,9 +236,16 @@ export function promoteNewChampion(
     oldVictories[3],
     previousChampionVictories
   ]
+  data.eliteFourTies = [
+    oldTies[1],
+    oldTies[2],
+    oldTies[3],
+    previousChampionTies
+  ]
   data.champion = winnerSnapshot
   data.championSince = now.toISOString()
   data.championVictories = 0
+  data.championTies = 0
 
   saveChampionData(data, mode)
 
@@ -354,5 +366,18 @@ export function incrementE4Victory(e4Index: number, mode: DifficultyMode): void 
   const data = loadChampionData(mode)
   if (!data.eliteFourVictories) data.eliteFourVictories = [0, 0, 0, 0]
   data.eliteFourVictories[e4Index] = (data.eliteFourVictories[e4Index] ?? 0) + 1
+  saveChampionData(data, mode)
+}
+
+export function incrementChampionTie(mode: DifficultyMode): void {
+  const data = loadChampionData(mode)
+  data.championTies = (data.championTies ?? 0) + 1
+  saveChampionData(data, mode)
+}
+
+export function incrementE4Tie(e4Index: number, mode: DifficultyMode): void {
+  const data = loadChampionData(mode)
+  if (!data.eliteFourTies) data.eliteFourTies = [0, 0, 0, 0]
+  data.eliteFourTies[e4Index] = (data.eliteFourTies[e4Index] ?? 0) + 1
   saveChampionData(data, mode)
 }

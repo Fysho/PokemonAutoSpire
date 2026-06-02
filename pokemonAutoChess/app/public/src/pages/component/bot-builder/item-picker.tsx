@@ -5,6 +5,7 @@ import type { PkmWithCustom } from "../../../../../types"
 import {
   Berries,
   CraftableItems,
+  Dishes,
   Item,
   ItemComponents,
   MemoryDiscs,
@@ -30,13 +31,7 @@ export default function ItemPicker(props: {
     {
       label: t("food"),
       key: "food",
-      items: [
-        ...Berries,
-        Item.TART_APPLE,
-        Item.SWEET_APPLE,
-        Item.SIRUPY_APPLE,
-        Item.CHEF_HAT
-      ]
+      items: [...new Set([...Berries, ...Dishes, Item.CHEF_HAT])]
     },
 
     { label: t("tools"), key: "tools", items: Tools },

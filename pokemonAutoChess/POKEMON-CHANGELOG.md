@@ -32,6 +32,28 @@ Template for recording changes:
 - `path/to/file.ts` — description of change
 -->
 
+### 2026-06-03 — Blissey line max PP nerf
+
+**Pokemon**: Happiny, Chansey, Blissey
+**Type**: stat change (max PP)
+**Before**: `maxPP = 120` for all three stages.
+**After**: `maxPP = 140` for all three stages (+20).
+**Rationale**: Slows how frequently the line casts Soft-Boiled (its team heal), bringing the sustain engine in line.
+**Files changed**:
+- `app/models/colyseus-models/pokemon.ts` — `maxPP` 120→140 on the Happiny, Chansey, and Blissey classes.
+- `app/models/precomputed/pokemons-data.csv` — Max PP column 120→140 for the three rows (kept in sync).
+
+### 2026-06-03 — Grookey line max PP nerf
+
+**Pokemon**: Grookey, Thwackey, Rillaboom
+**Type**: stat change (max PP)
+**Before**: `maxPP = 60` for all three stages.
+**After**: `maxPP = 80` for all three stages (+20).
+**Rationale**: The Drummer line is a PP battery (its DRUMMER passive feeds PP to adjacent allies on each auto-attack instead of casting often). Raising its own max PP slows how frequently it casts DRUM_BEATING, reining in its value as a self-contained engine while keeping the support role.
+**Files changed**:
+- `app/models/colyseus-models/pokemon.ts` — `maxPP` 60→80 on the Grookey, Thwackey, and Rillaboom classes.
+- `app/models/precomputed/pokemons-data.csv` — Max PP column 60→80 for the three rows (kept in sync).
+
 ### 2026-05-31 — Fix: regional variant evolutions were impossible to obtain
 
 **Pokemon**: All 3★ regional variant final forms reached by divergent evolution — HISUIAN_TYPHLOSION (Quilava), HISUI_SAMUROTT, HISUI_SLIGGOO, HISUI_AVALUGG, HISUIAN_LILLIGANT, ALOLAN_RAICHU, ALOLAN_MAROWAK, ALOLAN_EXEGGUTOR, GALARIAN_WEEZING, etc.

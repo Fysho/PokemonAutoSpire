@@ -4,7 +4,8 @@ import admin from "firebase-admin"
 import { Client, Room, matchMaker } from "colyseus"
 import {
   MAX_LOADING_TIME,
-  MAX_SIMULATION_DELTA_TIME
+  MAX_SIMULATION_DELTA_TIME,
+  getItemSellValue
 } from "../config"
 import { EvolutionManager } from "../core/evolution-logic/evolution-manager"
 import { getHatchTime } from "../core/evolution-logic/hatch-time"
@@ -90,6 +91,14 @@ export default class GameRoom extends Room<{ state: GameState }> {
   miniGame: MiniGame
   isResume: boolean = false
   runHistoryRecorded: boolean = false
+  // Win + victory-leaderboard + streak are counted exactly once, the moment the
+  // act-3 boss falls (see recordActThreeVictoryOnce). Elite Four / Arceus are bonus
+  // content and never re-count it. This guard makes that idempotent within a room;
+  // resume can't double-count because the boss-reward phase is never replayed.
+  actThreeVictoryCounted: boolean = false
+  // Set when the champion fight is won, so the terminal run-end (Arceus end or
+  // onDispose) credits the per-account champion stat exactly once.
+  becameChampion: boolean = false
   // Set once the human player leaves/disconnects. There is no reconnection to the
   // same room (a reconnect spawns a NEW room that resumes), so a left room must
   // never auto-save again — otherwise this lingering "zombie" room keeps writing
@@ -658,7 +667,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const idx = player.items.findIndex((i: any) => i === itemId)
         if (idx < 0) return
         player.items.splice(idx, 1)
-        player.addMoney(1, false, null)
+        player.addMoney(getItemSellValue(itemId as Item), false, null)
       }
     })
 
@@ -982,6 +991,14 @@ export default class GameRoom extends Room<{ state: GameState }> {
       this.spawnOnBench(player, pkm)
     })
 
+    this.onMessage(Transfer.GIVE_ITEM, (client, { item }: { item: Item }) => {
+      if (!client.auth) return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player || player.role !== Role.ADMIN) return
+      if (!Object.values(Item).includes(item)) return
+      player.items.push(item)
+    })
+
     this.onMessage(Transfer.ADMIN_TELEPORT_NODE, (client, nodeId: string) => {
       if (!client.auth || !this.isPlayer(client)) return
       const player = this.state.players.get(client.auth.uid)
@@ -1086,6 +1103,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
   startGame() {
     if (this.state.gameLoaded) return // already started
     this.state.gameLoaded = true
+    // Fresh identity for this run so the save fence treats it as distinct from any
+    // prior run in this account's save slot (lets a new run overwrite an old save).
+    this.state.runId = crypto.randomUUID()
     this.setSimulationInterval((deltaTime: number) => {
       deltaTime = Math.min(MAX_SIMULATION_DELTA_TIME, deltaTime)
       if (!this.state.gameFinished && !this.state.simulationPaused) {
@@ -1389,14 +1409,30 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.presence.unsubscribe("server-announcement", this.onServerAnnouncement)
     this.presence.unsubscribe("supersede-session", this.onSupersedeSession)
 
-    if (!this.runHistoryRecorded && (this.state.runComplete || this.state.runFailed) && humanPlayer) {
-      const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord } = require("../services/run-save")
+    // Leaving on the act-3 victory screen (boss beaten, Elite Four offered but not
+    // yet entered) is NOT a run end — keep the save so the player can resume into
+    // the Elite Four later. The victory itself was already counted when the boss
+    // fell, so nothing is lost by deferring.
+    const bonusPending =
+      this.state.currentAct === 3 &&
+      this.state.runComplete &&
+      this.state.eliteFourAvailable &&
+      !this.state.runFailed &&
+      !this.state.gameFinished
+
+    if (!this.runHistoryRecorded && !bonusPending && (this.state.runComplete || this.state.runFailed) && humanPlayer) {
+      this.runHistoryRecorded = true
+      const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord, isRunVictory } = require("../services/run-save")
+      const won = isRunVictory(this.state)
       deleteSavedRun(humanPlayer.id)
-      const victory = this.state.runComplete && !this.state.runFailed
-      await saveRunHistory(humanPlayer.id, this.state, humanPlayer, victory)
-      await incrementRunEnd(humanPlayer.id, this.state.difficultyMode, true, victory, this.state.arceusDamageDealt)
-      await updateVictoryRecord(humanPlayer.id, humanPlayer.name, humanPlayer.avatar, this.state.difficultyMode, this.state.currentAct, this.state.isEndless)
-      logger.info(`Deferred run history saved for ${name} | victory: ${victory}`)
+      await saveRunHistory(humanPlayer.id, this.state, humanPlayer, won)
+      // Win + victory were counted at the act-3 boss; here we only add the champion
+      // stat (once) and Arceus damage, and record a loss for runs that never won.
+      await incrementRunEnd(humanPlayer.id, this.state.difficultyMode, false, this.becameChampion, this.state.arceusDamageDealt)
+      if (!won) {
+        await updateVictoryRecord(humanPlayer.id, humanPlayer.name, humanPlayer.avatar, this.state.difficultyMode, false, this.state.isEndless)
+      }
+      logger.info(`Deferred run history saved for ${name} | victory: ${won}`)
     }
 
     this.dispatcher.stop()
@@ -1701,7 +1737,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     if (choice.items.length > 0) {
       const item = choice.items[choiceIndex]
-      const pickedDitto = choice.pokemons.length > 0 && choice.pokemons[choiceIndex] === Pkm.DITTO
+      const pickedPkm = choice.pokemons.length > 0 ? choice.pokemons[choiceIndex] : undefined
+      // Ditto (and its Mystery Box → Meltan swap) never grants the paired item.
+      const pickedDitto = pickedPkm === Pkm.DITTO || pickedPkm === Pkm.MELTAN
       if (!pickedDitto) {
         player.items.push(item)
         if (isIn(Wands, item)) {

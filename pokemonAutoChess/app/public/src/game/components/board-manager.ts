@@ -273,25 +273,29 @@ export default class BoardManager {
     if (this.mode === BoardMode.PICK && this.state.spireEncounterBoard?.length > 0) {
       const board: [Pkm, number, number][] = []
       const encounterItems: Item[][] = []
-      const perPokemonBoosts: { hp: number, atk: number, def: number, speDef: number, ap: number, speed: number }[] = []
+      const encounterDishes: Item[][] = []
+      const perPokemonBoosts: { hp: number, atk: number, def: number, speDef: number, ap: number, speed: number, luck: number }[] = []
       Array.from(this.state.spireEncounterBoard).forEach((entry: string) => {
-        const [mainPart, boostPart] = entry.split("|")
+        // Format: name,x,y[,items...][|boosts[|dishes...]] (see encodeSnapshotForClient)
+        const [mainPart, boostPart, dishPart] = entry.split("|")
         const parts = mainPart.split(",")
         board.push([parts[0] as Pkm, parseInt(parts[1]), parseInt(parts[2])])
         encounterItems.push(parts.slice(3) as Item[])
         if (boostPart) {
           const b = boostPart.split(",").map(Number)
-          perPokemonBoosts.push({ hp: b[0] || 0, atk: b[1] || 0, def: b[2] || 0, speDef: b[3] || 0, ap: b[4] || 0, speed: b[5] || 0 })
+          perPokemonBoosts.push({ hp: b[0] || 0, atk: b[1] || 0, def: b[2] || 0, speDef: b[3] || 0, ap: b[4] || 0, speed: b[5] || 0, luck: b[6] || 0 })
         } else {
-          perPokemonBoosts.push({ hp: 0, atk: 0, def: 0, speDef: 0, ap: 0, speed: 0 })
+          perPokemonBoosts.push({ hp: 0, atk: 0, def: 0, speDef: 0, ap: 0, speed: 0, luck: 0 })
         }
+        encounterDishes.push(dishPart ? (dishPart.split(",") as Item[]) : [])
       })
       this.addPvePokemons(
         { board, name: "spire" as any, avatar: board[0]?.[0] ?? Pkm.MAGIKARP },
         !phaseJustChanged,
         encounterItems,
         this.state.encounterBonusHP,
-        perPokemonBoosts
+        perPokemonBoosts,
+        encounterDishes
       )
       if (this.state.encounterGroundHoles?.length > 0) {
         this.renderOpponentGroundHoles(Array.from(this.state.encounterGroundHoles))
@@ -1197,7 +1201,7 @@ export default class BoardManager {
     })
   }
 
-  addPvePokemons(pveStage: PVEStage, immediately: boolean, encounterItems?: Item[][], bonusHP?: number, perPokemonBoosts?: { hp: number, atk: number, def: number, speDef: number, ap: number, speed: number }[]) {
+  addPvePokemons(pveStage: PVEStage, immediately: boolean, encounterItems?: Item[][], bonusHP?: number, perPokemonBoosts?: { hp: number, atk: number, def: number, speDef: number, ap: number, speed: number, luck: number }[], encounterDishes?: Item[][]) {
     pveStage.board.forEach(([pkm, boardX, boardY], i) => {
       const [x, y] = transformEntityCoordinates(boardX, boardY - 1, true)
       const id = `pve_${this.state.stageLevel}_${i}`
@@ -1218,6 +1222,11 @@ export default class BoardManager {
       if (encounterItems?.[i]?.length) {
         encounterItems[i].forEach((item) => pokemon.items.add(item))
       }
+      if (encounterDishes?.[i]?.length) {
+        // Dishes go to pokemon.dishes (not items) so the PokemonSprite renders
+        // them below the unit via updateDishes(), matching the player's board.
+        encounterDishes[i].forEach((dish) => pokemon.dishes.add(dish))
+      }
       if (bonusHP) {
         pokemon.addMaxHP(bonusHP)
       }
@@ -1229,6 +1238,7 @@ export default class BoardManager {
         if (b.speDef) pokemon.addSpecialDefense(b.speDef)
         if (b.ap) pokemon.addAbilityPower(b.ap)
         if (b.speed) pokemon.addSpeed(b.speed)
+        if (b.luck) pokemon.addLuck(b.luck)
       }
 
       const pkmSprite = new PokemonSprite(

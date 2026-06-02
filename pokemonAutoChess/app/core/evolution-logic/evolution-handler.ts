@@ -47,9 +47,12 @@ export function carryOverPermanentStats(
   pokemonsBeforeEvolution: Pokemon[]
 ) {
   // carry over the permanent stat buffs
+  // NOTE: "maxHP" is intentionally omitted. On the board Pokemon model hp and
+  // maxHP are always the same value (addMaxHP keeps them locked), so including
+  // both made the HP deviation get applied twice via Stat.HP — doubling the
+  // carried-over HP on every evolution/transform (Castform, Bloodmoon Ursaluna).
   const permanentBuffStats = [
     "hp",
-    "maxHP",
     "atk",
     "def",
     "speDef",
@@ -65,7 +68,6 @@ export function carryOverPermanentStats(
     )
     const statMapping: Record<typeof stat, Stat> = {
       hp: Stat.HP,
-      maxHP: Stat.HP,
       atk: Stat.ATK,
       def: Stat.DEF,
       speDef: Stat.SPE_DEF,

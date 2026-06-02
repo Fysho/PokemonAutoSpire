@@ -49,6 +49,7 @@ interface SerializedFlowerPot {
 
 export interface SavedRunData {
   // Game state
+  runId: string
   currentAct: number
   currentFloor: number
   difficultyMode: number
@@ -198,6 +199,7 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
     const team = snapshotPlayerTeam(player, { includeBench: true })
 
     const data: SavedRunData = {
+      runId: state.runId,
       currentAct: state.currentAct,
       currentFloor: state.currentFloor,
       difficultyMode: state.difficultyMode,
@@ -269,6 +271,7 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
     update = {
       odToken,
       savedAt: new Date(),
+      runId: state.runId,
       currentAct: state.currentAct,
       currentFloor: state.currentFloor,
       difficultyMode: state.difficultyMode,
@@ -299,34 +302,40 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
         // this player, so no other save races between this read and the write).
         const before = (await SavedRun.findOne({ odToken }).lean()) as ISavedRun | null
 
-        // 3) Monotonic guard: within a run, (act, floor) only ever moves forward.
-        //    A SAME-ACT backward save is a regression — almost always a lingering
-        //    abandoned room saving late over a resumed room's newer progress. Refuse
-        //    it so a stale write can never rewind a live run. (Cross-act backward is
-        //    left to write but logged, since a fresh run legitimately reuses the slot
-        //    at act 1; new runs otherwise delete the old save first.)
-        if (before && before.currentAct === expectedAct && expectedFloor < before.currentFloor) {
+        // 3) Run-fenced monotonic guard. A run's (act, floor) only ever moves
+        //    forward, so a backward write is a regression. But only block it when it
+        //    belongs to the SAME run (matching runId) — that's a lingering/abandoned
+        //    room saving late, and rewinding the live run would lose progress. A
+        //    DIFFERENT run writing backward is a legitimate takeover (e.g. the player
+        //    started a new run, or the newest session won) and must overwrite.
+        const sameRun = !!(before && before.runId && state.runId && before.runId === state.runId)
+        const regressing = !!(
+          before &&
+          (before.currentAct > expectedAct ||
+            (before.currentAct === expectedAct && before.currentFloor > expectedFloor))
+        )
+        if (regressing && sameRun) {
           logger.error(
-            `⛔ SAVE BLOCKED (regression) — ${player.name} [${odToken}]: keeping stored act ${before.currentAct} floor ${before.currentFloor}, refused to overwrite with act ${expectedAct} floor ${expectedFloor} (likely an abandoned room saving late).`
+            `⛔ SAVE BLOCKED (stale write) — ${player.name} [${odToken}]: same run, keeping stored act ${before!.currentAct} floor ${before!.currentFloor}, refused stale act ${expectedAct} floor ${expectedFloor} (abandoned room saving late).`
           )
           return
         }
-        if (before && before.currentAct > expectedAct) {
-          logger.error(
-            `⚠️ SAVE WENT BACKWARD (cross-act) — ${player.name} [${odToken}]: stored save was act ${before.currentAct} floor ${before.currentFloor}, now saving act ${expectedAct} floor ${expectedFloor}. Allowing (could be a new run reusing the slot).`
+        if (regressing && !sameRun) {
+          logger.info(
+            `↪️ NEW RUN OVERWRITE — ${player.name} [${odToken}]: replacing stored act ${before!.currentAct} floor ${before!.currentFloor} with a different run at act ${expectedAct} floor ${expectedFloor}.`
           )
         }
 
         await SavedRun.findOneAndUpdate({ odToken }, update, { upsert: true })
         saveFailureStreak.set(odToken, 0)
 
-        // Anomaly detection: overwriting a save 2+ floors behind (same act) means
-        // earlier saves were dropped/lost — the "resume rewound me N nodes" symptom.
-        if (before && before.currentAct === expectedAct) {
-          const gap = expectedFloor - before.currentFloor
+        // Dropped-save detection (same run only): overwriting a save 2+ floors behind
+        // means earlier saves were lost — the "resume rewound me N nodes" symptom.
+        if (sameRun && before!.currentAct === expectedAct) {
+          const gap = expectedFloor - before!.currentFloor
           if (gap >= 2) {
             logger.error(
-              `⚠️ SAVE GAP — ${player.name} [${odToken}]: stored save was act ${before.currentAct} floor ${before.currentFloor} but now saving act ${expectedAct} floor ${expectedFloor} (skipped ${gap} floors). Earlier saves were LOST — resume would have rewound ${gap} floors.`
+              `⚠️ SAVE GAP — ${player.name} [${odToken}]: stored save was act ${before!.currentAct} floor ${before!.currentFloor} but now saving act ${expectedAct} floor ${expectedFloor} (skipped ${gap} floors). Earlier saves were LOST — resume would have rewound ${gap} floors.`
             )
           }
         }
@@ -384,7 +393,9 @@ export function restoreRunToState(
   player: Player,
   savedData: SavedRunData
 ) {
-  // Restore game state
+  // Restore game state. Keep the run's identity so a resumed run is recognised as
+  // the SAME run by the save fence (legacy saves without one get a fresh id).
+  state.runId = savedData.runId || crypto.randomUUID()
   state.currentAct = savedData.currentAct
   state.currentFloor = savedData.currentFloor
   state.difficultyMode = savedData.difficultyMode
@@ -751,17 +762,30 @@ export async function incrementRunEnd(
   }
 }
 
+// A run counts as a victory the moment the act-3 boss is beaten. After that the
+// player is in bonus content — Elite Four (act 4) or Arceus (act 5) — or sitting
+// on the act-3 victory screen (currentAct 3 with runComplete set). Endless mode
+// has no act-3 boss, so it never produces a victory.
+export function isRunVictory(state: {
+  currentAct: number
+  runComplete: boolean
+  isEndless: boolean
+}): boolean {
+  if (state.isEndless) return false
+  return state.currentAct >= 4 || (state.currentAct === 3 && state.runComplete)
+}
+
 export async function updateVictoryRecord(
   uid: string,
   name: string,
   avatar: string,
   difficultyMode: number,
-  currentAct: number,
+  won: boolean,
   isEndless: boolean
 ): Promise<void> {
   if (uid === "local-player" || isEndless) return
   const { recordVictory, recordLoss } = require("./victory-record")
-  if (currentAct >= 4) {
+  if (won) {
     await recordVictory(uid, name, avatar, difficultyMode)
   } else {
     await recordLoss(uid, name, avatar, difficultyMode)

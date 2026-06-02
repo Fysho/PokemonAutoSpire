@@ -395,6 +395,16 @@ export class Pokemon extends Schema implements IPokemon {
     this.hp = min(1)(this.hp + amount)
     this.maxHP = this.hp
   }
+
+  // Add a dish to this Pokemon and record it in _cookedDishes so it survives the
+  // post-fight snapshot (dishes are consumed/cleared during the fight). Use this
+  // for ALL dish sources — chef cooking, manual drag-drop, Picnic Set, evolution
+  // carry-over — otherwise non-cooked dishes are lost from E4/Champion snapshots.
+  addDish(dish: Item) {
+    if (this.dishes.has(dish)) return
+    this.dishes.add(dish)
+    this._cookedDishes.push(dish)
+  }
 }
 
 export class Ditto extends Pokemon {
@@ -8519,7 +8529,7 @@ export class Happiny extends Pokemon {
   speed = 43
   def = 10
   speDef = 10
-  maxPP = 120
+  maxPP = 140
   range = 1
   skill = Ability.SOFT_BOILED
 }
@@ -8538,7 +8548,7 @@ export class Chansey extends Pokemon {
   speed = 43
   def = 12
   speDef = 20
-  maxPP = 120
+  maxPP = 140
   range = 1
   skill = Ability.SOFT_BOILED
 }
@@ -8556,7 +8566,7 @@ export class Blissey extends Pokemon {
   speed = 43
   def = 20
   speDef = 30
-  maxPP = 120
+  maxPP = 140
   range = 1
   skill = Ability.SOFT_BOILED
 }
@@ -18121,7 +18131,7 @@ export class Grookey extends Pokemon {
   speed = 58
   def = 8
   speDef = 6
-  maxPP = 60
+  maxPP = 80
   range = 1
   skill = Ability.DRUM_BEATING
   passive = Passive.DRUMMER
@@ -18137,7 +18147,7 @@ export class Thwackey extends Pokemon {
   speed = 58
   def = 14
   speDef = 11
-  maxPP = 60
+  maxPP = 80
   range = 1
   skill = Ability.DRUM_BEATING
   passive = Passive.DRUMMER
@@ -18152,7 +18162,7 @@ export class Rillaboom extends Pokemon {
   speed = 58
   def = 20
   speDef = 16
-  maxPP = 60
+  maxPP = 80
   range = 1
   skill = Ability.DRUM_BEATING
   passive = Passive.DRUMMER

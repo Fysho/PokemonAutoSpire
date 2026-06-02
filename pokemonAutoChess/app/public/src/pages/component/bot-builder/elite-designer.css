@@ -1,0 +1,265 @@
+/* Elite Designer — reuses #team-builder grid (team-builder.css) with extra panels */
+
+#team-builder.elite-designer .elite-top {
+  justify-content: flex-start;
+  align-items: flex-end;
+  gap: 0.75em;
+}
+
+#team-builder.elite-designer .elite-field {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.9rem;
+  gap: 2px;
+}
+
+#team-builder.elite-designer .elite-field select,
+#team-builder.elite-designer .elite-field input {
+  font-size: 0.95rem;
+  padding: 2px 4px;
+}
+
+#team-builder.elite-designer .elite-name {
+  flex: 1 1 160px;
+}
+
+#team-builder.elite-designer .elite-name input {
+  width: 100%;
+}
+
+#team-builder.elite-designer .elite-icon-select {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#team-builder.elite-designer .elite-icon-select .pokemon-portrait,
+#team-builder.elite-designer .elite-icon-select .pokemon-portrait img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+
+#team-builder.elite-designer .elite-sidebar {
+  grid-area: selected;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 100%;
+  padding: 4px;
+}
+
+#team-builder.elite-designer .elite-sidebar .my-box {
+  padding: 8px;
+}
+
+#team-builder.elite-designer .elite-sidebar h4 {
+  margin: 0 0 6px 0;
+  font-size: 1rem;
+}
+
+#team-builder.elite-designer .elite-rec-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  font-size: 0.95rem;
+}
+
+#team-builder.elite-designer .elite-rec-grid > span:nth-child(odd) {
+  color: var(--color-fg-secondary, #aaa);
+}
+
+#team-builder.elite-designer .elite-rec-note {
+  margin: 6px 0 0 0;
+  font-size: 0.8rem;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.elite-stat-ok {
+  color: #2ecc71;
+  font-weight: bold;
+}
+.elite-stat-under {
+  color: #f1c40f;
+  font-weight: bold;
+}
+.elite-stat-over {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+#team-builder.elite-designer .elite-bonus summary {
+  cursor: var(--cursor-hover);
+  font-size: 1rem;
+}
+
+#team-builder.elite-designer .elite-bonus-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin-top: 8px;
+}
+
+#team-builder.elite-designer .elite-bonus-grid label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+#team-builder.elite-designer .elite-bonus-grid input {
+  width: 60px;
+  font-size: 0.9rem;
+  padding: 1px 3px;
+}
+
+#team-builder.elite-designer .elite-export textarea {
+  width: 100%;
+  height: 90px;
+  font-family: monospace;
+  font-size: 0.75rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+#team-builder.elite-designer .elite-export-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* --- rewards --- */
+#team-builder.elite-designer .elite-reward-set {
+  margin-bottom: 8px;
+}
+
+#team-builder.elite-designer .elite-reward-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+#team-builder.elite-designer .elite-reward-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+#team-builder.elite-designer .elite-reward-shown {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  opacity: 0.85;
+  margin-bottom: 5px;
+}
+
+#team-builder.elite-designer .elite-reward-shown input {
+  width: 46px;
+  font-size: 0.85rem;
+  padding: 1px 3px;
+}
+
+#team-builder.elite-designer button.small {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+}
+
+#team-builder.elite-designer .elite-reward-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#team-builder.elite-designer .elite-reward-chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 56px;
+  padding: 2px;
+  border: var(--border-thin);
+  border-radius: 6px;
+  background-color: var(--color-bg-secondary);
+}
+
+#team-builder.elite-designer .elite-reward-chip.active {
+  outline: 3px solid #109fff;
+}
+
+#team-builder.elite-designer .elite-reward-portrait {
+  cursor: var(--cursor-hover);
+}
+
+#team-builder.elite-designer .elite-reward-portrait .pokemon-portrait,
+#team-builder.elite-designer .elite-reward-portrait img {
+  width: 44px;
+  height: 44px;
+  image-rendering: pixelated;
+}
+
+#team-builder.elite-designer .elite-reward-item {
+  width: 26px;
+  height: 26px;
+  image-rendering: pixelated;
+  cursor: var(--cursor-hover);
+}
+
+#team-builder.elite-designer .elite-reward-token {
+  font-size: 0.6rem;
+  line-height: 1.05;
+  text-align: center;
+  cursor: var(--cursor-hover);
+  color: #f1c40f;
+}
+
+#team-builder.elite-designer .elite-reward-noitem {
+  font-size: 0.8rem;
+  opacity: 0.4;
+}
+
+#team-builder.elite-designer .elite-reward-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  padding: 0;
+  border-radius: 50%;
+  border: var(--border-thin);
+  background-color: var(--color-bg-primary);
+  color: #e74c3c;
+  font-size: 0.8rem;
+  cursor: var(--cursor-hover);
+}
+
+#team-builder.elite-designer .elite-random-palette {
+  margin-top: 6px;
+  border-top: var(--border-thin);
+  padding-top: 6px;
+}
+
+#team-builder.elite-designer .elite-reward-editing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+#team-builder.elite-designer .elite-reward-editing .elite-rec-note {
+  margin: 0;
+}
+
+#team-builder.elite-designer .elite-random-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}

@@ -331,7 +331,8 @@ export enum Item {
   ICY_FLUTE = "ICY_FLUTE",
   ROCK_HORN = "ROCK_HORN",
   SKY_MELODICA = "SKY_MELODICA",
-  TERRA_CYMBAL = "TERRA_CYMBAL"
+  TERRA_CYMBAL = "TERRA_CYMBAL",
+  LEGEND_PLATE = "LEGEND_PLATE"
 }
 
 export const MemoryDiscs = [
@@ -1058,7 +1059,8 @@ export type ItemsSoldAtTown = (typeof ItemsSoldAtTown)[number]
 const UnsellableSpecialItems: Item[] = [
   Item.CHEF_HAT,
   ...WeatherRocks,
-  ...FishingRods
+  ...FishingRods,
+  ...TMs
 ]
 
 export function isItemSellable(item: Item): boolean {
@@ -1196,5 +1198,6 @@ export const RemovableItems = [
   Item.TRASH,
   ...Tools,
   ...Scarves,
-  ...MemoryDiscs
+  ...MemoryDiscs,
+  ...Berries
 ] satisfies Item[]

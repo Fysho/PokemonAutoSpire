@@ -615,6 +615,15 @@ export default abstract class PokemonState {
         )
       }
 
+      // Legend Plate (Arceus, Act 5): cap any single instance of damage at 1000
+      // so execute / %-max-HP abilities (Rhydon HORN_DRILL's 9999, Bidoof
+      // SUPER_FANG's % of max HP) can't one-shot the boss or spike the Arceus
+      // damage leaderboard. Capped here so both shield/HP loss and the recorded
+      // takenDamage respect the limit.
+      if (pokemon.items.has(Item.LEGEND_PLATE)) {
+        reducedDamage = Math.min(reducedDamage, 1000)
+      }
+
       let residualDamage = reducedDamage
 
       if (pokemon.shield > 0) {

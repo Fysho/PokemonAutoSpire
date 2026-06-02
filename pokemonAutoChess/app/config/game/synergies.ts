@@ -1,6 +1,6 @@
 import { EffectEnum } from "../../types/enum/Effect"
 import { Rarity } from "../../types/enum/Game"
-import { type FishingRod, Item, type ShinyItem } from "../../types/enum/Item"
+import { type FishingRod, Item, type ShinyItem, ShinyItems } from "../../types/enum/Item"
 import { Synergy } from "../../types/enum/Synergy"
 
 export const SynergyEffects = {
@@ -268,19 +268,12 @@ export const GOLDEN_BERRY_TREE_TYPES = [
   Item.GOLDEN_PINAP_BERRY
 ]
 
-export const GoldenEggItems = [
-  Item.DYNAMAX_BAND,
-  Item.SHINY_STONE,
-  Item.RARE_CANDY,
-  Item.EVIOLITE,
-  Item.WHITE_FLUTE,
-  Item.GOLD_BOTTLE_CAP,
-  Item.ABSORB_BULB,
-  Item.SACRED_ASH,
-  Item.COMET_SHARD,
-  Item.REPEAT_BALL,
-  Item.GOLD_BOW
-] satisfies Item[]
+// Golden eggs (BABY synergy) award an item from the SAME curated Spire pool as
+// shiny-item reward offerings. ShinyItems (app/types/enum/Item.ts) is the single
+// source of truth — aliasing it here guarantees the two pools never drift, so
+// items removed from ShinyItems (Repeat Ball, Red Scale — commented out there)
+// can never reappear via golden eggs. Edit the pool in ONE place: ShinyItems.
+export const GoldenEggItems = ShinyItems
 
 // Synergy color mapping extracted from SVG fill colors
 export const SYNERGY_COLORS: Record<Synergy, `#${string}`> = {
