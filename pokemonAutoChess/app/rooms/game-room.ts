@@ -824,6 +824,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     this.onMessage(Transfer.SELECT_MAP_NODE, (client, nodeId: string) => {
       if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
+        // Node selection is only legal from the MAP phase. Without this guard a
+        // player could open the map mid-fight (PICK/FIGHT) or during a
+        // SHOP/REST/EVENT/REWARD step and click an available node, which
+        // onSelectMapNode would happily process — abandoning the current
+        // encounter and skipping the fight. Admin teleport and resume call
+        // onSelectMapNode directly and intentionally bypass this.
+        if (this.state.phase !== GamePhaseState.MAP) return
         const player = this.state.players.get(client.auth.uid)
         if (player?.choices?.some((c: any) => c.type === "starter")) return
         try {

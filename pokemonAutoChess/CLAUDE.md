@@ -105,7 +105,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 | Lobby UI | `app/public/src/pages/spire-lobby.tsx` — 3 tabs: How to Play, Rooms, Dev Notes + PAC Diversions. Server status (CCU/accounts) is admin-only. Patch popup on new major.minor version, hotfix badge on patch-only bumps. Name validation blocks "Player"/"Username"/empty. Live Runs list sorts by stage (default) or difficulty (with stage as secondary, furthest-first); sort field/direction/filter persist via `SPIRE_RUN_SORT_BY`/`_SORT_ASC`/`_FILTER_DIFFICULTY` localStore keys. |
 | Profile / run history UI | `app/public/src/pages/component/profile/player-box.tsx` (avatar fetched from `/api/player-avatar/:uid` — Redux `profile.avatar` is a hardcoded default in `network.ts`, never the saved one), `game-history.tsx`, `account-tab.tsx` (name+email behind click-to-reveal) |
 | API endpoints | `app/app.config.ts` |
-| Admin cheats (game) | `game-room.ts` (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `GIVE_POKEMON`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`), `game.tsx` (button panel, right side; includes `AdminGivePokemon` searchable combobox), `game-map.tsx` (click any unvisited node). Gated by `Role.ADMIN` on both server and client. |
+| Admin cheats (game) | `game-room.ts` (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `GIVE_POKEMON`, `GIVE_ITEM`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`), `game.tsx` (button panel, right side; includes `AdminGivePokemon` + `AdminGiveItem` searchable comboboxes), `game-map.tsx` (click any unvisited node). Gated by `Role.ADMIN` on both server and client. |
 | Colyseus monitor | `app/app.config.ts` → `/colyseus` route with basic auth. Requires `MONITOR_PASSWORD` env var. |
 
 ## Game Design Summary
@@ -145,7 +145,7 @@ The phase state machine lives in `OnUpdatePhaseCommand.execute()` in `app/rooms/
 - **Elite losses** (2 choices): 2 pokemon from the fight, no items. Pick 1.
 - **Unlock wins**: Single reward — the specific Pokemon shown on the node. Hatch mons (Act 1) are given as eggs.
 - **Unlock losses**: Standard wild loss rewards
-- **Gym wins**: Synergy gem (auto-applied) + choose one of: crafted item, Pokemon + component, or tool
+- **Gym wins**: Synergy gem (auto-applied) + choose one of: crafted item, Pokemon + component, or tool. The offered Pokémon is an **evolved 2★ themed mon** of the gym's synergy (never a 1★ base form, never SPECIAL rarity) — `getGymLeaderBaseFormPokemon()` in `spire-encounters.ts` upgrades each 1★ roster member to its 2★ evolution and unions with any 2★ already in the roster, filtering out SPECIAL (the function name is legacy; it no longer returns base forms). Falls back to `Pkm.DITTO` only if a gym roster yields no eligible 2★ non-special mon.
 - **Gym losses**: Standard wild loss rewards
 - **Boss wins**: Choose 1 of 3 shiny items. No Pokemon offered.
 - Auto-transitions to MAP when all choices picked
@@ -260,6 +260,7 @@ Whether players may start *new* endless runs is gated by a global flag in `app/s
 | `game-opponent-synergies.tsx` | Enemy synergies panel during PICK/FIGHT. Uses server-computed `encounterSynergies` for snapshot encounters (champion/E4 — includes Dragon double-types etc.), falls back to client-side computation for other encounters. |
 | `game-opponent-items.tsx` | Shows opponent inventory items (gems, relics) during PICK/FIGHT. Reads from `encounterInventory` synced state. |
 | `game-experience.tsx` | Modified to include "Start Fight" button (red bubbly) next to level-up button during PICK phase |
+| `component/bot-builder/elite-designer.tsx` / `elite-designer-modal.tsx` / `elite-designer.css` | **Elite Designer** — a Team Planner clone for designing custom elite fights. Sidebar tab below Team Planner (`main-sidebar.tsx`, `"elite-designer"` modal). Reuses the planner's `TeamEditor`/`PokemonPicker`/`ItemPicker`/`SelectedEntity`/`Synergies` sub-components; no bench. Adds: Act (1-3) + stage-range selector (Act 1: 6-10/11-15/16-20; Acts 2-3 add 1-5), an **Icon Pokémon** dropdown (map avatar, from board mons), a **live budget tracker** (placed count / stars-used / max-stars vs a static mirror of `getDifficultyConfig` Normal mode in `RECOMMENDATIONS` — keep in sync if difficulty rebalances), collapsible **bonus-stat** fields (the 9 `SpireEncounter` bonus fields), and **reward pools** (win + loss). Each reward option = one Pokémon + optional item, where the item is a real `Item` OR a `RANDOM_*` token (`RANDOM_COMPONENT/CRAFTED/BERRY/TOOL/SYNERGY_STONE/SHINY` → `pickRandomIn(<category>)` server-side). Each pool has a "show N of pool" count (default 3 win / 2 loss). State persists to `LocalStoreKeys.ELITE_DESIGNER`; modal merges stored state with `DEFAULT_ELITE_DESIGN` on load so older saves don't crash on new fields. **Export** = a compact-JSON string (copy button) matching the `SpireEncounter` shape — `{name, act, stages, icon?, board:[[pkm,x,y]], items?, bonus?, winRewards?:[[pkm,item?]], winRewardsShown?, lossRewards?, lossRewardsShown?}` — for players to paste into Discord (elite-design channel) with a board screenshot. Import re-parses the same string. |
 
 ## Key Modified Files
 
@@ -474,9 +475,9 @@ Firebase `user.displayName` contains the player's real name from their Google ac
 
 - Player roles are stored in `usermetadatas.role` (MongoDB). Default is `BASIC`.
 - To grant admin: set `role: "ADMIN"` on the user's document in MongoDB Atlas (or via mongoose script).
-- **Server**: `game-room.ts` `onCreate()` fetches role from DB when creating the Player object. Message handlers (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `GIVE_POKEMON`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`) check `player.role !== Role.ADMIN`.
+- **Server**: `game-room.ts` `onCreate()` fetches role from DB when creating the Player object. Message handlers (`SKIP_TO_ACT`, `GIVE_MEWTWO`, `GIVE_POKEMON`, `GIVE_ITEM`, `RESET_CHAMPION`, `ADMIN_TELEPORT_NODE`) check `player.role !== Role.ADMIN`.
 - **Client**: `game.tsx` fetches `/api/user-role/:uid` on mount, dispatches `setRole()` to Redux. Admin buttons render when `profile.role === Role.ADMIN`.
-- Admin cheat buttons (right side panel in game): Test Victory, Skip to Act 1/2/3, Give 999 Gold, Give Mewtwo (buffed, repeatable), Give Ditto, Give Pokemon (searchable combobox over every `Pkm` entry — spawns at normal stats via `GIVE_POKEMON`), Heal, Skip to Elite 4, Skip to Act 5, Reset E4/Champion.
+- Admin cheat buttons (right side panel in game): Test Victory, Skip to Act 1/2/3, Give 999 Gold, Give Mewtwo (buffed, repeatable), Give Ditto, Give Pokemon (searchable combobox over every `Pkm` entry — spawns at normal stats via `GIVE_POKEMON`), Give Item (searchable combobox over every `Item` entry — pushed to `player.items` via `GIVE_ITEM`), Heal, Skip to Elite 4, Skip to Act 5, Reset E4/Champion.
 - Admin map teleport: Admins can click any unvisited node on the map to jump directly to it, bypassing path connectivity. Client sends `ADMIN_TELEPORT_NODE`, server marks the node available then delegates to `onSelectMapNode()`.
 - `MONITOR_PASSWORD` env var enables the Colyseus monitor dashboard at `/colyseus` (basic auth: admin / password).
 
@@ -550,6 +551,7 @@ The same `discord.ts` file also has webhook-based announcements for bans and bot
 5. **Ascension system**: Ranks defined in lobby UI but all say "Coming soon". No gameplay modifiers implemented yet.
 6. **Version number**: RESOLVED — single source of truth in `package.json` `"version"` field. All UI and server startup read from it. Patch popup and hotfix badge derived automatically in `spire-lobby.tsx`.
 7. **`player.life` vs `state.runHP`**: Any upstream PAC ability/item/effect that modifies `player.life` directly will be broken in Spire — it must use `player.addRunHP()` / `player.getRunHP()` instead. See "Player Health" section above. When porting new PAC abilities, grep for `player.life` and convert.
+8. **Elite Designer → server loader not wired**: The client-side Elite Designer (see Client-Side files) exports a compact-JSON elite definition, but there is no server-side import path yet that turns a pasted design into an actual `SpireEncounter` in the elite pool. To wire it: parse the JSON into a `SpireEncounter` (board/items/bonus stats), register it for the chosen `act`+`stages` range, resolve `RANDOM_*` reward tokens via `pickRandomIn(<category>)`, and use `winRewardsShown`/`lossRewardsShown` with `pickNRandomIn(pool, N)` in `generateEliteRewardChoice`/`generateEliteLossChoice` (`game-commands.ts`). The `icon` field maps to the encounter `avatar`/`mainPokemon`.
 
 ## API Endpoints (`app/app.config.ts`)
 
@@ -628,9 +630,12 @@ All balance diversions from upstream are listed in the lobby's **PAC Diversions*
 
 **Pokemon:**
 - Snorlax/Munchlax (`Passive.GLUTTON`): Berry/Gourmet HP gains halved
-- Misdreavus/Mismagius (`Ability.NIGHT_SHADE`): Damage capped at 150
+- Misdreavus/Mismagius (`Ability.NIGHT_SHADE`): Damage capped at 500
+- Bidoof/Bibarel (`Ability.SUPER_FANG`): Damage capped at 500 (`Math.min(500, …)`, mirrors Night Shade) — stops the %-max-HP true damage from spiking vs high-HP targets like Arceus
 - Alcremie Rainbow Swirl (`Ability.DECORATE`): PP buff 60→30 (AP scaling on the PP removed — see PP Batteries below)
 - PP Batteries (`abilities.ts`): The PP these abilities grant to **allies** no longer scales with the caster's AP — the `addPP(...)` call passes `apBoost = 0` (was `1` full, or `0.5` for Fairy Wind/Decorate). Affects FAIRY_WIND (Flabébé/Floette/Florges), DECORATE (Alcremie Rainbow Swirl), MISTY_SURGE (Tapu Fini), FORECAST (Castform Rain), IVY_CUDGEL (Ogerpon Wellspring), AFTER_YOU (Indeedee Male), TERRAIN_PULSE (Smoliv/Dolliv/Arboliva), SPITE (Yamask/Cofagrigus). Only the PP gain changed; co-located heals/shields/buffs/damage keep their AP scaling. SOAK and the DRUMMER passive already granted flat PP (unchanged).
+- Grookey/Thwackey/Rillaboom (`pokemon.ts`): `maxPP` 60→80 on all three stages. Slows how often the DRUMMER line casts (it feeds PP to adjacent allies instead of casting often). Also synced in `precomputed/pokemons-data.csv`.
+- Happiny/Chansey/Blissey (`pokemon.ts`): `maxPP` 120→140 on all three stages. Slows Soft-Boiled cast frequency. Also synced in `precomputed/pokemons-data.csv`.
 - Skeledirge (`Ability.TORCH_SONG`): Flame count capped at 20; AP buff applied once per cast instead of per flame. Fixes a runaway feedback loop (AP-scaled flame count + per-flame AP gain) that flooded `pokemon.commands` with unbounded `DelayedCommand`s, leaking memory and OOM-crashing the production server. Was byte-identical to upstream PAC.
 - Cosmog/Cosmoem (`pokemon.ts`): Evolve after 3 stacks instead of 8; +30 max HP per evolution instead of +10 (`evolution-logic/evolution-manager.ts` `afterEvolve`, the COSMOG/COSMOEM stacking block)
 - Tandemaus/Maushold (`pokemon.ts`): Each stage evolves 5 fights after acquisition via a hatch-style timer — `evolutionRule = { type: EvolutionRuleType.HATCH, hatchTime: 5 }` (honored by `evolution-logic/hatch-time.ts`), instead of fixed `stageLevel >= 14`/`>= 20`. (Replaced the old `TimerEvolutionRule` class, removed in the 6.10 evolution refactor.)

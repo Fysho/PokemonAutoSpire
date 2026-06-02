@@ -1260,6 +1260,7 @@ export default function Game() {
               readOnly={spectate || (!isMapPhase && (connectedPlayer?.choices?.length ?? 0) > 0)}
               showRerollMap={!spectate && (connectedPlayer?.choices?.some((c: any) => c.type === "starter") ?? false)}
               hasChoicesPending={(connectedPlayer?.choices?.length ?? 0) > 0}
+              isMapPhase={isMapPhase}
               isAdmin={isAdmin}
             />
           )}

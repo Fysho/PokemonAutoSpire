@@ -78,6 +78,7 @@ interface GameMapProps {
   readOnly?: boolean
   showRerollMap?: boolean
   hasChoicesPending?: boolean
+  isMapPhase?: boolean
   isAdmin?: boolean
 }
 
@@ -93,6 +94,7 @@ export default function GameMap({
   readOnly = false,
   showRerollMap = false,
   hasChoicesPending = false,
+  isMapPhase = false,
   isAdmin = false
 }: GameMapProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -122,6 +124,15 @@ export default function GameMap({
     }
     if (hasChoicesPending) {
       showWarning("Select a reward first")
+      return
+    }
+    // Node selection is only legal from the MAP phase. Opening the map mid-fight
+    // (PICK/FIGHT) or during a SHOP/REST/EVENT/REWARD step and clicking an
+    // available node would otherwise abandon the current encounter — the server
+    // rejects this too, this is just the user-facing feedback. (Admins keep the
+    // teleport path above for jumping around regardless of phase.)
+    if (!isMapPhase && !isAdmin) {
+      showWarning("Finish here first")
       return
     }
     rooms.game?.send(Transfer.SELECT_MAP_NODE, nodeId)
