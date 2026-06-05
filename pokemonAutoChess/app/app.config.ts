@@ -620,6 +620,16 @@ export const server = defineServer({
       }
     })
 
+    app.get("/api/async-stages", async (req, res) => {
+      try {
+        const { getPopulatedAsyncStages } = await import("./services/async-fight-pool")
+        res.json(await getPopulatedAsyncStages())
+      } catch (error) {
+        logger.error("Error fetching async stages:", error)
+        res.json([])
+      }
+    })
+
     app.get("/api/victory-leaderboard/:difficulty", async (req, res) => {
       try {
         const { getVictoryLeaderboard } = await import("./services/victory-record")

@@ -65,6 +65,9 @@ export default class GameState extends Schema {
   @type("boolean") runFailed: boolean = false
   @type("boolean") eliteFourAvailable: boolean = false
   @type("boolean") isEndless: boolean = false
+  // Elite Designer test sandbox: true while both teams are staged on the board in a
+  // preview (PICK) and waiting for the player to press "Begin" to start the fight.
+  @type("boolean") eliteTestAwaitingBegin: boolean = false
   @type("float32") gameSpeed: number = 1
   @type(["string"]) spireEncounterBoard = new ArraySchema<string>()
   @type("uint16") encounterDifficulty: number = 0

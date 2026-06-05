@@ -107,10 +107,20 @@ export const rooms: {
   after: undefined
 }
 
+// --- Elite Designer test sandbox -------------------------------------------
+// State for the ELITE_TEST room (a special GameRoom that runs AI-vs-AI elite
+// design test fights). Module-level so it survives client-side route changes.
+let eliteTestActive = false
+let lastEliteTest: { design: string; stage: string } | null = null
+
 export async function leaveRoom(
   roomName: keyof typeof rooms,
   allowReconnect = false
 ): Promise<number> {
+  if (roomName === "game") {
+    eliteTestActive = false
+    lastEliteTest = null
+  }
   const room = rooms[roomName]
   if (room) {
     rooms[roomName] = undefined
@@ -151,6 +161,74 @@ export async function spectateGame(roomId: string): Promise<Room<GameState>> {
 
 export function clearGameReconnection() {
   try { localStorage.removeItem("spire_reconnect") } catch { /* noop */ }
+}
+
+// Creates (and joins) the Elite Designer test sandbox: a GameRoom with eliteTest
+// set, which runs no real run and only spawns AI-vs-AI elite test fights. The
+// sandbox is ephemeral, so no reconnect token is persisted.
+export async function createEliteTestRoom(identity: {
+  uid: string
+  displayName: string
+  avatar: string
+}): Promise<Room<GameState>> {
+  const idToken = await getIdToken()
+  const odToken = identity.uid || "local-player"
+  const name = identity.displayName || "EliteTester"
+  const room = await client.create<GameState>("game", {
+    idToken,
+    odToken,
+    displayName: name,
+    users: {
+      [odToken]: {
+        uid: odToken,
+        name,
+        elo: 1000,
+        games: 0,
+        avatar: identity.avatar || "0019/Normal",
+        isBot: false
+      }
+    },
+    preparationId: "elite-test",
+    name: "EliteTest",
+    ownerName: name,
+    noElo: true,
+    gameMode: "CUSTOM_LOBBY",
+    specialGameRule: null,
+    minRank: null,
+    maxRank: null,
+    tournamentId: null,
+    bracketId: null,
+    difficultyMode: 1,
+    resume: false,
+    isEndless: false,
+    eliteTest: true
+  } as any)
+  await leaveAllRooms()
+  rooms.game = room
+  eliteTestActive = true
+  clearGameReconnection()
+  return room
+}
+
+export function isEliteTestActive(): boolean {
+  return eliteTestActive && !!rooms.game && rooms.game.connection.isOpen
+}
+
+export function sendEliteTest(design: string, stage: string) {
+  lastEliteTest = { design, stage }
+  rooms.game?.send(Transfer.TEST_ELITE_DESIGN, { design, stage })
+}
+
+export function resendLastEliteTest() {
+  if (lastEliteTest) rooms.game?.send(Transfer.TEST_ELITE_DESIGN, lastEliteTest)
+}
+
+export function beginEliteTest() {
+  rooms.game?.send(Transfer.BEGIN_ELITE_TEST)
+}
+
+export function hasLastEliteTest(): boolean {
+  return lastEliteTest != null
 }
 
 export function lockShop() {

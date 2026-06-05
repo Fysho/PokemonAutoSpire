@@ -125,6 +125,13 @@ export function MainSidebar(props: MainSidebarProps) {
     }
   }, [preferences.keybindings, profileLevel])
 
+  // Lets the in-game Elite Test result popup reopen the designer ("Edit Design").
+  useEffect(() => {
+    const open = () => setModal("elite-designer")
+    window.addEventListener("open-elite-designer", open)
+    return () => window.removeEventListener("open-elite-designer", open)
+  }, [])
+
   const player = useAppSelector(selectConnectedPlayer)
   const playersAlive = useAppSelector(
     createSelector([(state) => state.game.players], (players) =>

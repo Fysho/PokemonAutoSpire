@@ -28,7 +28,11 @@ export default function EliteDesignerModal(props: {
       header={t("elite_designer")}
       className="team-builder-modal"
     >
-      <EliteDesigner design={design} updateDesign={setDesign} />
+      <EliteDesigner
+        design={design}
+        updateDesign={setDesign}
+        onRequestClose={() => props.handleClose()}
+      />
     </Modal>
   )
 }

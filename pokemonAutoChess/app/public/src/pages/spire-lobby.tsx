@@ -120,7 +120,8 @@ export default function SpireLobby() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const uid = useAppSelector((state) => state.network.uid)
-  const displayName = useAppSelector((state) => state.network.displayName)
+  // NOTE: do NOT read state.network.displayName — it is the Firebase/Google real
+  // name (doxxing risk). The in-game name lives in `playerName` (DB-backed).
   const dispatch = useAppDispatch()
   const [starting, setStarting] = useState(false)
   const [announcement, setAnnouncement] = useState<string | null>(null)

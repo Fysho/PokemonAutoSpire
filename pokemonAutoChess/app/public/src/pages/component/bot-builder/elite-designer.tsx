@@ -1,6 +1,15 @@
 import type React from "react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useNavigate } from "react-router"
+import {
+  createEliteTestRoom,
+  isEliteTestActive,
+  rooms,
+  sendEliteTest
+} from "../../../network"
+import { useAppSelector } from "../../../hooks"
+import { LocalStoreKeys, localStore } from "../../utils/store"
 import { computeSynergies } from "../../../../../models/colyseus-models/synergies"
 import { getPokemonData } from "../../../../../models/precomputed/precomputed-pokemon-data"
 import PokemonFactory from "../../../../../models/pokemon-factory"
@@ -217,6 +226,7 @@ export function parseImportString(str: string): EliteDesign | null {
 export default function EliteDesigner(props: {
   design: EliteDesign
   updateDesign: (design: EliteDesign) => void
+  onRequestClose?: () => void
 }) {
   const { t } = useTranslation()
   const { design, updateDesign } = props
@@ -660,6 +670,10 @@ export default function EliteDesigner(props: {
             </select>
           </div>
         </label>
+        <EliteTestControls
+          design={design}
+          onRequestClose={props.onRequestClose}
+        />
         <button className="bubbly red" onClick={reset}>
           <img src="assets/ui/trash.svg" /> {t("reset")}
         </button>
@@ -793,6 +807,152 @@ export default function EliteDesigner(props: {
         selected={selection}
       />
     </div>
+  )
+}
+
+// Human-friendly label for an async-fight stage key ("act5-floor10").
+function formatStageLabel(s: string): string {
+  const m = s.match(/^act(\d+)-floor(\d+)$/)
+  return m ? `Act ${m[1]} · Floor ${m[2]}` : s
+}
+
+// "Test vs Endless Team" controls. Lets the user load a dedicated sandbox room
+// (Enter Test Mode), pick which endless stage's saved player teams to fight, and
+// run an AI-vs-AI test of the current design against a random team from that
+// stage. The fight is watched in the game view (this modal closes on Test) and a
+// result summary popup is shown by game.tsx.
+function EliteTestControls(props: {
+  design: EliteDesign
+  onRequestClose?: () => void
+}) {
+  const { design, onRequestClose } = props
+  const navigate = useNavigate()
+  const uid = useAppSelector((state) => state.network.uid)
+  // NEVER use state.network.displayName here — that is the Firebase/Google auth
+  // name (the player's real name) and showing it in-game is a doxxing leak. Use
+  // the chosen in-game username, resolved exactly like spire-lobby does.
+  const profileName = useAppSelector(
+    (state) => state.network.profile?.displayName
+  )
+  const avatar = useAppSelector((state) => state.network.profile?.avatar)
+
+  const [stages, setStages] = useState<{ stage: string; count: number }[]>([])
+  const [stage, setStage] = useState<string>(
+    () => localStore.get(LocalStoreKeys.ELITE_TEST_STAGE) ?? ""
+  )
+  const [entering, setEntering] = useState(false)
+
+  const inTestRoom = isEliteTestActive()
+  const inOtherRoom = !!rooms.game && !inTestRoom
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/async-stages")
+      .then((res) => res.json())
+      .then((data: { stage: string; count: number }[]) => {
+        if (cancelled) return
+        const list = Array.isArray(data) ? data : []
+        setStages(list)
+        setStage((cur) =>
+          list.some((s) => s.stage === cur) ? cur : (list[0]?.stage ?? "")
+        )
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (stage) localStore.set(LocalStoreKeys.ELITE_TEST_STAGE, stage)
+  }, [stage])
+
+  async function enterTestMode() {
+    if (entering) return
+    setEntering(true)
+    try {
+      // In-game username, resolved like spire-lobby: DB-backed SPIRE_PLAYER_NAME
+      // wins, the "Username"/"Player" placeholders count as unset, then the
+      // profile name, then a generic fallback. Never the Google account name.
+      const localName = localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME)
+      const inGameName =
+        (typeof localName === "string" &&
+          localName.trim() &&
+          localName !== "Username" &&
+          localName !== "Player" &&
+          localName.trim()) ||
+        profileName ||
+        "EliteTester"
+      await createEliteTestRoom({
+        uid: uid || "local-player",
+        displayName: inGameName,
+        avatar: avatar || "0019/Normal"
+      })
+      onRequestClose?.()
+      navigate("/game")
+    } catch (e) {
+      setEntering(false)
+    }
+  }
+
+  function runTest() {
+    if (!inTestRoom || !stage || design.board.length === 0) return
+    sendEliteTest(buildExportString(design), stage)
+    onRequestClose?.() // close the modal so the battle is visible
+  }
+
+  if (inOtherRoom) {
+    return (
+      <span className="elite-rec-note elite-test-note">
+        Test mode is unavailable during a run.
+      </span>
+    )
+  }
+
+  return (
+    <span className="elite-test-controls">
+      <label className="elite-field">
+        <span>Test stage</span>
+        <select
+          value={stage}
+          onChange={(e) => setStage(e.target.value)}
+          disabled={stages.length === 0}
+          title="Endless stages with saved player teams"
+        >
+          {stages.length === 0 && <option value="">No saved teams</option>}
+          {stages.map((s) => (
+            <option key={s.stage} value={s.stage}>
+              {formatStageLabel(s.stage)} ({s.count})
+            </option>
+          ))}
+        </select>
+      </label>
+      {!inTestRoom ? (
+        <button
+          className="bubbly blue"
+          onClick={enterTestMode}
+          disabled={entering}
+          title="Load a sandbox room so you can test fights without starting a run"
+        >
+          {entering ? "Loading…" : "Enter Test Mode"}
+        </button>
+      ) : (
+        <button
+          className="bubbly green"
+          onClick={runTest}
+          disabled={!stage || design.board.length === 0}
+          title={
+            design.board.length === 0
+              ? "Place some Pokémon first"
+              : !stage
+                ? "No endless stage with saved teams"
+                : "Fight a random saved team from the selected stage"
+          }
+        >
+          ▶ Test
+        </button>
+      )}
+    </span>
   )
 }
 

@@ -117,6 +117,12 @@ export default class GameRoom extends Room<{ state: GameState }> {
   eliteMainBonusAtk: number = 0
   eliteMainBonusAP: number = 0
   asyncFightSnapshots: Map<string, { snapshot: any; name: string; avatar: string; region: string }> = new Map()
+  // Elite Designer "test fight" sandbox. When true the room runs no real spire run
+  // (no map/starter/run-HP); it parks in an idle PICK phase and only runs one-off
+  // AI-vs-AI simulations on TEST_ELITE_DESIGN. eliteTestFightStart stamps the start
+  // of the current test fight so the result can report a duration.
+  isEliteTest: boolean = false
+  eliteTestFightStart: number = 0
   // Anti-AFK idle tracking (see OnUpdateCommand). idlePhase is the phase the
   // idle timer is currently counting against; idleTimeMs is real ms elapsed in
   // it without advancing the run.
@@ -153,7 +159,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
     bracketId,
     difficultyMode,
     resume,
-    isEndless
+    isEndless,
+    eliteTest
   }: {
     users: Record<string, IGameUser>
     preparationId: string
@@ -169,7 +176,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
     difficultyMode?: number
     resume?: boolean
     isEndless?: boolean
+    eliteTest?: boolean
   }) {
+    this.isEliteTest = !!eliteTest
     const diffLabel = isEndless ? "Endless" : difficultyMode === 0 ? "Easy" : difficultyMode === 2 ? "Hard" : difficultyMode === 3 ? "Impossible" : "Normal"
     const playerName = ownerName || Object.values(users || {})[0]?.name || "Unknown"
     logger.info(`Create Game ${this.roomId} | player: ${playerName} | difficulty: ${diffLabel}`)
@@ -353,7 +362,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.clock.setTimeout(() => {
       if (this.state.gameLoaded) return
       this.broadcast(Transfer.LOADING_COMPLETE)
-      if (this.isResume) {
+      if (this.isEliteTest) {
+        this.startEliteTestMode()
+      } else if (this.isResume) {
         this.resumeGame()
       } else {
         this.startGame()
@@ -847,6 +858,65 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
     })
 
+    this.onMessage(
+      Transfer.TEST_ELITE_DESIGN,
+      async (client, payload: { design?: string; stage?: string }) => {
+        // Elite Designer sandbox only. Build an AI-vs-AI fight: the design (blue)
+        // vs a random saved endless team for the chosen stage (red). Refuses when
+        // the design is empty or the stage has no saved teams.
+        if (!this.isEliteTest || !client.auth || !this.isPlayer(client)) return
+        if (this.state.phase === GamePhaseState.FIGHT) return // a test is already running
+        try {
+          const { parseEliteDesignExport } = require("../services/elite-test")
+          const design = parseEliteDesignExport(payload?.design ?? "")
+          if (!design || design.board.length === 0) {
+            this.broadcast(Transfer.ELITE_TEST_RESULT, { error: "empty_design" })
+            return
+          }
+          const { getRandomAsyncOpponentNoFallback } = require("../services/async-fight-pool")
+          const opponent = await getRandomAsyncOpponentNoFallback(payload?.stage ?? "")
+          // Re-read phase after the await (a fight may have started meanwhile). Cast
+          // to number to dodge TS narrowing the early-return above into this check.
+          if ((this.state.phase as number) === GamePhaseState.FIGHT) return
+          if (!opponent) {
+            this.broadcast(Transfer.ELITE_TEST_RESULT, {
+              error: "no_data",
+              stage: payload?.stage ?? ""
+            })
+            return
+          }
+          const player = schemaValues(this.state.players).find(
+            (p: Player) => !p.isBot
+          )
+          if (!player) return
+          const cmd = new OnUpdatePhaseCommand()
+          cmd.setPayload({})
+          cmd.room = this
+          cmd.state = this.state
+          cmd.clock = this.clock
+          cmd.setupEliteTestPreview(player, design, opponent)
+        } catch (error) {
+          logger.error("elite test preview error", error)
+        }
+      }
+    )
+
+    this.onMessage(Transfer.BEGIN_ELITE_TEST, (client) => {
+      // Start the staged elite test fight (both teams already previewed on board).
+      if (!this.isEliteTest || !client.auth || !this.isPlayer(client)) return
+      if (!this.state.eliteTestAwaitingBegin) return
+      try {
+        const cmd = new OnUpdatePhaseCommand()
+        cmd.setPayload({})
+        cmd.room = this
+        cmd.state = this.state
+        cmd.clock = this.clock
+        cmd.beginEliteTestFight()
+      } catch (error) {
+        logger.error("begin elite test error", error)
+      }
+    })
+
     this.onMessage(Transfer.SKIP_REWARD, (client) => {
       if (!this.state.gameFinished && client.auth && this.isPlayer(client) &&
         this.state.phase !== GamePhaseState.FIGHT &&
@@ -1186,6 +1256,31 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
       }
     })
+  }
+
+  // Elite Designer "test fight" sandbox. No spire run is set up (no map, starter,
+  // or run HP) — the room just runs the simulation tick loop and parks in an idle
+  // PICK phase. TEST_ELITE_DESIGN spawns one AI-vs-AI fight; when it ends the room
+  // returns here (idle) for the next test, so the player can tweak and re-test
+  // without ever reloading.
+  startEliteTestMode() {
+    if (this.state.gameLoaded) return
+    this.state.gameLoaded = true
+    this.state.runId = crypto.randomUUID()
+    this.setSimulationInterval((deltaTime: number) => {
+      deltaTime = Math.min(MAX_SIMULATION_DELTA_TIME, deltaTime)
+      if (!this.state.gameFinished && !this.state.simulationPaused) {
+        try {
+          this.dispatcher.dispatch(new OnUpdateCommand(), { deltaTime })
+        } catch (error) {
+          logger.error("update error", error)
+        }
+      }
+    })
+    // Idle: a "fake infinite" PICK phase (manual phases don't auto-advance).
+    this.state.phase = GamePhaseState.PICK
+    this.state.time = 999 * 1000
+    this.state.roundTime = 999
   }
 
   async resumeGame() {

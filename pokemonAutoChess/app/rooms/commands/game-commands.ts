@@ -67,6 +67,8 @@ import {
 import { loadChampionData, saveChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, DEFAULT_SNAPSHOT, incrementChampionVictory, incrementE4Victory, incrementChampionTie, incrementE4Tie, type DifficultyMode } from "../../services/champion-data"
 import { discordService } from "../../services/discord"
 import { snapshotPlayerTeam, reconstructTeamAsPlayer, encodeSnapshotForClient } from "../../services/team-snapshot"
+import { applyEliteDesignToPlayer, ParsedEliteDesign } from "../../services/elite-test"
+import { AsyncFightOpponent } from "../../services/async-fight-pool"
 import { getEventBerries, getEventItems, getRandomEvent } from "../../models/spire-events"
 import { generateShopItems } from "../../models/spire-shops"
 import {
@@ -1128,7 +1130,7 @@ export class OnUpdateCommand extends Command<
         this.room.idleTimeMs = 0
         this.room.idleDisconnected = false
       }
-      if (this.state.phase !== GamePhaseState.FIGHT && !this.room.idleDisconnected) {
+      if (this.state.phase !== GamePhaseState.FIGHT && !this.room.idleDisconnected && !this.room.isEliteTest) {
         this.room.idleTimeMs += realDeltaTime
         if (this.room.idleTimeMs >= IDLE_DISCONNECT_MS) {
           this.room.disconnectIdlePlayers()
@@ -1182,6 +1184,15 @@ export class OnUpdateCommand extends Command<
 export class OnUpdatePhaseCommand extends Command<GameRoom> {
   execute() {
     this.state.updatePhaseNeeded = false
+
+    // Elite Designer sandbox: the only phase transition is FIGHT (a finished test)
+    // → idle. Never touch the spire phase machine (no map/rewards/run-end exist).
+    if (this.room.isEliteTest) {
+      if (this.state.phase === GamePhaseState.FIGHT) {
+        this.stopEliteTestFight()
+      }
+      return
+    }
 
     if (this.state.gameFinished) return
 
@@ -3127,6 +3138,186 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         }
       }
     })
+  }
+
+  // Elite Designer test — step 1: stage both teams on the board for preview.
+  // Blue = the design (built onto the human player so it's visible during PICK);
+  // red = a saved endless team, set up via the same encounter-preview state the
+  // champion/E4 fights use (encoded board + synergies + inventory + ground holes).
+  // The snapshot is stashed in state.encounterSnapshot for beginEliteTestFight().
+  // Does NOT start the fight — that waits for BEGIN_ELITE_TEST.
+  setupEliteTestPreview(
+    player: Player,
+    design: ParsedEliteDesign,
+    opponent: AsyncFightOpponent
+  ) {
+    applyEliteDesignToPlayer(player, design, this.state)
+    player.alive = true
+    player.team = Team.BLUE_TEAM
+    player.opponentId = `champion-${opponent.snapshot.name}`
+    player.opponentName = opponent.playerName
+    player.opponentAvatar = opponent.avatar
+    player.opponentTitle = "ENDLESS" as any
+
+    const snap = opponent.snapshot
+    this.state.encounterSnapshot = snap
+    resetArraySchema(
+      this.state.spireEncounterBoard,
+      encodeSnapshotForClient(snap)
+    )
+    resetArraySchema(this.state.encounterInventory, snap.inventory ?? [])
+    resetArraySchema(this.state.encounterGroundHoles, snap.groundHoles ?? [])
+    const tempPokemon = snap.pokemon
+      .filter((p) => p.y > 0)
+      .map((p) => {
+        const pkm = PokemonFactory.createPokemonFromName(p.name as Pkm)
+        pkm.positionY = p.y
+        if (p.items)
+          p.items.forEach((item) => {
+            if (!pkm.items.has(item as Item)) pkm.items.add(item as Item)
+          })
+        return pkm
+      })
+    const snapBonusSynergies = new Map<Synergy, number>()
+    for (const item of snap.inventory ?? []) {
+      const synType = SynergyGivenByGem[item as SynergyGem]
+      if (synType)
+        snapBonusSynergies.set(
+          synType,
+          (snapBonusSynergies.get(synType) ?? 0) + 1
+        )
+    }
+    const snapSynergies = computeSynergies(
+      tempPokemon,
+      snapBonusSynergies.size > 0 ? snapBonusSynergies : undefined
+    )
+    resetArraySchema(
+      this.state.encounterSynergies,
+      Array.from(snapSynergies.entries())
+        .filter(([, v]) => v > 0)
+        .map(([k, v]) => `${k}:${v}`)
+    )
+
+    this.state.simulations.clear()
+    player.simulationId = ""
+    this.state.phase = GamePhaseState.PICK
+    this.state.time = 999 * 1000
+    this.state.roundTime = 999
+    this.state.eliteTestAwaitingBegin = true
+  }
+
+  // Elite Designer test — step 2: start the staged fight. Reconstructs the stashed
+  // opponent snapshot into a red Player and runs the simulation (blue = the design
+  // already on the human player). Pure AI-vs-AI; the human spectates.
+  beginEliteTestFight() {
+    const player = schemaValues(this.state.players).find((p: Player) => !p.isBot)
+    const snap = this.state.encounterSnapshot
+    if (!player || !snap || !this.state.eliteTestAwaitingBegin) return
+
+    const opponentPlayer = reconstructTeamAsPlayer(snap, this.state)
+    player.alive = true
+    player.team = Team.BLUE_TEAM
+    player.opponentId = opponentPlayer.id
+    player.registerPlayedPokemons()
+
+    this.state.eliteTestAwaitingBegin = false
+    this.state.encounterSnapshot = null
+    this.state.simulations.clear()
+    this.state.phase = GamePhaseState.FIGHT
+    this.state.time = FIGHTING_PHASE_DURATION
+    this.state.roundTime = Math.round(this.state.time / 1000)
+    this.room.eliteTestFightStart = Date.now()
+
+    const weather = getWeather(player, opponentPlayer, opponentPlayer.board)
+    const simulation = new Simulation(
+      crypto.randomUUID(),
+      this.room,
+      player,
+      opponentPlayer,
+      this.state.stageLevel,
+      weather,
+      false
+    )
+    player.simulationId = simulation.id
+    this.state.simulations.set(simulation.id, simulation)
+    simulation.start()
+  }
+
+  // Ends an elite test fight: compute the result summary from the simulation, send
+  // it to the client, tear the fight down, and return the room to its idle PICK
+  // phase ready for the next test.
+  stopEliteTestFight() {
+    const player = schemaValues(this.state.players).find((p: Player) => !p.isBot)
+    const sim = player?.simulationId
+      ? this.state.simulations.get(player.simulationId)
+      : undefined
+
+    let result: {
+      winner: "elite" | "opponent" | "draw"
+      eliteAlive: number
+      opponentAlive: number
+      hpPercent: number
+      durationSec: number
+      opponentName: string
+    } = {
+      winner: "draw",
+      eliteAlive: 0,
+      opponentAlive: 0,
+      hpPercent: 0,
+      durationSec: 0,
+      opponentName: player?.opponentName ?? ""
+    }
+
+    if (sim && player) {
+      const winner =
+        sim.winnerId === player.id
+          ? "elite"
+          : sim.winnerId === sim.redPlayerId
+            ? "opponent"
+            : "draw"
+      const winningTeam =
+        winner === "elite"
+          ? sim.blueTeam
+          : winner === "opponent"
+            ? sim.redTeam
+            : null
+      let sumLife = 0
+      let sumMax = 0
+      winningTeam?.forEach((e: any) => {
+        sumLife += Math.max(0, e.hp)
+        sumMax += e.maxHP
+      })
+      result = {
+        winner,
+        eliteAlive: sim.blueTeam.size,
+        opponentAlive: sim.redTeam.size,
+        hpPercent: sumMax > 0 ? Math.round((100 * sumLife) / sumMax) : 0,
+        durationSec: this.room.eliteTestFightStart
+          ? Math.round((Date.now() - this.room.eliteTestFightStart) / 100) / 10
+          : 0,
+        opponentName: player.opponentName ?? ""
+      }
+    }
+
+    this.state.simulations.clear()
+    if (player) {
+      player.simulationId = ""
+      player.opponentId = ""
+    }
+    // Back to idle (fake-infinite PICK; manual phases don't auto-advance). Clear the
+    // opponent preview state so the idle board doesn't show a stale enemy team.
+    this.state.eliteTestAwaitingBegin = false
+    this.state.encounterSnapshot = null
+    resetArraySchema(this.state.spireEncounterBoard, [])
+    resetArraySchema(this.state.encounterInventory, [])
+    resetArraySchema(this.state.encounterGroundHoles, [])
+    resetArraySchema(this.state.encounterSynergies, [])
+    this.state.phase = GamePhaseState.PICK
+    this.state.time = 999 * 1000
+    this.state.roundTime = 999
+    this.room.eliteTestFightStart = 0
+
+    this.room.broadcast(Transfer.ELITE_TEST_RESULT, result)
   }
 
   initializeFightingPhase() {

@@ -45,7 +45,7 @@ import {
   useAppDispatch,
   useAppSelector
 } from "../hooks"
-import { authenticateUser, clearGameReconnection, client, joinGame, rooms } from "../network"
+import { authenticateUser, beginEliteTest, clearGameReconnection, client, hasLastEliteTest, isEliteTestActive, joinGame, resendLastEliteTest, rooms } from "../network"
 import store from "../stores"
 import {
   addDpsMeter,
@@ -353,6 +353,19 @@ function AdminGiveItem() {
   )
 }
 
+// Payload of Transfer.ELITE_TEST_RESULT (see stopEliteTestFight in game-commands.ts).
+// Either an error (empty design / no saved teams for the stage) or a fight summary.
+interface EliteTestResult {
+  error?: "no_data" | "empty_design"
+  stage?: string
+  winner?: "elite" | "opponent" | "draw"
+  eliteAlive?: number
+  opponentAlive?: number
+  hpPercent?: number
+  durationSec?: number
+  opponentName?: string
+}
+
 export default function Game() {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
@@ -384,6 +397,8 @@ export default function Game() {
   const [connectError, setConnectError] = useState<string>("")
   const [spectatorCount, setSpectatorCount] = useState<number>(0)
   const [announcement, setAnnouncement] = useState<string | null>(null)
+  const [eliteTestResult, setEliteTestResult] = useState<EliteTestResult | null>(null)
+  const [eliteTestAwaitingBegin, setEliteTestAwaitingBegin] = useState<boolean>(false)
   const [finalRank, setFinalRank] = useState<number>(0)
   enum FinalRankVisibility {
     HIDDEN,
@@ -679,6 +694,10 @@ export default function Game() {
         setAnnouncement(message)
       })
 
+      room.onMessage(Transfer.ELITE_TEST_RESULT, (result: EliteTestResult) => {
+        setEliteTestResult(result)
+      })
+
       room.onMessage(Transfer.GAME_END, leave)
 
       room.onMessage(Transfer.DRAG_DROP_CANCEL, (message) =>
@@ -730,6 +749,17 @@ export default function Game() {
         dispatch(setPhase(newPhase))
         if (previousPhase !== undefined) {
           setMapHidden(newPhase !== GamePhaseState.MAP)
+        }
+      })
+
+      $state.listen("eliteTestAwaitingBegin", (value) => {
+        setEliteTestAwaitingBegin(value)
+        if (value) {
+          setEliteTestResult(null) // a new preview staged; clear old result
+          // Staging is a PICK→PICK change (no phase transition), so re-render the
+          // board to draw both teams. Deferred so the rest of the state patch
+          // (spireEncounterBoard, the design board) is fully applied first.
+          setTimeout(() => getGameScene()?.board?.pickMode(true), 0)
         }
       })
 
@@ -1316,7 +1346,7 @@ export default function Game() {
               </button>
             </div>
           )}
-          {!spectate && phase === GamePhaseState.PICK && (
+          {!spectate && phase === GamePhaseState.PICK && !isEliteTestActive() && (
             <div style={{
               position: "absolute",
               bottom: "170px",
@@ -1338,6 +1368,49 @@ export default function Game() {
                 }}
               >
                 Start Fight
+              </button>
+            </div>
+          )}
+          {!spectate && phase === GamePhaseState.PICK && isEliteTestActive() && eliteTestAwaitingBegin && (
+            <div style={{
+              position: "absolute",
+              bottom: "170px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 50,
+              display: "flex",
+              gap: "8px"
+            }}>
+              <button
+                onClick={() => beginEliteTest()}
+                style={{
+                  padding: "8px 24px",
+                  fontSize: "16px",
+                  borderRadius: "6px",
+                  border: "2px solid #fff",
+                  background: "#27ae60",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }}
+              >
+                ▶ Begin
+              </button>
+              <button
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent("open-elite-designer"))
+                }
+                style={{
+                  padding: "8px 16px",
+                  fontSize: "14px",
+                  borderRadius: "6px",
+                  border: "2px solid #fff",
+                  background: "#555",
+                  color: "white",
+                  cursor: "pointer"
+                }}
+              >
+                Edit Design
               </button>
             </div>
           )}
@@ -1489,6 +1562,86 @@ export default function Game() {
             >
               OK
             </button>
+          </div>
+        </div>
+      )}
+      {eliteTestResult && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.55)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999
+        }}>
+          <div className="my-container" style={{
+            padding: "24px",
+            maxWidth: "420px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px"
+          }}>
+            <h3 style={{ color: "#f1c40f", margin: 0 }}>Elite Test Result</h3>
+            {eliteTestResult.error === "no_data" ? (
+              <p style={{ margin: 0 }}>
+                No saved player teams for that stage yet — pick another stage.
+              </p>
+            ) : eliteTestResult.error === "empty_design" ? (
+              <p style={{ margin: 0 }}>Place some Pokémon on the board first.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <p style={{ margin: 0, fontSize: "20px", fontWeight: "bold" }}>
+                  {eliteTestResult.winner === "elite"
+                    ? "✅ Elite wins"
+                    : eliteTestResult.winner === "opponent"
+                      ? "❌ Elite loses"
+                      : "🤝 Draw"}
+                </p>
+                <p style={{ margin: 0, fontSize: "13px", opacity: 0.9 }}>
+                  vs {eliteTestResult.opponentName || "?"}
+                </p>
+                <p style={{ margin: 0, fontSize: "13px", opacity: 0.9 }}>
+                  Elite {eliteTestResult.eliteAlive} left · Opponent{" "}
+                  {eliteTestResult.opponentAlive} left
+                  {eliteTestResult.winner !== "draw" &&
+                    ` · winner ${eliteTestResult.hpPercent}% HP`}
+                </p>
+                <p style={{ margin: 0, fontSize: "12px", opacity: 0.7 }}>
+                  {eliteTestResult.durationSec}s
+                </p>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+              {!eliteTestResult.error && hasLastEliteTest() && (
+                <button
+                  className="bubbly blue"
+                  onClick={() => {
+                    setEliteTestResult(null)
+                    resendLastEliteTest()
+                  }}
+                >
+                  Test again
+                </button>
+              )}
+              <button
+                className="bubbly green"
+                onClick={() => {
+                  setEliteTestResult(null)
+                  window.dispatchEvent(new CustomEvent("open-elite-designer"))
+                }}
+              >
+                Edit Design
+              </button>
+              <button
+                className="bubbly"
+                onClick={() => setEliteTestResult(null)}
+                style={{ backgroundColor: "#555" }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

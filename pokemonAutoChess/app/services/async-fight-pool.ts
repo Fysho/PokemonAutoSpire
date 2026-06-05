@@ -56,6 +56,61 @@ export async function getAsyncFightOpponents(
   return Array.from({ length: count }, () => buildFallbackMagikarpOpponent())
 }
 
+// Lists every stage that currently has at least one saved team, with its entry
+// count. Used by the Elite Designer test feature (stage picker) — empty stages
+// are omitted so the designer only offers stages it can actually fight against.
+export async function getPopulatedAsyncStages(): Promise<
+  { stage: string; count: number }[]
+> {
+  try {
+    const docs = await AsyncFightPool.aggregate([
+      {
+        $project: {
+          _id: 0,
+          stage: 1,
+          count: { $size: { $ifNull: ["$entries", []] } }
+        }
+      },
+      { $match: { count: { $gt: 0 } } }
+    ])
+    return (docs as { stage: string; count: number }[]).sort((a, b) =>
+      compareStages(a.stage, b.stage)
+    )
+  } catch (e) {
+    logger.error("Failed to get populated async stages:", e)
+    return []
+  }
+}
+
+// Returns one random saved team for an exact stage, with NO fallback to previous
+// stages or the Magikarp default. The Elite Designer test refuses to fight when a
+// stage is empty (so you only test against real player teams), unlike the live
+// async-fight path which always produces an opponent.
+export async function getRandomAsyncOpponentNoFallback(
+  stage: string
+): Promise<AsyncFightOpponent | null> {
+  try {
+    const doc = await AsyncFightPool.findOne({ stage }).lean()
+    if (doc && doc.entries.length > 0) {
+      const entry =
+        doc.entries[Math.floor(Math.random() * doc.entries.length)]
+      return entryToOpponent(entry)
+    }
+  } catch (e) {
+    logger.error("Failed to get random async opponent:", e)
+  }
+  return null
+}
+
+// Sorts stage keys ("act{N}-floor{M}") by act, then floor.
+function compareStages(a: string, b: string): number {
+  const pa = a.match(/^act(\d+)-floor(\d+)$/)
+  const pb = b.match(/^act(\d+)-floor(\d+)$/)
+  if (!pa || !pb) return a.localeCompare(b)
+  const actDiff = parseInt(pa[1]) - parseInt(pb[1])
+  return actDiff !== 0 ? actDiff : parseInt(pa[2]) - parseInt(pb[2])
+}
+
 async function findFallbackOpponents(
   stage: string,
   count: number
