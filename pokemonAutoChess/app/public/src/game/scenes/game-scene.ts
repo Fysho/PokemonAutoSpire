@@ -169,9 +169,15 @@ export default class GameScene extends Scene {
           RegionDetails[player.map].music ?? DungeonMusic.TREASURE_TOWN
         )
       }
-      //;(this.sys as any).animatedTiles.init(this.map)
       clearTitleNotificationIcon()
     }
+  }
+
+  toggleTilesetAnimation(paused: boolean) {
+    if (!this.map) return
+    this.map.layers.forEach((layer) => {
+      layer.tilemapLayer.setTimerPaused(paused)
+    })
   }
 
   update(time: number, delta: number) {
@@ -377,10 +383,6 @@ export default class GameScene extends Scene {
       this.map.createLayer("layer0", tileset, 0, 0)?.setScale(2, 2)
       this.map.createLayer("layer1", tileset, 0, 0)?.setScale(2, 2)
       this.map.createLayer("layer2", tileset, 0, 0)?.setScale(2, 2)
-      const sys = this.sys as any
-      if (sys.animatedTiles) {
-        sys.animatedTiles.pause()
-      }
       return
     }
 
@@ -398,13 +400,7 @@ export default class GameScene extends Scene {
       tileset.image?.setFilter(Phaser.Textures.FilterMode.NEAREST)
       map.createLayer(layer.name, tileset, 0, 0)?.setScale(2, 2)
     })
-    const sys = this.sys as any
-    if (sys.animatedTiles) {
-      sys.animatedTiles.init(map)
-      if (preference("disableAnimatedTilemap")) {
-        sys.animatedTiles.pause()
-      }
-    }
+    this.toggleTilesetAnimation(preference("disableAnimatedTilemap"))
 
     // update region tint on pokemons
     this.board?.pokemons.forEach((p) => {

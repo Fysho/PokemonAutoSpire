@@ -16837,7 +16837,7 @@ export class AquaStepStrategy extends AbilityStrategy {
           pokemon,
           crit
         )
-        pokemon.addSpeed(speedGain, pokemon, 1, true)
+        pokemon.addSpeed(speedGain, pokemon, 1, crit)
       }, 300)
     )
   }
@@ -17082,6 +17082,7 @@ export const AbilityStrategies: { [key in Ability]: AbilityStrategy } = {
   [Ability.MIMIC]: new MimicStrategy(),
   [Ability.HEX]: new HexStrategy(),
   [Ability.GROWTH]: new GrowthStrategy(),
+  [Ability.VESPIQUEN_ORDERS]: new AbilityStrategy(),
   [Ability.HEAL_ORDER]: new HealOrderStrategy(),
   [Ability.DEFEND_ORDER]: new DefendOrderStrategy(),
   [Ability.ATTACK_ORDER]: new AttackOrderStrategy(),

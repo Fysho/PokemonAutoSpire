@@ -98,10 +98,9 @@ export const EvolutionManager = {
       ) {
         pokemon.addMaxHP(30) // Spire: +30 (was +10 upstream) — see 6.9→6.10 migration doc / POKEMON-CHANGELOG Cosmog
         pokemon.stacks++
-        // STACK handler reads the count from the positional arg, not pokemon.stacks —
-        // must pass Cosmog's own stacks here (not ...additionalArgs, which is empty for
-        // count-evolution triggers, making canEvolve compare `undefined >= stacksRequired`).
-        this.tryEvolve(pokemon, player, pokemon.stacks)
+        // 6.10.1: StackEvolutionHandler.canEvolve now reads pokemon.stacks directly
+        // (no positional stacks arg), so no count needs to be threaded through here.
+        this.tryEvolve(pokemon, player)
       }
     })
 

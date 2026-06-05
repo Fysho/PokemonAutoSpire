@@ -11,6 +11,7 @@ import { GameRegionalPokemonsIcon } from "./game-regional-pokemons"
 import { GameStreakInfo } from "./game-streak-info"
 import { GameTeamInfo } from "./game-team-info"
 import "./game-shop.css"
+import { DEPTH } from "../../../game/depths"
 
 export default function GameShop({ onShowMap }: { onShowMap?: () => void }) {
   const gameSpeed = useAppSelector((state) => state.game.gameSpeed)
@@ -25,7 +26,10 @@ export default function GameShop({ onShowMap }: { onShowMap?: () => void }) {
 
   return (
     <>
-      <div className="game-shop my-container">
+      <div
+        className="game-shop my-container"
+        style={{ zIndex: DEPTH.GAME_SHOP }}
+      >
         <div className="game-shop-left-buttons">
           <button
             className="bubbly blue speed-button"

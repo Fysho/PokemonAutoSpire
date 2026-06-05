@@ -1528,6 +1528,7 @@ export default function Game() {
               Leave Game
             </button>
           </div>
+          {currentGameEvent === GameEvent.EXPEDITIONS && !spectate && <GameExpeditions />}
         </>
       ) : (
         <GameLoadingScreen connectError={connectError} />

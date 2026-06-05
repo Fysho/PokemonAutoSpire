@@ -1843,9 +1843,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
       // Ditto (and its Mystery Box → Meltan swap) never grants the paired item.
       const pickedDitto = pickedPkm === Pkm.DITTO || pickedPkm === Pkm.MELTAN
       if (!pickedDitto) {
-        player.items.push(item)
+        // 6.10.1: wands are managed via fairyWands + updateFairyWands(), and must
+        // NOT also be pushed to player.items (that was the wand duplication bug).
         if (isIn(Wands, item)) {
           player.fairyWands.push(item)
+          player.updateFairyWands()
+        } else {
+          player.items.push(item)
         }
       }
     }

@@ -1,7 +1,10 @@
+import { useState } from "react"
+import ReactDOM from "react-dom"
+import { Tooltip } from "react-tooltip"
 import { SynergyTriggers } from "../../../../../config"
 import { Synergy } from "../../../../../types/enum/Synergy"
 import SynergyComponent from "./synergy-component"
-
+import SynergyDetailComponent from "./synergy-detail-component"
 import "./synergies.css"
 
 export default function Synergies(props: {
@@ -9,6 +12,7 @@ export default function Synergies(props: {
   tooltipPortal: boolean
   isEnemy?: boolean
 }) {
+  const [hoveredSynergy, setHoveredSynergy] = useState<Synergy | null>(null)
   const synergies = Object.keys(Synergy)
     .sort((a, b) => {
       const fa = props.synergies.find((e) => e[0] == a)
@@ -30,6 +34,24 @@ export default function Synergies(props: {
       return s && s[1] > 0
     })
 
+  const tooltip = (
+    <Tooltip
+      id="detail-synergy"
+      hidden={hoveredSynergy === null}
+      className="custom-theme-tooltip"
+      place="right-start"
+      delayShow={100}
+      delayHide={0}
+    >
+      {hoveredSynergy && (
+        <SynergyDetailComponent
+          type={hoveredSynergy}
+          value={props.synergies.find((e) => e[0] == hoveredSynergy)![1]}
+        />
+      )}
+    </Tooltip>
+  )
+
   return (
     <div className="synergies-list">
       {synergies.map((type, index) => {
@@ -40,11 +62,15 @@ export default function Synergies(props: {
             type={type as Synergy}
             value={s[1]}
             index={index}
-            tooltipPortal={props.tooltipPortal}
+            onMouseEnter={() => setHoveredSynergy(type as Synergy)}
+            onMouseLeave={() => setHoveredSynergy(null)}
             isEnemy={props.isEnemy}
           />
         )
       })}
+      {props.tooltipPortal
+        ? ReactDOM.createPortal(tooltip, document.body)
+        : tooltip}
     </div>
   )
 }
