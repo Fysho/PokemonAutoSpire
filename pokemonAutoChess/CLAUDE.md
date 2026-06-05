@@ -8,9 +8,9 @@ The original PAC codebase is in `pokemonAutoChess/`. All modifications live with
 
 ## Upstream PAC Reference (`pac-upstream/`)
 
-An unmodified copy of the original Pokemon Auto Chess **v6.10** source code is available at `pac-upstream/` (gitignored, `ref-6.10` branch = `origin/prod`, commit `c6386e8`). Use this to understand how the original PAC implements features like authentication, lobby rooms, database models, and game logic before adapting them for Auto Spire.
+An unmodified copy of the original Pokemon Auto Chess **v6.10.1** source code is available at `pac-upstream/` (gitignored, `ref-6.10.1` branch = `origin/prod`, commit `79505b1`). Use this to understand how the original PAC implements features like authentication, lobby rooms, database models, and game logic before adapting them for Auto Spire.
 
-The clone retains full upstream history, so you can still diff against the **6.9** base Spire forked from (commit `01c2ebe`): `git -C pac-upstream diff 01c2ebe ref-6.10 -- <path>`.
+The clone retains full upstream history, so you can still diff against the **6.9** base Spire forked from (commit `01c2ebe`): `git -C pac-upstream diff 01c2ebe ref-6.10.1 -- <path>`.
 
 **IMPORTANT: Never edit files in `pac-upstream/`. It is a read-only reference.**
 
@@ -757,7 +757,7 @@ player.life (mirror for client rendering / legacy code)
 - Footer: version (from `package.json`), fan credit line, PAC credit, upstream version note, Discord link
 - After sign-in, shows "Authenticated as: Click to reveal" (hides real name/email until clicked)
 - Player name defaults to "Username" — Google display name is NOT auto-filled
-- Built on Pokemon Auto Chess v6.10 (`prod@c6386e8`)
+- Built on Pokemon Auto Chess v6.10.1 (`prod@79505b1`)
 
 ## Map Visuals (`game-map.tsx`)
 
