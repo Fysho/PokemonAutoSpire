@@ -1258,9 +1258,9 @@ export default class Simulation extends Schema implements ISimulation {
       case EffectEnum.ETHEREAL: {
         const activeSynergies = player?.synergies.countActiveSynergies() || 0
         const speedFactor =
-          [1, 2, 4][SynergyEffects[Synergy.AMORPHOUS].indexOf(effect)] ?? 0
+          [1, 3, 5][SynergyEffects[Synergy.AMORPHOUS].indexOf(effect)] ?? 0
         const hpFactor =
-          [2, 4, 9][SynergyEffects[Synergy.AMORPHOUS].indexOf(effect)] ?? 0
+          [3, 6, 10][SynergyEffects[Synergy.AMORPHOUS].indexOf(effect)] ?? 0
         pokemon.effects.add(effect)
         pokemon.addSpeed(speedFactor * activeSynergies, pokemon, 0, false)
         pokemon.addMaxHP(hpFactor * activeSynergies, pokemon, 0, false)

@@ -195,7 +195,7 @@ export const SynergyTriggers: { [key in Synergy]: number[] } = {
   [Synergy.AQUATIC]: [2, 4, 6, 8],
   [Synergy.BUG]: [2, 4, 6, 8],
   [Synergy.FLYING]: [2, 4, 6, 8],
-  [Synergy.FLORA]: [3, 4, 5, 6],
+  [Synergy.FLORA]: [2, 3, 4, 5],
   [Synergy.ROCK]: [2, 4, 6],
   [Synergy.GHOST]: [2, 4, 6, 8],
   [Synergy.FAIRY]: [2, 4, 6, 8],

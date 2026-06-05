@@ -151,7 +151,11 @@ flooded `pokemon.commands` with unbounded `DelayedCommand`s during a single figh
 memory mid-simulation and OOM-crashing the server. The code was byte-identical to upstream;
 Spire's longer/harder fights pushed it past the tipping point.
 
-**Fix.** Flame count capped at 20; AP buff applied once per cast instead of per flame.
+**Fix.** Flame count hard-capped at 20 (`Math.min(20, …)`). This alone bounds the command
+queue: at most 20 `DelayedCommand`s are pushed per cast regardless of AP, so the per-flame AP
+gain (kept as in upstream) can no longer compound into runaway flame counts. (An earlier
+revision also moved the AP buff to once-per-cast, but that was reverted on 2026-06-06 once the
+cap was confirmed sufficient on its own — see `ABILITY-CHANGELOG.md`.)
 
 **Lesson.** Not all OOMs are cross-room retention. Per-fight unbounded growth (command
 queues, arrays, maps that scale with AP/stacks/turns) can blow the heap inside one

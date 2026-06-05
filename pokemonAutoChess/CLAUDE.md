@@ -621,7 +621,7 @@ All balance diversions from upstream are listed in the lobby's **PAC Diversions*
 - Gold Bottle Cap (`items.ts`): Crit power bonus capped at 200 gold (was uncapped)
 - Tea (`dishes.ts`): PP reduced from 80 to 40
 - Smoked Filet (`dishes.ts`): ATK 5→3, AP 10→5
-- Rainbow Swirl (`abilities.ts`, `DecorateStrategy`): PP buff 60→30 (AP scaling on the PP also removed — see PP Batteries below)
+- Rainbow Swirl (`abilities.ts`, `DecorateStrategy`): PP buff 60→50 (AP scaling on the PP also removed — see PP Batteries below)
 - Dojo Tickets: Apply instantly (not after 3 fights), one per Pokemon per act
 - Repeat Ball: Removed (commented out of the shiny item pool — excludes it from both reward offerings AND golden eggs)
 - Red Scale: Removed (commented out of the shiny item pool — excludes it from both reward offerings AND golden eggs)
@@ -634,11 +634,10 @@ All balance diversions from upstream are listed in the lobby's **PAC Diversions*
 - Snorlax/Munchlax (`Passive.GLUTTON`): Berry/Gourmet HP gains halved
 - Misdreavus/Mismagius (`Ability.NIGHT_SHADE`): Damage capped at 500
 - Bidoof/Bibarel (`Ability.SUPER_FANG`): Damage capped at 500 (`Math.min(500, …)`, mirrors Night Shade) — stops the %-max-HP true damage from spiking vs high-HP targets like Arceus
-- Alcremie Rainbow Swirl (`Ability.DECORATE`): PP buff 60→30 (AP scaling on the PP removed — see PP Batteries below)
+- Alcremie Rainbow Swirl (`Ability.DECORATE`): PP buff 60→50 (AP scaling on the PP removed — see PP Batteries below)
 - PP Batteries (`abilities.ts`): The PP these abilities grant to **allies** no longer scales with the caster's AP — the `addPP(...)` call passes `apBoost = 0` (was `1` full, or `0.5` for Fairy Wind/Decorate). Affects FAIRY_WIND (Flabébé/Floette/Florges), DECORATE (Alcremie Rainbow Swirl), MISTY_SURGE (Tapu Fini), FORECAST (Castform Rain), IVY_CUDGEL (Ogerpon Wellspring), AFTER_YOU (Indeedee Male), TERRAIN_PULSE (Smoliv/Dolliv/Arboliva), SPITE (Yamask/Cofagrigus). Only the PP gain changed; co-located heals/shields/buffs/damage keep their AP scaling. SOAK and the DRUMMER passive already granted flat PP (unchanged).
-- Grookey/Thwackey/Rillaboom (`pokemon.ts`): `maxPP` 60→80 on all three stages. Slows how often the DRUMMER line casts (it feeds PP to adjacent allies instead of casting often). Also synced in `precomputed/pokemons-data.csv`.
-- Happiny/Chansey/Blissey (`pokemon.ts`): `maxPP` 120→140 on all three stages. Slows Soft-Boiled cast frequency. Also synced in `precomputed/pokemons-data.csv`.
-- Skeledirge (`Ability.TORCH_SONG`): Flame count capped at 20; AP buff applied once per cast instead of per flame. Fixes a runaway feedback loop (AP-scaled flame count + per-flame AP gain) that flooded `pokemon.commands` with unbounded `DelayedCommand`s, leaking memory and OOM-crashing the production server. Was byte-identical to upstream PAC.
+- Grookey/Thwackey/Rillaboom (`pokemon.ts`): `maxPP` 60→70 on all three stages. Slows how often the DRUMMER line casts (it feeds PP to adjacent allies instead of casting often). Also synced in `precomputed/pokemons-data.csv`.
+- Skeledirge (`Ability.TORCH_SONG`): Flame count hard-capped at 20 (`Math.min(20, …)`). The AP buff still applies **once per flame** (as upstream does) — capping the flame count is what bounds the command queue, so per-flame AP can no longer run away. Without the cap this was a feedback loop (AP-scaled flame count + per-flame AP gain) that flooded `pokemon.commands` with unbounded `DelayedCommand`s, leaking memory and OOM-crashing the production server. Other than the cap, byte-identical to upstream PAC.
 - Cosmog/Cosmoem (`pokemon.ts`): Evolve after 3 stacks instead of 8; +30 max HP per evolution instead of +10 (`evolution-logic/evolution-manager.ts` `afterEvolve`, the COSMOG/COSMOEM stacking block)
 - Tandemaus/Maushold (`pokemon.ts`): Each stage evolves 5 fights after acquisition via a hatch-style timer — `evolutionRule = { type: EvolutionRuleType.HATCH, hatchTime: 5 }` (honored by `evolution-logic/hatch-time.ts`), instead of fixed `stageLevel >= 14`/`>= 20`. (Replaced the old `TimerEvolutionRule` class, removed in the 6.10 evolution refactor.)
 - Count evolutions: 2★+ units need only `min(numberRequired, 2)` copies (`evolution-logic/count-evolution-handler.ts`)
@@ -646,7 +645,9 @@ All balance diversions from upstream are listed in the lobby's **PAC Diversions*
 
 **Synergies:**
 - Light (`synergies.ts`): Triggers raised from 2/3/4/5 to 3/4/5/6
-- Amorphous (`simulation.ts`): Speed and HP bonuses per active synergy reduced to ~3/4 of upstream - speedFactor `[1,2,4]`, hpFactor `[2,4,9]` (upstream `[1,3,6]`/`[3,6,12]`). Effect text in `dist/client/locales/en/translation.json` (FLUID/SHAPELESS/ETHEREAL); other locales still show upstream numbers
+- Flora (`synergies.ts`): Triggers lowered from 3/4/5/6 to 2/3/4/5 (each tier one less)
+- Fighting (`pokemon-state.ts`): Damage blocked per tier (Guts/Sturdy/Defiant/Coaching) raised from 3/6/9/12 to 4/8/12/16. Effect text in `dist/client/locales/en/translation.json` (GUTS/STURDY/DEFIANT/COACHING); other locales still show upstream numbers
+- Grass (`pokemon-state.ts`): Healing per 2s (Ingrain/Growth/Spore) raised from 5/15/25 to 5/20/35 (Overgrow shares Spore's value). Effect text in `dist/client/locales/en/translation.json` (INGRAIN/GROWTH/SPORE); other locales still show upstream numbers
 - Fishing Rods (`items.ts`, `FishingRodEffect`): Only proc after wild battle encounters
 - Gyms removed: Amorphous, Light, Gourmet, Artificial (commented out in `GYM_LEADER_POKEMON`)
 

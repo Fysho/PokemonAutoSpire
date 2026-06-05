@@ -43,6 +43,18 @@ Template for recording changes:
 - `path/to/file.ts` — description of change
 -->
 
+### 2026-06-06 — Raise Decorate (Rainbow Swirl) PP buff 30 → 50
+
+**Ability**: DECORATE
+**Type**: scaling change
+**Before**: Alcremie Rainbow Swirl's Decorate granted `addPP(30)` to the strongest nearby ally (down from the upstream 60).
+**After**: Grants `addPP(50)`. Still below the upstream default of 60, and the PP gain still does not scale with AP (`apBoost = 0`, see the PP-battery entry below — unchanged).
+**Affected Pokemon**: Milcery / Alcremie Rainbow Swirl.
+**Rationale**: The 30 nerf was a touch too harsh; bumped to 50 to make the Rainbow Swirl PP-battery build more viable while keeping it under upstream.
+**Files changed**:
+- `app/core/abilities/abilities.ts` — `DecorateStrategy` ALCREMIE_RAINBOW_SWIRL branch `addPP(30)` → `addPP(50)`.
+- `app/public/src/pages/spire-lobby.tsx` — Updated both PAC Diversions entries (Items + Pokemon) to "60 to 50".
+
 ### 2026-06-03 — Remove AP scaling from PP-battery abilities
 
 **Abilities**: FAIRY_WIND, DECORATE, MISTY_SURGE, FORECAST, IVY_CUDGEL, AFTER_YOU, TERRAIN_PULSE, SPITE
@@ -53,6 +65,18 @@ Template for recording changes:
 **Rationale**: AP-scaled PP batteries made AP-stacked support snowball ally cast frequency too hard; flat PP keeps them useful as enablers without runaway scaling. Note: SOAK (Poliwag line, Tatsugiri) and the DRUMMER passive (Grookey line) already granted flat PP and were unchanged.
 **Files changed**:
 - `app/core/abilities/abilities.ts` — set the `apBoost` arg to `0` on the ally `addPP(...)` call in the 8 ability strategies above.
+
+### 2026-06-06 — Torch Song: restore per-flame AP buff (keep the cap)
+
+**Ability**: TORCH_SONG
+**Type**: mechanic change
+**Before**: Flame count hard-capped at 20, **and** the AP buff applied once per cast (flat `[1,2,3]`) — both introduced by the 2026-06-01 runaway-feedback fix.
+**After**: The AP buff is back to **once per flame** (upstream behavior), restored inside the per-flame `DelayedCommand`. The 20-flame cap is **kept** — and the cap alone is what bounds the command queue, so per-flame AP can no longer run away (at most 20 commands queued per cast regardless of AP).
+**Affected Pokemon**: Skeledirge (Charcadet line)
+**Rationale**: The once-per-cast change was a belt-and-suspenders addition to the cap; with the cap confirmed sufficient, reverting to per-flame AP brings the ability's high-AP scaling back in line with upstream while staying OOM-safe.
+**Files changed**:
+- `app/core/abilities/abilities.ts` — `TorchSongStrategy`: moved `addAbilityPower(apGainPerFlame, …)` back into the per-flame `DelayedCommand`; removed the pre-loop once-per-cast `addAbilityPower`; `Math.min(20, …)` flame cap retained.
+- `app/public/src/pages/spire-lobby.tsx`, `CLAUDE.md`, `AI-MEMORY-LEAKS.md` — Updated the Torch Song description to reflect cap-only as the OOM fix.
 
 ### 2026-06-01 — Torch Song runaway-feedback fix
 

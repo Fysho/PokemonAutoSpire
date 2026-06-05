@@ -583,12 +583,12 @@ export default abstract class PokemonState {
           pokemon.effects.has(EffectEnum.COACHING)
         ) {
           const damageBlocked = pokemon.effects.has(EffectEnum.COACHING)
-            ? 12
+            ? 16
             : pokemon.effects.has(EffectEnum.DEFIANT)
-              ? 9
+              ? 12
               : pokemon.effects.has(EffectEnum.STURDY)
-                ? 6
-                : 3
+                ? 8
+                : 4
           reducedDamage = reducedDamage - damageBlocked
           pokemon.count.fightingBlockCount++
         }
@@ -929,9 +929,9 @@ export default abstract class PokemonState {
         const heal =
           pokemon.effects.has(EffectEnum.SPORE) ||
           pokemon.effects.has(EffectEnum.OVERGROW)
-            ? 25
+            ? 35
             : pokemon.effects.has(EffectEnum.GROWTH)
-              ? 15
+              ? 20
               : 5
         pokemon.handleHeal(heal, pokemon, 0, false)
         pokemon.grassHealCooldown = 2000

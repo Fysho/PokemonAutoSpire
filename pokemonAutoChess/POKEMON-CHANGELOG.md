@@ -32,6 +32,18 @@ Template for recording changes:
 - `path/to/file.ts` — description of change
 -->
 
+### 2026-06-05 — Revert Blissey line max PP to upstream
+
+**Pokemon**: Happiny, Chansey, Blissey
+**Type**: stat change (max PP)
+**Before**: `maxPP = 140` for all three stages.
+**After**: `maxPP = 120` for all three stages (upstream PAC default).
+**Rationale**: Reverted the Soft-Boiled cast-frequency nerf back to the default upstream tuning.
+**Files changed**:
+- `app/models/colyseus-models/pokemon.ts` — `maxPP` 140→120 on the Happiny, Chansey, and Blissey classes.
+- `app/models/precomputed/pokemons-data.csv` — Max PP column 140→120 for the three rows (kept in sync).
+- `app/public/src/pages/spire-lobby.tsx` — Removed the Happiny/Chansey/Blissey entry from the PAC Diversions panel.
+
 ### 2026-06-03 — Blissey line max PP nerf
 
 **Pokemon**: Happiny, Chansey, Blissey
@@ -42,6 +54,18 @@ Template for recording changes:
 **Files changed**:
 - `app/models/colyseus-models/pokemon.ts` — `maxPP` 120→140 on the Happiny, Chansey, and Blissey classes.
 - `app/models/precomputed/pokemons-data.csv` — Max PP column 120→140 for the three rows (kept in sync).
+
+### 2026-06-05 — Soften Grookey line max PP nerf (80 → 70)
+
+**Pokemon**: Grookey, Thwackey, Rillaboom
+**Type**: stat change (max PP)
+**Before**: `maxPP = 80` for all three stages.
+**After**: `maxPP = 70` for all three stages. (Still nerfed vs the upstream PAC default of 60.)
+**Rationale**: The +20 nerf was a bit heavy; dialed back to +10 so the Drummer line casts DRUM_BEATING slightly more often while remaining slower than upstream.
+**Files changed**:
+- `app/models/colyseus-models/pokemon.ts` — `maxPP` 80→70 on the Grookey, Thwackey, and Rillaboom classes.
+- `app/models/precomputed/pokemons-data.csv` — Max PP column 80→70 for the three rows (kept in sync).
+- `app/public/src/pages/spire-lobby.tsx` — Updated the PAC Diversions entry (60→70).
 
 ### 2026-06-03 — Grookey line max PP nerf
 

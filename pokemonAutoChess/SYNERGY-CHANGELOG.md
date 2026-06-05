@@ -124,6 +124,53 @@ Template for recording changes:
 - `path/to/file.ts` — description of change
 -->
 
+### 2026-06-06 — Lower Flora trigger requirements
+
+**Synergy**: FLORA
+**Type**: trigger change
+**Before**: Triggers (Cottonweed/Flycatcher/Fragrant/Flower Power): 3 / 4 / 5 / 6 (upstream PAC default).
+**After**: 2 / 3 / 4 / 5 (each tier one less).
+**Rationale**: Flora was hard to activate at the lower tiers; dropping each threshold by one makes it easier to splash and reach its higher tiers.
+**Files changed**:
+- `app/config/game/synergies.ts` — `SynergyTriggers[Synergy.FLORA]` [3,4,5,6] → [2,3,4,5].
+- `app/public/src/pages/spire-lobby.tsx` — Added a Flora entry to the PAC Diversions panel.
+
+### 2026-06-06 — Buff Fighting damage block
+
+**Synergy**: FIGHTING
+**Type**: constant change
+**Before**: Damage blocked per tier (Guts/Sturdy/Defiant/Coaching): 3 / 6 / 9 / 12 (upstream PAC default).
+**After**: 4 / 8 / 12 / 16.
+**Rationale**: Make the Fighting block more impactful so the defensive line is a more attractive build.
+**Files changed**:
+- `app/core/pokemon-state.ts` — `damageBlocked` ladder 3/6/9/12 → 4/8/12/16.
+- `app/public/dist/client/locales/en/translation.json` — Updated GUTS/STURDY/DEFIANT/COACHING effect descriptions.
+- `app/public/src/pages/spire-lobby.tsx` — Added a Fighting entry to the PAC Diversions panel.
+
+### 2026-06-06 — Buff Grass healing
+
+**Synergy**: GRASS
+**Type**: constant change
+**Before**: Healing per 2s per tier (Ingrain/Growth/Spore): 5 / 15 / 25 (upstream PAC default; Overgrow shares Spore's 25).
+**After**: 5 / 20 / 35 (Overgrow shares Spore's 35).
+**Rationale**: Strengthen the Grass sustain so the higher tiers feel meaningfully better than tier 1.
+**Files changed**:
+- `app/core/pokemon-state.ts` — Grass `heal` ladder 5/15/25 → 5/20/35.
+- `app/public/dist/client/locales/en/translation.json` — Updated INGRAIN/GROWTH/SPORE effect descriptions.
+- `app/public/src/pages/spire-lobby.tsx` — Added a Grass entry to the PAC Diversions panel.
+
+### 2026-06-05 — Revert Amorphous to upstream values
+
+**Synergy**: AMORPHOUS
+**Type**: constant change
+**Before**: Speed per active synergy: 1 / 2 / 4. HP per active synergy: 2 / 4 / 9. (≈¾ of upstream)
+**After**: Speed per active synergy: 1 / 3 / 5. HP per active synergy: 3 / 6 / 10. (upstream PAC 6.10.1 default)
+**Rationale**: Reverted to the default upstream Amorphous tuning. (Note: the earlier nerf entries referenced PAC 6.9 upstream values of 1/3/6 and 3/6/12; the live upstream reference is now 6.10.1, which uses 1/3/5 and 3/6/10.)
+**Files changed**:
+- `app/core/simulation.ts` — Restored speedFactor `[1,3,5]` and hpFactor `[3,6,10]`
+- `app/public/dist/client/locales/en/translation.json` — Restored FLUID, SHAPELESS, ETHEREAL effect descriptions to upstream numbers
+- `app/public/src/pages/spire-lobby.tsx` — Removed the Amorphous entry from the PAC Diversions panel
+
 ### 2026-05-27 — Fishing rods only proc after wild encounters
 
 **Synergy**: AQUATIC (fishing rod items)

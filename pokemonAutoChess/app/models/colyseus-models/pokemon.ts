@@ -8529,7 +8529,7 @@ export class Happiny extends Pokemon {
   speed = 43
   def = 10
   speDef = 10
-  maxPP = 140
+  maxPP = 120
   range = 1
   skill = Ability.SOFT_BOILED
 }
@@ -8548,7 +8548,7 @@ export class Chansey extends Pokemon {
   speed = 43
   def = 12
   speDef = 20
-  maxPP = 140
+  maxPP = 120
   range = 1
   skill = Ability.SOFT_BOILED
 }
@@ -8566,7 +8566,7 @@ export class Blissey extends Pokemon {
   speed = 43
   def = 20
   speDef = 30
-  maxPP = 140
+  maxPP = 120
   range = 1
   skill = Ability.SOFT_BOILED
 }
@@ -18131,7 +18131,7 @@ export class Grookey extends Pokemon {
   speed = 58
   def = 8
   speDef = 6
-  maxPP = 80
+  maxPP = 70
   range = 1
   skill = Ability.DRUM_BEATING
   passive = Passive.DRUMMER
@@ -18147,7 +18147,7 @@ export class Thwackey extends Pokemon {
   speed = 58
   def = 14
   speDef = 11
-  maxPP = 80
+  maxPP = 70
   range = 1
   skill = Ability.DRUM_BEATING
   passive = Passive.DRUMMER
@@ -18162,7 +18162,7 @@ export class Rillaboom extends Pokemon {
   speed = 58
   def = 20
   speDef = 16
-  maxPP = 80
+  maxPP = 70
   range = 1
   skill = Ability.DRUM_BEATING
   passive = Passive.DRUMMER

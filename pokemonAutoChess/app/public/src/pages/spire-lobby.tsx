@@ -1203,7 +1203,7 @@ function SpireLobbyContent({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src="assets/item/RAINBOW_SWIRL_FLAVOR.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Rainbow Swirl</strong> — Decorate PP buff reduced from 60 to 30.</span>
+              <span><PacTag type="nerfed" /> <strong>Rainbow Swirl</strong> — Decorate PP buff reduced from 60 to 50.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src="assets/item/GOLD_DOJO_TICKET.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
@@ -1243,7 +1243,7 @@ function SpireLobbyContent({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0869-0056")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Alcremie (Rainbow Swirl)</strong> — Decorate PP buff reduced from 60 to 30.</span>
+              <span><PacTag type="nerfed" /> <strong>Alcremie (Rainbow Swirl)</strong> — Decorate PP buff reduced from 60 to 50.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <div style={{ display: "flex", gap: "2px", flexShrink: 0, flexWrap: "wrap" }}>
@@ -1260,15 +1260,11 @@ function SpireLobbyContent({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0810")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Grookey / Thwackey / Rillaboom</strong> — Max PP increased from 60 to 80, so the Drummer line takes longer to cast its own ability while it feeds PP to adjacent allies.</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <img src={getPortraitSrc("0440")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Happiny / Chansey / Blissey</strong> — Max PP increased from 120 to 140, so the line casts Soft-Boiled less often.</span>
+              <span><PacTag type="nerfed" /> <strong>Grookey / Thwackey / Rillaboom</strong> — Max PP increased from 60 to 70, so the Drummer line takes longer to cast its own ability while it feeds PP to adjacent allies.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0911")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="changed" /> <strong>Skeledirge (Torch Song)</strong> — Flame count capped at 20, and the AP buff now applies once per cast instead of per flame (fixes a runaway AP feedback loop).</span>
+              <span><PacTag type="changed" /> <strong>Skeledirge (Torch Song)</strong> — Flame count capped at 20 (prevents a runaway AP feedback loop). The per-flame AP buff is otherwise unchanged from upstream.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0479-0008")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
@@ -1314,8 +1310,16 @@ function SpireLobbyContent({
               <span><PacTag type="nerfed" /> <strong>Light</strong> — Triggers raised from 2/3/4/5 to 3/4/5/6.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <SynergyIcon type={Synergy.AMORPHOUS} size="28px" />
-              <span><PacTag type="nerfed" /> <strong>Amorphous</strong> — Speed and HP bonuses per active synergy reduced to ¾ of base.</span>
+              <SynergyIcon type={Synergy.FLORA} size="28px" />
+              <span><PacTag type="buffed" /> <strong>Flora</strong> — Triggers lowered from 3/4/5/6 to 2/3/4/5.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <SynergyIcon type={Synergy.FIGHTING} size="28px" />
+              <span><PacTag type="buffed" /> <strong>Fighting</strong> — Damage blocked raised from 3/6/9/12 to 4/8/12/16.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <SynergyIcon type={Synergy.GRASS} size="28px" />
+              <span><PacTag type="buffed" /> <strong>Grass</strong> — Healing per 2s raised from 5/15/25 to 5/20/35.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <SynergyIcon type={Synergy.WATER} size="28px" />
