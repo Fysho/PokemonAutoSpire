@@ -220,26 +220,28 @@ export function promoteNewChampion(
   const oldTies = data.eliteFourTies ?? [0, 0, 0, 0]
   const previousChampionTies = data.championTies ?? 0
 
-  data.eliteFour[0] = { ...data.eliteFour[1] }
-  data.eliteFour[1] = { ...data.eliteFour[2] }
-  data.eliteFour[2] = { ...data.eliteFour[3] }
+  // Swap-up cascade (matches the Elite Four climb). The challenger already occupies
+  // E4 slot #4 — they took it by beating the #4 member on the way to the champion —
+  // so becoming champion vacates slot #4, and the dethroned champion slides down into
+  // it. Slots #1-3 are untouched (they were set during the climb). This keeps exactly
+  // ONE ladder entry per run, so the new champion never also lingers inside the E4.
   data.eliteFour[3] = { ...data.champion }
   data.eliteFourCrownedAt = [
+    oldCrownedAt[0],
     oldCrownedAt[1],
     oldCrownedAt[2],
-    oldCrownedAt[3],
     data.championSince ?? now.toISOString()
   ]
   data.eliteFourVictories = [
+    oldVictories[0],
     oldVictories[1],
     oldVictories[2],
-    oldVictories[3],
     previousChampionVictories
   ]
   data.eliteFourTies = [
+    oldTies[0],
     oldTies[1],
     oldTies[2],
-    oldTies[3],
     previousChampionTies
   ]
   data.champion = winnerSnapshot
@@ -268,11 +270,9 @@ export function promoteNewChampion(
 ${teamList}
 ║                                                              ║
 ║  ── League Shuffle (${diffLabel}) ──
+║  ${winnerSnapshot.name} (E4 #4) → Champion
 ║  ${previousChampion} (Champion) → Elite Four #4
-║  ${e4Names[3]} (E4 #4) → Elite Four #3
-║  ${e4Names[2]} (E4 #3) → Elite Four #2
-║  ${e4Names[1]} (E4 #2) → Elite Four #1
-║  ${e4Names[0]} (E4 #1) has been removed from the Elite Four.
+║  Elite Four #1-3 unchanged (${e4Names[0]}, ${e4Names[1]}, ${e4Names[2]}).
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 `)

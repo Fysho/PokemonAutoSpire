@@ -57,6 +57,7 @@ export interface GameStateStore {
   currentAct: number
   currentFloor: number
   encounterDifficulty: number
+  encounterMoney: number
   encounterPokemonCount: number
   encounterTotalStars: number
   encounterTotalItems: number
@@ -106,6 +107,7 @@ const initialState: GameStateStore = {
   currentAct: 1,
   currentFloor: 0,
   encounterDifficulty: 0,
+  encounterMoney: 0,
   encounterPokemonCount: 0,
   encounterTotalStars: 0,
   encounterTotalItems: 0,
@@ -152,6 +154,9 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
     },
     setEncounterDifficulty: (state, action: PayloadAction<number>) => {
       state.encounterDifficulty = action.payload
+    },
+    setEncounterMoney: (state, action: PayloadAction<number>) => {
+      state.encounterMoney = action.payload
     },
     setEncounterPokemonCount: (state, action: PayloadAction<number>) => {
       state.encounterPokemonCount = action.payload
@@ -415,6 +420,7 @@ export const {
   setCurrentAct,
   setCurrentFloor,
   setEncounterDifficulty,
+  setEncounterMoney,
   setEncounterPokemonCount,
   setEncounterTotalStars,
   setEncounterTotalItems,

@@ -48,6 +48,14 @@ export interface TeamSnapshot {
   lightX: number
   lightY: number
   region?: string
+  // Hidden per-run id of the run that placed this team in the Elite Four / Champion
+  // slot. Lets a single run be identified across the slots it occupies as it climbs,
+  // and lets a player legitimately hold several teams (one per run) in the ladder.
+  runId?: string
+  // Gold the player held when the team was snapshotted. Reapplied to the
+  // reconstructed opponent so gold-scaling effects work (Gold Bottle Cap crit power,
+  // Gholdengo's gold damage). Optional for legacy snapshots saved before this field.
+  money?: number
 }
 
 export function snapshotPlayerTeam(
@@ -103,7 +111,8 @@ export function snapshotPlayerTeam(
     inventory: [...player.items] as Item[],
     groundHoles: [...player.groundHoles],
     lightX: player.lightX,
-    lightY: player.lightY
+    lightY: player.lightY,
+    money: player.money
   }
 }
 
@@ -274,6 +283,10 @@ export function reconstructTeamAsPlayer(
   // Set light position
   player.lightX = snapshot.lightX
   player.lightY = snapshot.lightY
+
+  // Reapply the snapshot's gold so gold-scaling effects fire for this opponent
+  // (Gold Bottle Cap crit power, Gholdengo gold damage). Read-only during the fight.
+  player.money = snapshot.money ?? 0
 
   // Compute synergies and effects directly, bypassing updateSynergies()
   // which has side effects (scarves, artificial items, TMs, wands, etc.)

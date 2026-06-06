@@ -73,6 +73,7 @@ import {
   setCurrentAct,
   setCurrentFloor,
   setEncounterDifficulty,
+  setEncounterMoney,
   setEncounterPokemonCount,
   setEncounterTotalStars,
   setEncounterTotalItems,
@@ -789,6 +790,9 @@ export default function Game() {
 
       $state.listen("encounterDifficulty", (value) => {
         dispatch(setEncounterDifficulty(value))
+      })
+      $state.listen("encounterMoney", (value) => {
+        dispatch(setEncounterMoney(value))
       })
       $state.listen("encounterPokemonCount", (value) => {
         dispatch(setEncounterPokemonCount(value))

@@ -13,6 +13,12 @@ export interface IRunHistorySynergy {
 
 export interface IRunHistory {
   odToken: string
+  // Stable per-run UUID (mirrors SavedRun.runId / state.runId). One run = one
+  // history document: it's created when the run first ends/peaks and UPSERTED on
+  // every later milestone (Act 3 win → Elite Four → Champion → Arceus), so a
+  // single run can never appear twice. Optional only for legacy records written
+  // before this field existed.
+  runId?: string
   time: number
   currentAct: number
   currentFloor: number
@@ -27,6 +33,7 @@ export interface IRunHistory {
 const runHistorySchema = new Schema<IRunHistory>(
   {
     odToken: { type: String, required: true, index: true },
+    runId: { type: String, default: "", index: true },
     time: { type: Number, required: true },
     currentAct: { type: Number, required: true },
     currentFloor: { type: Number, required: true },

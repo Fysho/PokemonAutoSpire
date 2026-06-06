@@ -939,6 +939,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
         this.state.runFailed = false
         this.state.eliteFourAvailable = false
         this.state.gameFinished = false
+        this.state.championChallenged = false
+        this.state.arceusChallenged = false
         this.state.currentAct = 4
         this.state.currentFloor = 0
         this.state.mapNodes.clear()
@@ -970,6 +972,8 @@ export default class GameRoom extends Room<{ state: GameState }> {
         this.state.runFailed = false
         this.state.eliteFourAvailable = false
         this.state.gameFinished = false
+        this.state.championChallenged = false
+        this.state.arceusChallenged = false
         this.state.arceusDamageDealt = 0
         this.state.currentAct = 5
         this.state.currentFloor = 0
@@ -1330,6 +1334,21 @@ export default class GameRoom extends Room<{ state: GameState }> {
     cmd.room = this
     cmd.state = this.state
     cmd.clock = this.clock
+
+    // One-shot finale guard: a run that already STARTED a Champion or Arceus fight
+    // cannot resume back into it. Re-fighting would let players save-scum the Arceus
+    // damage leaderboard (quit a bad roll, retry) or retry the champion fight. Such a
+    // run is finalized here as a forfeit — it still keeps its Act-3 victory (recorded
+    // by runId, so no duplicate), just no second attempt at the finale fight.
+    if (this.state.arceusChallenged || this.state.championChallenged) {
+      logger.info(`Resume forfeit for ${player.name}: finale fight already started (champion=${this.state.championChallenged}, arceus=${this.state.arceusChallenged}) — finalizing run, no re-fight.`)
+      this.state.gameFinished = true
+      this.state.runFailed = true
+      player.alive = false
+      player.loadingProgress = 100
+      cmd.recordRunEndOnce(player, { arceusDamage: this.state.arceusDamageDealt })
+      return
+    }
 
     // A combat node was selected but its fight never resolved (mid-PICK/FIGHT
     // disconnect): pendingFightNodeId points at it. The encounter board isn't

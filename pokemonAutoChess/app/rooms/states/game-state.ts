@@ -64,6 +64,13 @@ export default class GameState extends Schema {
   @type("boolean") runComplete: boolean = false
   @type("boolean") runFailed: boolean = false
   @type("boolean") eliteFourAvailable: boolean = false
+  // One-shot guards for the Act-4/5 "finale" fights. Set true the moment the
+  // Champion / Arceus fight STARTS and persisted in the saved run, so a mid-fight
+  // quit can't resume back into the fight and retry it (save-scumming the Arceus
+  // damage leaderboard or the champion fight). championChallenged is reset once the
+  // champion fight resolves; arceusChallenged ends the run. See resumeGame's forfeit.
+  @type("boolean") championChallenged: boolean = false
+  @type("boolean") arceusChallenged: boolean = false
   @type("boolean") isEndless: boolean = false
   // Elite Designer test sandbox: true while both teams are staged on the board in a
   // preview (PICK) and waiting for the player to press "Begin" to start the fight.
@@ -76,6 +83,9 @@ export default class GameState extends Schema {
   @type("uint8") encounterTotalItems: number = 0
   @type("string") encounterName: string = ""
   @type(["string"]) encounterInventory = new ArraySchema<string>()
+  // Gold the snapshot opponent (Elite Four / Champion / async) held — shown to the
+  // player and used by gold-scaling effects on the reconstructed team. 0 for PVE.
+  @type("uint16") encounterMoney: number = 0
   @type("uint16") encounterBonusHP: number = 0
   @type("uint8") encounterBonusAtk: number = 0
   @type("uint8") encounterBonusDef: number = 0

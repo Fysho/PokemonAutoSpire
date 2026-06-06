@@ -64,7 +64,7 @@ import {
   getWildEncounter,
   SpireEncounter
 } from "../../models/spire-encounters"
-import { loadChampionData, saveChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, DEFAULT_SNAPSHOT, incrementChampionVictory, incrementE4Victory, incrementChampionTie, incrementE4Tie, type DifficultyMode } from "../../services/champion-data"
+import { loadChampionData, saveChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, incrementChampionVictory, incrementE4Victory, incrementChampionTie, incrementE4Tie, type DifficultyMode } from "../../services/champion-data"
 import { discordService } from "../../services/discord"
 import { snapshotPlayerTeam, reconstructTeamAsPlayer, encodeSnapshotForClient } from "../../services/team-snapshot"
 import { applyEliteDesignToPlayer, ParsedEliteDesign } from "../../services/elite-test"
@@ -179,10 +179,6 @@ import { resetArraySchema, schemaValues } from "../../utils/schemas"
 import { getWeather } from "../../utils/weather"
 import GameRoom from "../game-room"
 import GameState from "../states/game-state"
-
-// When a player LOSES partway through the Elite Four, their team is inserted
-// into the E4 lineup (see the ELITE_FOUR loss branch in OnUpdatePhaseCommand).
-const E4_LOSS_TAKES_SLOT = true
 
 // Manual phases (PICK/MAP/SHOP/REST/EVENT/REWARD) never auto-advance. If a
 // player stays in one without advancing the run for this long, they are
@@ -1235,62 +1231,24 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             (p) => !p.isBot && p.history.at(-1)?.result === BattleResult.WIN
           )
           if (e4Won && !this.state.runFailed) {
+            // WIN: the player takes the slot of the member they just beat (swap-up
+            // cascade — the beaten member slides down into the slot the player held
+            // from beating the lower member; beating #1 drops the old #1 off). Saved
+            // immediately, so beating an E4 member now persists the team — and a quit
+            // mid-climb keeps every slot already earned. This is the core fix for
+            // "beating an Elite Four member never saved my team".
+            this.placePlayerInEliteFour(fightNode.floor - 1)
             this.initializeMapPhase()
           } else if (!this.state.runFailed) {
+            // LOSS: the run ends, no lineup change. Every member the player beat was
+            // already placed by the cascade above, so a loss just stops the climb
+            // (losing to E4 #1, having beaten nobody, leaves the lineup untouched).
             this.state.runFailed = true
             this.state.gameFinished = true
             this.state.players.forEach((p: Player) => {
               if (!p.isBot) {
                 p.life = 0
                 p.alive = false
-                const loserSnapshot = snapshotPlayerTeam(p, { includeBench: true })
-                loserSnapshot.region = this.state.playerSpireRegion || "town"
-                if (loserSnapshot.pokemon.length > 0) {
-                  const data = loadChampionData(this.state.difficultyMode as DifficultyMode)
-                  const now = new Date().toISOString()
-                  const oldCrownedAt = data.eliteFourCrownedAt ?? [
-                    data.championSince ?? now,
-                    data.championSince ?? now,
-                    data.championSince ?? now,
-                    data.championSince ?? now
-                  ]
-                  const oldVictories = data.eliteFourVictories ?? [0, 0, 0, 0]
-                  const oldTies = data.eliteFourTies ?? [0, 0, 0, 0]
-                  if (E4_LOSS_TAKES_SLOT && fightNode) {
-                    // You earned the slot just below the member who beat you:
-                    // you beat E4 #1..#(floor-1) and lost to #floor, so you slot in
-                    // immediately under #floor at index (floor - 2). The weakest
-                    // existing member (old #1) drops off. Losing to E4 #1 (floor 1)
-                    // means you beat nobody → no slot earned, lineup unchanged.
-                    const insertIndex = fightNode.floor - 2
-                    if (insertIndex >= 0) {
-                      for (let i = 0; i < insertIndex; i++) {
-                        data.eliteFour[i] = data.eliteFour[i + 1]
-                        oldCrownedAt[i] = oldCrownedAt[i + 1]
-                        oldVictories[i] = oldVictories[i + 1]
-                        oldTies[i] = oldTies[i + 1]
-                      }
-                      data.eliteFour[insertIndex] = loserSnapshot
-                      oldCrownedAt[insertIndex] = now
-                      oldVictories[insertIndex] = 0
-                      oldTies[insertIndex] = 0
-                    }
-                  } else {
-                    for (let i = 3; i >= 0; i--) {
-                      if (data.eliteFour[i].name === DEFAULT_SNAPSHOT.name) {
-                        data.eliteFour[i] = loserSnapshot
-                        oldCrownedAt[i] = now
-                        oldVictories[i] = 0
-                        oldTies[i] = 0
-                        break
-                      }
-                    }
-                  }
-                  data.eliteFourCrownedAt = oldCrownedAt as [string, string, string, string]
-                  data.eliteFourVictories = oldVictories as [number, number, number, number]
-                  data.eliteFourTies = oldTies as [number, number, number, number]
-                  saveChampionData(data, this.state.difficultyMode as DifficultyMode)
-                }
                 this.recordRunEndOnce(p)
               }
             })
@@ -1456,11 +1414,16 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   recordActThreeVictoryOnce() {
     if (this.room.actThreeVictoryCounted) return
     this.room.actThreeVictoryCounted = true
-    const { incrementRunEnd, updateVictoryRecord } = require("../../services/run-save")
+    const { incrementRunEnd, updateVictoryRecord, saveRunHistory } = require("../../services/run-save")
     schemaValues(this.state.players).forEach((p) => {
       if (!p.isBot) {
         incrementRunEnd(p.id, this.state.difficultyMode, true, false, 0)
         updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, true, this.state.isEndless)
+        // Create the run-history record the moment Act 3 falls (keyed by runId).
+        // Every later milestone (Elite Four / Champion / Arceus) upserts this SAME
+        // record, so a completed run shows exactly once — not once before and once
+        // after Arceus.
+        saveRunHistory(p.id, this.state, p, true)
       }
     })
   }
@@ -1526,6 +1489,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     resetArraySchema(this.state.encounterInventory, [])
     resetArraySchema(this.state.encounterGroundHoles, [])
     resetArraySchema(this.state.encounterSynergies, [])
+    this.state.encounterMoney = 0
     this.state.encounterSnapshot = null
     this.state.encounterCrownedAt = null
     this.state.encounterBonusHP = 0
@@ -1691,6 +1655,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         }
 
         resetArraySchema(this.state.encounterInventory, [])
+        this.state.encounterMoney = 0
 
         if (this.state.encounterSnapshot) {
           const snap = this.state.encounterSnapshot
@@ -1719,6 +1684,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             }
           }
           resetArraySchema(this.state.spireEncounterBoard, encodeSnapshotForClient(displaySnap))
+          this.state.encounterMoney = snap.money ?? 0
           if (snap.inventory?.length) {
             resetArraySchema(this.state.encounterInventory, snap.inventory)
           }
@@ -2113,8 +2079,56 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.syncRunHPToPlayers()
   }
 
+  // Swap-up cascade for an Elite Four WIN: the human player takes E4 slot `e4Index`
+  // (the member they just beat). For index > 0 the beaten member slides down into
+  // slot index-1 — the slot the player held from beating the lower member — so the
+  // player's single entry moves up the ladder. For index 0 the old #1 drops off the
+  // bottom. crownedAt / victories / ties move in lockstep, and the entry is tagged
+  // with the run id so one run is one identifiable ladder entry. Saved immediately:
+  // "taking their spot" happens the instant the fight is won.
+  placePlayerInEliteFour(e4Index: number) {
+    if (e4Index < 0 || e4Index > 3) return
+    const mode = this.state.difficultyMode as DifficultyMode
+    this.state.players.forEach((p: Player) => {
+      if (p.isBot) return
+      const snapshot = snapshotPlayerTeam(p, { includeBench: true })
+      snapshot.region = this.state.playerSpireRegion || "town"
+      snapshot.runId = this.state.runId
+      if (snapshot.pokemon.length === 0) return
+      const data = loadChampionData(mode)
+      const now = new Date().toISOString()
+      const crownedAt = data.eliteFourCrownedAt ?? [
+        data.championSince ?? now,
+        data.championSince ?? now,
+        data.championSince ?? now,
+        data.championSince ?? now
+      ]
+      const victories = data.eliteFourVictories ?? [0, 0, 0, 0]
+      const ties = data.eliteFourTies ?? [0, 0, 0, 0]
+      if (e4Index > 0) {
+        // beaten member slides down to the slot the player previously took
+        data.eliteFour[e4Index - 1] = data.eliteFour[e4Index]
+        crownedAt[e4Index - 1] = crownedAt[e4Index]
+        victories[e4Index - 1] = victories[e4Index]
+        ties[e4Index - 1] = ties[e4Index]
+      }
+      data.eliteFour[e4Index] = snapshot
+      crownedAt[e4Index] = now
+      victories[e4Index] = 0
+      ties[e4Index] = 0
+      data.eliteFourCrownedAt = crownedAt as [string, string, string, string]
+      data.eliteFourVictories = victories as [number, number, number, number]
+      data.eliteFourTies = ties as [number, number, number, number]
+      saveChampionData(data, mode)
+    })
+  }
+
   endChampionFight() {
     this.state.gameFinished = true
+    // The champion fight has resolved — clear the in-progress guard so the post-win
+    // Arceus phase (which reuses this saved run) isn't mistaken for an unresolved
+    // champion fight and force-forfeited on resume.
+    this.state.championChallenged = false
     const winner = schemaValues(this.state.players).find(
       (p) => !p.isBot && p.history.at(-1)?.result === BattleResult.WIN
     )
@@ -2126,14 +2140,17 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
       const snapshot = snapshotPlayerTeam(winner, { includeBench: true })
       snapshot.region = this.state.playerSpireRegion || "town"
+      snapshot.runId = this.state.runId
       if (snapshot.pokemon.length > 0) {
         const previousData = loadChampionData(this.state.difficultyMode as DifficultyMode)
         const defeatedChampion = previousData.champion.name
         const result = promoteNewChampion(snapshot, this.state.difficultyMode as DifficultyMode)
+        // Swap promotion: E4 #1-3 are unchanged, the dethroned champion takes slot #4
+        // (the slot the new champion vacated by climbing there).
         const newE4 = [
+          previousData.eliteFour[0].name,
           previousData.eliteFour[1].name,
           previousData.eliteFour[2].name,
-          previousData.eliteFour[3].name,
           defeatedChampion
         ]
         discordService.announceNewChampion(
@@ -2154,27 +2171,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         }
       }
     } else {
+      // Champion loss: the run ends, but no lineup change is needed. To reach the
+      // champion the player beat all four E4 members, so the climb already placed
+      // their team at E4 slot #4 — they simply keep that slot.
       this.state.runFailed = true
       this.state.players.forEach((p: Player) => {
         if (!p.isBot) {
           p.life = 0
           p.alive = false
-          const loserSnapshot = snapshotPlayerTeam(p, { includeBench: true })
-          loserSnapshot.region = this.state.playerSpireRegion || "town"
-          if (loserSnapshot.pokemon.length > 0) {
-            const data = loadChampionData(this.state.difficultyMode as DifficultyMode)
-            if (!data.eliteFourVictories) data.eliteFourVictories = [0, 0, 0, 0]
-            if (!data.eliteFourTies) data.eliteFourTies = [0, 0, 0, 0]
-            for (let i = 3; i >= 0; i--) {
-              if (data.eliteFour[i].name === DEFAULT_SNAPSHOT.name) {
-                data.eliteFour[i] = loserSnapshot
-                data.eliteFourVictories[i] = 0
-                data.eliteFourTies[i] = 0
-                saveChampionData(data, this.state.difficultyMode as DifficultyMode)
-                break
-              }
-            }
-          }
         }
       })
       this.syncRunHPToPlayers()
@@ -3166,6 +3170,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       encodeSnapshotForClient(snap)
     )
     resetArraySchema(this.state.encounterInventory, snap.inventory ?? [])
+    this.state.encounterMoney = snap.money ?? 0
     resetArraySchema(this.state.encounterGroundHoles, snap.groundHoles ?? [])
     const tempPokemon = snap.pokemon
       .filter((p) => p.y > 0)
@@ -3308,6 +3313,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     // opponent preview state so the idle board doesn't show a stale enemy team.
     this.state.eliteTestAwaitingBegin = false
     this.state.encounterSnapshot = null
+    this.state.encounterMoney = 0
     resetArraySchema(this.state.spireEncounterBoard, [])
     resetArraySchema(this.state.encounterInventory, [])
     resetArraySchema(this.state.encounterGroundHoles, [])
@@ -3333,6 +3339,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     const node = this.state.mapNodes.get(this.state.currentNodeId)
     const snapshot = this.state.encounterSnapshot
+
+    // One-shot finale guards: the instant a Champion / Arceus fight begins, flag it
+    // and persist immediately, so quitting mid-fight can't resume back in and retry
+    // (save-scumming the Arceus damage leaderboard or the champion fight). resumeGame
+    // forfeits any run that comes back with one of these still set. E4 member fights
+    // are intentionally NOT guarded — they're the resumable climb.
+    if (node?.nodeType === MapNodeType.CHAMPION) {
+      this.state.championChallenged = true
+      this.autoSaveRun()
+    } else if (node?.nodeType === MapNodeType.ARCEUS_BOSS) {
+      this.state.arceusChallenged = true
+      this.autoSaveRun()
+    }
 
     if (snapshot) {
       // Snapshot-based encounter (champion/E4/saved teams): full Player reconstruction

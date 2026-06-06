@@ -156,9 +156,22 @@ function RunHistoryRow({
   const r = runHistory[index]
 
   const diffLabel = DIFFICULTY_LABELS[r.difficultyMode] ?? "Normal"
-  const progressLabel = r.victory
-    ? `${diffLabel} Champion!`
-    : `${diffLabel} Act ${r.currentAct} Floor ${r.currentFloor}`
+  // Show how far the run actually got, not a blanket "Champion!". Acts 1-3 → the
+  // act/floor reached. Act 4 = the Elite Four: floors 1-4 are E4 members #1-4, floor
+  // 5 is the Champion. Beating Act 3 without entering the Elite Four is the canonical
+  // single-player victory. Arceus (Act 5) is ignored here by design — it's capped to
+  // Act 4 / floor 5 in the record, and a run that ended earlier in the Elite Four is
+  // never overwritten by an Arceus attempt, so the furthest *ladder* point shows.
+  let progressLabel: string
+  if (r.currentAct >= 4) {
+    if (r.currentFloor >= 5) progressLabel = `${diffLabel} Champion`
+    else if (r.currentFloor >= 1) progressLabel = `${diffLabel} Elite Four ${r.currentFloor}`
+    else progressLabel = `${diffLabel} Elite Four`
+  } else if (r.victory) {
+    progressLabel = `${diffLabel} Victory`
+  } else {
+    progressLabel = `${diffLabel} Act ${r.currentAct} Floor ${r.currentFloor}`
+  }
 
   const pokemons: IPokemonRecord[] = r.pokemons.map((p) => ({
     name: p.name as any,

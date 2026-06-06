@@ -58,6 +58,8 @@ export interface SavedRunData {
   stageLevel: number
   eliteFourAvailable: boolean
   runComplete: boolean
+  championChallenged?: boolean
+  arceusChallenged?: boolean
   gameSpeed: number
   challengeItem: string
   gameLightX: number
@@ -208,6 +210,8 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
       stageLevel: state.stageLevel,
       eliteFourAvailable: state.eliteFourAvailable,
       runComplete: state.runComplete,
+      championChallenged: state.championChallenged,
+      arceusChallenged: state.arceusChallenged,
       gameSpeed: state.gameSpeed,
       challengeItem: state.challengeItem,
       gameLightX: state.lightX,
@@ -404,6 +408,8 @@ export function restoreRunToState(
   state.stageLevel = savedData.stageLevel
   state.eliteFourAvailable = savedData.eliteFourAvailable
   state.runComplete = savedData.runComplete ?? false
+  state.championChallenged = savedData.championChallenged ?? false
+  state.arceusChallenged = savedData.arceusChallenged ?? false
   state.gameSpeed = savedData.gameSpeed
   state.challengeItem = savedData.challengeItem
   state.lightX = savedData.gameLightX
@@ -472,6 +478,7 @@ export function restoreRunToState(
       if (b.speDef) pkm.addSpecialDefense(b.speDef)
       if (b.ap) pkm.addAbilityPower(b.ap)
       if (b.speed) pkm.addSpeed(b.speed)
+      if (b.luck) pkm.addLuck(b.luck)
     }
 
     if (snap.dishes) {
@@ -649,8 +656,9 @@ export async function saveRunHistory(
     })
     const historyAct = state.currentAct >= 5 ? 4 : state.currentAct
     const historyFloor = state.currentAct >= 5 ? 5 : state.currentFloor
-    await RunHistory.create({
+    const doc = {
       odToken,
+      runId: state.runId,
       time: Date.now(),
       currentAct: historyAct,
       currentFloor: historyFloor,
@@ -660,7 +668,16 @@ export async function saveRunHistory(
       victory,
       pokemons,
       synergies
-    })
+    }
+    // One document per run: upsert by runId so the Act 3 → Elite Four → Champion →
+    // Arceus milestones all UPDATE the same record (later milestones overwrite with
+    // higher act/floor + final arceus damage) instead of appending duplicates. Falls
+    // back to create() for the (impossible in practice) case of a run without an id.
+    if (state.runId) {
+      await RunHistory.updateOne({ runId: state.runId }, { $set: doc }, { upsert: true })
+    } else {
+      await RunHistory.create(doc)
+    }
     const result = victory ? "victory" : "defeat"
     const arceus = state.arceusDamageDealt > 0 ? ` | arceus dmg: ${state.arceusDamageDealt}` : ""
     logger.info(`Run saved | ${player.name} | ${result} | act ${historyAct} floor ${historyFloor}${arceus}`)
@@ -699,8 +716,9 @@ export async function saveRunHistoryFromSavedRun(odToken: string, savedData: Sav
     })
     const historyAct = savedData.currentAct >= 5 ? 4 : savedData.currentAct
     const historyFloor = savedData.currentAct >= 5 ? 5 : savedData.currentFloor
-    await RunHistory.create({
+    const doc = {
       odToken,
+      runId: savedData.runId,
       time: Date.now(),
       currentAct: historyAct,
       currentFloor: historyFloor,
@@ -710,7 +728,15 @@ export async function saveRunHistoryFromSavedRun(odToken: string, savedData: Sav
       victory: false,
       pokemons,
       synergies
-    })
+    }
+    // Same one-record-per-run upsert as saveRunHistory: an abandoned run shares the
+    // runId of any earlier milestone record for that run, so abandoning never
+    // creates a second row.
+    if (savedData.runId) {
+      await RunHistory.updateOne({ runId: savedData.runId }, { $set: doc }, { upsert: true })
+    } else {
+      await RunHistory.create(doc)
+    }
     logger.info(`Abandoned run history saved | ${savedData.team.name} | act ${historyAct} floor ${historyFloor}`)
   } catch (e) {
     logger.error("Failed to save abandoned run history:", e)
