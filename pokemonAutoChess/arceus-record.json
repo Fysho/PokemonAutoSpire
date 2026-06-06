@@ -1,0 +1,235 @@
+{
+  "records": [
+    {
+      "playerName": "James",
+      "damage": 7700,
+      "team": {
+        "name": "James",
+        "avatar": "0129/Normal",
+        "pokemon": [
+          {
+            "name": "PATRAT",
+            "x": 0,
+            "y": 2,
+            "items": [],
+            "evolution": "WATCHOG"
+          },
+          {
+            "name": "MEWTWO",
+            "x": 0,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 1500,
+              "atk": 600,
+              "def": 300,
+              "speDef": 300,
+              "ap": 600,
+              "speed": 0,
+              "luck": 0
+            }
+          },
+          {
+            "name": "MEWTWO",
+            "x": 1,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 1000,
+              "atk": 400,
+              "def": 200,
+              "speDef": 200,
+              "ap": 400,
+              "speed": 0,
+              "luck": 0
+            }
+          },
+          {
+            "name": "MEWTWO",
+            "x": 2,
+            "y": 1,
+            "items": [],
+            "statBoosts": {
+              "hp": 500,
+              "atk": 200,
+              "def": 100,
+              "speDef": 100,
+              "ap": 200,
+              "speed": 0,
+              "luck": 0
+            }
+          }
+        ],
+        "inventory": [
+          "MAGNET"
+        ],
+        "groundHoles": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "lightX": 0,
+        "lightY": 1,
+        "money": 806
+      },
+      "date": "2026-06-06T14:24:04.310Z"
+    },
+    {
+      "playerName": "James",
+      "damage": 6,
+      "team": {
+        "name": "James",
+        "avatar": "0129/Normal",
+        "pokemon": [
+          {
+            "name": "DARUMAKA",
+            "x": 0,
+            "y": 3,
+            "items": [],
+            "evolution": "DARMANITAN"
+          },
+          {
+            "name": "DITTO",
+            "x": 1,
+            "y": 3,
+            "items": []
+          },
+          {
+            "name": "DITTO",
+            "x": 2,
+            "y": 0,
+            "items": []
+          },
+          {
+            "name": "DITTO",
+            "x": 3,
+            "y": 0,
+            "items": []
+          },
+          {
+            "name": "DITTO",
+            "x": 4,
+            "y": 0,
+            "items": []
+          },
+          {
+            "name": "MEWTWO",
+            "x": 5,
+            "y": 0,
+            "items": [],
+            "statBoosts": {
+              "hp": 500,
+              "atk": 200,
+              "def": 100,
+              "speDef": 100,
+              "ap": 200,
+              "speed": 0,
+              "luck": 0
+            }
+          }
+        ],
+        "inventory": [
+          "NEVER_MELT_ICE"
+        ],
+        "groundHoles": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "lightX": 7,
+        "lightY": 2
+      },
+      "date": "2026-06-06T12:25:20.993Z"
+    }
+  ]
+}
