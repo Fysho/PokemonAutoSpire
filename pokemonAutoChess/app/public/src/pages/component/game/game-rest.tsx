@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Transfer } from "../../../../../types"
 import { Item } from "../../../../../types/enum/Item"
@@ -23,9 +23,13 @@ interface GameRestProps {
 export default function GameRest({ runHP, choices, readOnly }: GameRestProps) {
   const { t } = useTranslation()
   const [visible, setVisible] = useState(true)
+  // Guard against double-clicks: a choice may only be submitted once. The
+  // component unmounts on phase change, resetting this for the next center.
+  const submitted = useRef(false)
 
   const handleChoice = (index: number) => {
-    if (readOnly) return
+    if (readOnly || submitted.current) return
+    submitted.current = true
     playSound(SOUNDS.BUTTON_CLICK)
     rooms.game?.send(Transfer.CHOICE, { choiceId: "rest", choiceIndex: index })
   }

@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useRef } from "react"
 import { Transfer } from "../../../../../types"
 import { getPortraitSrc } from "../../../../../utils/avatar"
 import { rooms } from "../../../network"
@@ -27,7 +27,13 @@ export default function GameEvent({
   gold,
   readOnly
 }: GameEventProps) {
+  // Guard against double-clicks: a choice may only be submitted once. The
+  // component unmounts on phase change, resetting this for the next encounter.
+  const submitted = useRef(false)
+
   const handleChoice = (index: number) => {
+    if (submitted.current) return
+    submitted.current = true
     rooms.game?.send(Transfer.CHOICE, { choiceId: "event", choiceIndex: index })
     rooms.game?.send(Transfer.SKIP_REWARD)
   }

@@ -1859,6 +1859,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     const player = this.state.players.get(playerId)
     if (!player) return
 
+    // Idempotency guard: consume the choices so spam-clicking can't claim a
+    // reward more than once before the phase advances to MAP.
+    if (this.state.spireEventChoiceLabels.length === 0) return
+    resetArraySchema(this.state.spireEventChoiceLabels, [])
+    resetArraySchema(this.state.spireEventChoiceDescs, [])
+
     if (choiceIndex === 0) {
       this.state.runHP = Math.min(100, this.state.runHP + 30)
       this.syncRunHPToPlayers()
@@ -1908,6 +1914,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     const label = (this.state.spireEventChoiceLabels[choiceIndex] ?? "").toLowerCase()
     if (!label) return
+
+    // Idempotency guard: consume the choices so spam-clicking can't trigger the
+    // same encounter reward more than once before the phase advances. Once the
+    // labels are cleared, a repeat click reads an empty label above and returns.
+    resetArraySchema(this.state.spireEventChoiceLabels, [])
+    resetArraySchema(this.state.spireEventChoiceDescs, [])
 
     if (label.includes("egg")) {
       giveRandomEgg(player)

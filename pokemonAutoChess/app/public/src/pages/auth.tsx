@@ -63,7 +63,7 @@ export default function Auth() {
           </p>
         </div>
         <a
-          href="https://discord.gg/cfytB2kA"
+          href="https://discord.gg/EXnfYhwZte"
           target="_blank"
           rel="noopener noreferrer"
           style={{

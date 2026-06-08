@@ -507,7 +507,7 @@ export default function SpireLobby() {
           </span>
         )}
         <a
-          href="https://discord.gg/cfytB2kA"
+          href="https://discord.gg/EXnfYhwZte"
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -1157,7 +1157,7 @@ function SpireLobbyContent({
         <div className="my-container custom-bg" style={{ padding: "12px 16px", fontSize: "14px", lineHeight: "1.6" }}>
           <h2>Dev Notes</h2>
           <ul style={{ paddingLeft: "20px", margin: "8px 0" }}>
-            <li>Join the <a href="https://discord.gg/cfytB2kA" target="_blank" rel="noopener noreferrer" style={{ color: "#7289da" }}>Pokemon Auto Spire Discord</a></li>
+            <li>Join the <a href="https://discord.gg/EXnfYhwZte" target="_blank" rel="noopener noreferrer" style={{ color: "#7289da" }}>Pokemon Auto Spire Discord</a></li>
             <li>Made by Fish. Join the Discord to provide feedback / suggestions / bug fixes.</li>
             <li>Server hosted in NA. Currently everything is stable.</li>
             <li>Please know that this is an early alpha.</li>
