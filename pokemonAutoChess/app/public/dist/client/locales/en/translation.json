@@ -3857,7 +3857,7 @@
   "title_label": "Title",
   "auth": {
     "pokemon_auto_chess": "Pokémon Auto Chess",
-    "mobile_warning": "This game is not adapted for mobile, play it on desktop",
+    "mobile_warning": "Playing on mobile? Add this site to your home screen for a better experience. Join the Discord for more info.",
     "nintendo_warning": "Non profit, open source. All rights to The Pokémon Company®",
     "authenticated_as": "Authenticated as",
     "hover_to_reveal": "(hover to reveal)",

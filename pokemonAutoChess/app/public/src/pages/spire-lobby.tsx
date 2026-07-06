@@ -556,6 +556,7 @@ export default function SpireLobby() {
           href="https://discord.gg/EXnfYhwZte"
           target="_blank"
           rel="noopener noreferrer"
+          className="lobby-discord-button"
           style={{
             display: "inline-flex", alignItems: "center", gap: "6px",
             padding: "8px 16px", borderRadius: "6px",
@@ -933,7 +934,104 @@ function SpireLobbyContent({
           )}
 
           {playTab === "play" && (<>
-          <ul className="room-list" style={{ padding: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
+          {/* Player identity bar (name / avatar / Home Town) — kept at the top
+              of the Play tab, above the Saved Run panel */}
+          <div className="my-box" style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", flexWrap: "wrap" }}>
+            <img
+              src={getPortraitSrc(avatarIndex)}
+              alt="avatar"
+              style={{ width: 40, height: 40, imageRendering: "pixelated" }}
+            />
+            <div style={{ flex: 1, minWidth: "100px", position: "relative" }}>
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => { setPlayerName(e.target.value); setNameWarning(false) }}
+                placeholder="Player Name"
+                maxLength={20}
+                style={{
+                  width: "100%",
+                  padding: "6px 10px",
+                  borderRadius: "4px",
+                  border: nameWarning ? "1px solid #e74c3c" : "1px solid #555",
+                  background: "rgba(0,0,0,0.3)",
+                  color: "white",
+                  fontSize: "14px",
+                  fontFamily: "inherit",
+                  boxSizing: "border-box"
+                }}
+              />
+              {nameWarning && (
+                <div style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  marginTop: "4px",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  backgroundColor: "#e74c3c",
+                  color: "white",
+                  fontSize: "12px",
+                  whiteSpace: "nowrap",
+                  zIndex: 10
+                }}>
+                  Please choose a name before starting
+                </div>
+              )}
+            </div>
+            <select
+              value={avatarPkm}
+              onChange={(e) => {
+                const val = e.target.value as Pkm
+                if (val) setAvatarPkm(val)
+              }}
+              className="pokemon-typeahead"
+              style={{ maxWidth: "180px" }}
+            >
+              <option value="" disabled>{t("search_pokemon")}</option>
+              {Object.keys(PkmIndex)
+                .filter((p) => p !== "DEFAULT" && p !== "EGG")
+                .sort((a, b) => t(`pkm.${a}` as any).localeCompare(t(`pkm.${b}` as any)))
+                .map((p) => (
+                  <option key={p} value={p}>{t(`pkm.${p}` as any)}</option>
+                ))}
+            </select>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <span style={{ fontSize: "12px", opacity: 0.7, whiteSpace: "nowrap" }}>Home Town</span>
+              <span
+                style={{
+                  position: "relative",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: "14px", height: "14px", borderRadius: "50%",
+                  border: "1px solid #888", fontSize: "10px", color: "#aaa",
+                  cursor: "pointer", flexShrink: 0
+                }}
+                className="hometown-help"
+              >
+                ?
+                <span className="hometown-help-tooltip">
+                  Your Home Town is the background shown when you start a run. If you become Champion or Elite Four, challengers will fight you here. Check the wiki for region previews. It's purely cosmetic.
+                </span>
+              </span>
+            </div>
+            <select
+              value={playerRegion}
+              onChange={(e) => setPlayerRegion(e.target.value)}
+              className="pokemon-typeahead"
+              style={{ maxWidth: "180px" }}
+            >
+              <option value="town">Default (Town)</option>
+              {Object.values(DungeonPMDO)
+                .sort((a, b) => a.localeCompare(b))
+                .map((d) => (
+                  <option key={d} value={d}>
+                    {d.replace(/([A-Z])/g, " $1").replace(/(\d+)/g, " $1").trim()}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <ul className="room-list" style={{ padding: 0, marginTop: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
             {/* Resume Run Panel */}
             <li style={{ listStyle: "none" }}>
               <div className="room-item my-box" style={{ display: "flex", flexDirection: "row", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
@@ -1140,101 +1238,6 @@ function SpireLobbyContent({
               </div>
             </li>
           </ul>
-
-          <div className="my-box" style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", flexWrap: "wrap" }}>
-            <img
-              src={getPortraitSrc(avatarIndex)}
-              alt="avatar"
-              style={{ width: 40, height: 40, imageRendering: "pixelated" }}
-            />
-            <div style={{ flex: 1, minWidth: "100px", position: "relative" }}>
-              <input
-                type="text"
-                value={playerName}
-                onChange={(e) => { setPlayerName(e.target.value); setNameWarning(false) }}
-                placeholder="Player Name"
-                maxLength={20}
-                style={{
-                  width: "100%",
-                  padding: "6px 10px",
-                  borderRadius: "4px",
-                  border: nameWarning ? "1px solid #e74c3c" : "1px solid #555",
-                  background: "rgba(0,0,0,0.3)",
-                  color: "white",
-                  fontSize: "14px",
-                  fontFamily: "inherit",
-                  boxSizing: "border-box"
-                }}
-              />
-              {nameWarning && (
-                <div style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  marginTop: "4px",
-                  padding: "4px 8px",
-                  borderRadius: "4px",
-                  backgroundColor: "#e74c3c",
-                  color: "white",
-                  fontSize: "12px",
-                  whiteSpace: "nowrap",
-                  zIndex: 10
-                }}>
-                  Please choose a name before starting
-                </div>
-              )}
-            </div>
-            <select
-              value={avatarPkm}
-              onChange={(e) => {
-                const val = e.target.value as Pkm
-                if (val) setAvatarPkm(val)
-              }}
-              className="pokemon-typeahead"
-              style={{ maxWidth: "180px" }}
-            >
-              <option value="" disabled>{t("search_pokemon")}</option>
-              {Object.keys(PkmIndex)
-                .filter((p) => p !== "DEFAULT" && p !== "EGG")
-                .sort((a, b) => t(`pkm.${a}` as any).localeCompare(t(`pkm.${b}` as any)))
-                .map((p) => (
-                  <option key={p} value={p}>{t(`pkm.${p}` as any)}</option>
-                ))}
-            </select>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <span style={{ fontSize: "12px", opacity: 0.7, whiteSpace: "nowrap" }}>Home Town</span>
-              <span
-                style={{
-                  position: "relative",
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  width: "14px", height: "14px", borderRadius: "50%",
-                  border: "1px solid #888", fontSize: "10px", color: "#aaa",
-                  cursor: "pointer", flexShrink: 0
-                }}
-                className="hometown-help"
-              >
-                ?
-                <span className="hometown-help-tooltip">
-                  Your Home Town is the background shown when you start a run. If you become Champion or Elite Four, challengers will fight you here. Check the wiki for region previews. It's purely cosmetic.
-                </span>
-              </span>
-            </div>
-            <select
-              value={playerRegion}
-              onChange={(e) => setPlayerRegion(e.target.value)}
-              className="pokemon-typeahead"
-              style={{ maxWidth: "180px" }}
-            >
-              <option value="town">Default (Town)</option>
-              {Object.values(DungeonPMDO)
-                .sort((a, b) => a.localeCompare(b))
-                .map((d) => (
-                  <option key={d} value={d}>
-                    {d.replace(/([A-Z])/g, " $1").replace(/(\d+)/g, " $1").trim()}
-                  </option>
-                ))}
-            </select>
-          </div>
 
           {/* Spire Mode — class selection. Admin-only while in development
               (server enforces the same gate in game-room.ts onCreate). */}

@@ -261,3 +261,12 @@
 .hometown-help:hover .hometown-help-tooltip {
   display: block;
 }
+
+/* The lobby's floating Discord button (bottom-right) is desktop-only —
+   on phones it overlaps the play panel and the mobile flow points users
+   to Discord via the auth-page add-to-homescreen notice instead. */
+@media (pointer: coarse) {
+  .lobby-discord-button {
+    display: none !important;
+  }
+}
