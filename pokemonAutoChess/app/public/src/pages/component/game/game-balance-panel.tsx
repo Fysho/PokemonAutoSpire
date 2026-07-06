@@ -1,6 +1,8 @@
 import React from "react"
+import { Role } from "../../../../../types"
 import { GamePhaseState } from "../../../../../types/enum/Game"
 import { useAppSelector } from "../../../hooks"
+import DraggableWindow from "../modal/draggable-window"
 import "./game-balance-panel.css"
 
 const MODE_LABELS: Record<number, string> = { 0: "Easy", 1: "Normal", 2: "Hard", 3: "Impossible" }
@@ -34,6 +36,10 @@ function getStarOffset(act: number, floor: number, mode: number): number {
 }
 
 export default function GameBalancePanel() {
+  // Admin-only balance debugging tool
+  const isAdmin = useAppSelector(
+    (state) => state.network.profile?.role === Role.ADMIN
+  )
   const phase = useAppSelector((state) => state.game.phase)
   const currentAct = useAppSelector((state) => state.game.currentAct)
   const currentFloor = useAppSelector((state) => state.game.currentFloor)
@@ -44,7 +50,8 @@ export default function GameBalancePanel() {
   const encounterTotalStars = useAppSelector((state) => state.game.encounterTotalStars)
   const encounterTotalItems = useAppSelector((state) => state.game.encounterTotalItems)
 
-  const showPanel = phase === GamePhaseState.PICK || phase === GamePhaseState.FIGHT
+  const showPanel =
+    isAdmin && (phase === GamePhaseState.PICK || phase === GamePhaseState.FIGHT)
 
   if (!showPanel) return null
 
@@ -58,30 +65,22 @@ export default function GameBalancePanel() {
   const offsetStr = offset === 0 ? "" : offset > 0 ? ` (+${offset}★)` : ` (${offset}★)`
 
   return (
-    <div className="my-container game-balance-panel" style={{
-      position: "absolute",
-      bottom: "10px",
-      right: "10px",
-      padding: "8px 12px",
-      fontSize: "12px",
-      zIndex: 200,
-      minWidth: "170px",
-      lineHeight: "1.5",
-      opacity: 0.9
-    }}>
-      <header style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: "4px" }}>
-        Balance Info
-      </header>
-      <div>Mode: <strong style={{ color: modeColor }}>{modeLabel}</strong>{offsetStr}</div>
-      <div>Act {currentAct} Floor {currentFloor}</div>
-      <div>Progress: {progress}/60</div>
-      <div style={{ marginTop: "4px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "4px" }}>
-        <div>Difficulty: <strong>{encounterDifficulty}</strong></div>
-        <div>Pokemon: {encounterPokemonCount}</div>
-        <div>Star Range: {starMin}–{starMax}</div>
-        <div>Total Stars: {encounterTotalStars}</div>
-        <div>Total Items: {encounterTotalItems}</div>
+    <DraggableWindow
+      title="Balance Info"
+      className="my-container game-balance-panel"
+    >
+      <div style={{ fontSize: "12px", lineHeight: "1.5", minWidth: "170px" }}>
+        <div>Mode: <strong style={{ color: modeColor }}>{modeLabel}</strong>{offsetStr}</div>
+        <div>Act {currentAct} Floor {currentFloor}</div>
+        <div>Progress: {progress}/60</div>
+        <div style={{ marginTop: "4px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "4px" }}>
+          <div>Difficulty: <strong>{encounterDifficulty}</strong></div>
+          <div>Pokemon: {encounterPokemonCount}</div>
+          <div>Star Range: {starMin}–{starMax}</div>
+          <div>Total Stars: {encounterTotalStars}</div>
+          <div>Total Items: {encounterTotalItems}</div>
+        </div>
       </div>
-    </div>
+    </DraggableWindow>
   )
 }

@@ -511,6 +511,11 @@ export default function Game() {
   const [announcement, setAnnouncement] = useState<string | null>(null)
   const [eliteTestResult, setEliteTestResult] = useState<EliteTestResult | null>(null)
   const [eliteTestAwaitingBegin, setEliteTestAwaitingBegin] = useState<boolean>(false)
+  // One-time prompt when first arriving in the elite-test sandbox: the room
+  // starts as an empty board, so tell the user to re-open the Elite Designer
+  // to load their design and run tests. The test room is created BEFORE
+  // navigating here, so isEliteTestActive() is already true on first render.
+  const [eliteTestWelcome, setEliteTestWelcome] = useState<boolean>(() => isEliteTestActive())
   const [finalRank, setFinalRank] = useState<number>(0)
   enum FinalRankVisibility {
     HIDDEN,
@@ -1819,6 +1824,51 @@ export default function Game() {
             >
               OK
             </button>
+          </div>
+        </div>
+      )}
+      {eliteTestWelcome && !eliteTestResult && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.55)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999
+        }}>
+          <div className="my-container" style={{
+            padding: "24px",
+            maxWidth: "440px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px"
+          }}>
+            <h3 style={{ color: "#f1c40f", margin: 0 }}>Test Mode</h3>
+            <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>
+              Welcome to the test sandbox — it starts as an empty board.
+              Open the Elite Designer again to load your design, run test
+              fights, and measure success rates.
+            </p>
+            <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+              <button
+                className="bubbly green"
+                onClick={() => {
+                  setEliteTestWelcome(false)
+                  window.dispatchEvent(new CustomEvent("open-elite-designer"))
+                }}
+              >
+                Open Elite Designer
+              </button>
+              <button
+                className="bubbly"
+                onClick={() => setEliteTestWelcome(false)}
+                style={{ backgroundColor: "#555" }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

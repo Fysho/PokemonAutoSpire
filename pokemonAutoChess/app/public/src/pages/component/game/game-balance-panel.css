@@ -1,3 +1,11 @@
+/* Base position of the draggable Balance Info window (admin-only):
+   bottom-right, above the 3em bottom HUD bar. DraggableWindow moves it
+   from here via transform. */
+#game-wrapper .game-balance-panel {
+  right: 10px;
+  bottom: 4em;
+}
+
 /* Balance info panel is desktop-only — it crowds the screen on mobile.
    Gated on pointer type, not width: wide phones in landscape (933px+) and
    tablets slip past a width breakpoint. Also keep the old width gate for
