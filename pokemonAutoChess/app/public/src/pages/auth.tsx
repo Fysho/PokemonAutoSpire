@@ -36,8 +36,8 @@ export default function Auth() {
         <div style={{ marginTop: "12px" }}>
           <button
             className="bubbly"
-            onClick={() => {
-              authenticateUser()
+            onClick={async () => {
+              await authenticateUser()
               navigate("/lobby")
             }}
             style={{ backgroundColor: "#555" }}

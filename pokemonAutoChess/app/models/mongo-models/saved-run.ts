@@ -9,6 +9,8 @@ export interface ISavedRunSummary {
   runHP: number
   teamPreview: string[]
   isEndless?: boolean
+  isSpire?: boolean
+  spireClass?: string
   runId?: string
 }
 
@@ -26,6 +28,8 @@ const savedRunSchema = new Schema<ISavedRun>(
     runHP: { type: Number, required: true },
     teamPreview: [{ type: String }],
     isEndless: { type: Boolean, default: false },
+    isSpire: { type: Boolean, default: false },
+    spireClass: { type: String, default: "" },
     runId: { type: String, default: "" },
     data: { type: Schema.Types.Mixed, required: true }
   },

@@ -59,6 +59,73 @@ export async function recordLoss(
   }
 }
 
+// Admin tool: list every victory record for a difficulty WITH its odToken so
+// the leaderboard manager can target a specific player for removal. The public
+// getVictoryLeaderboard() intentionally omits odToken. Names/avatars are
+// overlaid from UserMetadata (single source of truth) just like the public one.
+export async function getVictoryRecordsForAdmin(difficulty: number): Promise<{
+  odToken: string
+  name: string
+  avatar: string
+  totalVictories: number
+  longestStreak: number
+  currentStreak: number
+}[]> {
+  try {
+    const docs = await VictoryRecord.find({ difficulty })
+      .sort({ totalVictories: -1, longestStreak: -1 })
+      .limit(200)
+      .lean()
+    const odTokens = [...new Set(docs.map((r) => r.odToken))]
+    const accounts = await UserMetadata.find(
+      { uid: { $in: odTokens } },
+      { uid: 1, displayName: 1, avatar: 1, _id: 0 }
+    ).lean()
+    const accountMap = new Map<string, { displayName?: string; avatar?: string }>(
+      accounts.map((a: any) => [a.uid, { displayName: a.displayName, avatar: a.avatar }])
+    )
+    return docs.map((r: any) => {
+      const acc = accountMap.get(r.odToken)
+      return {
+        odToken: r.odToken,
+        name: acc?.displayName ?? r.name,
+        avatar: acc?.avatar ?? r.avatar,
+        totalVictories: r.totalVictories ?? 0,
+        longestStreak: r.longestStreak ?? 0,
+        currentStreak: r.currentStreak ?? 0
+      }
+    })
+  } catch (e) {
+    logger.error("Failed to get victory records for admin:", e)
+    return []
+  }
+}
+
+// Admin tool: delete one player's victory record for a difficulty.
+export async function removeVictoryRecord(
+  odToken: string,
+  difficulty: number
+): Promise<boolean> {
+  try {
+    const res = await VictoryRecord.deleteOne({ odToken, difficulty })
+    return (res.deletedCount ?? 0) > 0
+  } catch (e) {
+    logger.error("Failed to remove victory record:", e)
+    return false
+  }
+}
+
+// Admin tool: wipe every victory record for one difficulty.
+export async function resetVictoryRecords(difficulty: number): Promise<number> {
+  try {
+    const res = await VictoryRecord.deleteMany({ difficulty })
+    return res.deletedCount ?? 0
+  } catch (e) {
+    logger.error("Failed to reset victory records:", e)
+    return 0
+  }
+}
+
 export async function getVictoryLeaderboard(difficulty: number): Promise<{
   totalVictories: { name: string; avatar: string; value: number }[]
   longestStreak: { name: string; avatar: string; value: number }[]

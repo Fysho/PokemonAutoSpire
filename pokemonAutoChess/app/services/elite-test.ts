@@ -1,11 +1,21 @@
 import Player from "../models/colyseus-models/player"
 import { computeSynergies } from "../models/colyseus-models/synergies"
 import PokemonFactory from "../models/pokemon-factory"
+import Simulation from "../core/simulation"
 import GameState from "../rooms/states/game-state"
-import { Emotion } from "../types"
+import type GameRoom from "../rooms/game-room"
+import { Emotion, Role } from "../types"
+import { Team } from "../types/enum/Game"
 import { Item } from "../types/enum/Item"
 import { Pkm } from "../types/enum/Pokemon"
 import { Synergy } from "../types/enum/Synergy"
+import { getWeather } from "../utils/weather"
+import { logger } from "../utils/logger"
+import {
+  AsyncFightOpponent,
+  getAllAsyncOpponentsForStage
+} from "./async-fight-pool"
+import { reconstructTeamAsPlayer } from "./team-snapshot"
 
 // Structured form of an Elite Designer export (see buildExportString in
 // app/public/src/pages/component/bot-builder/elite-designer.tsx). Only the fields
@@ -124,4 +134,298 @@ export function applyEliteDesignToPlayer(
     player.synergies.set(key as Synergy, counts.get(key as Synergy) ?? 0)
   )
   player.effects.update(player.synergies, player.board)
+}
+
+// ============================================================================
+// Headless success-rate measurement
+//
+// Fights an elite design against EVERY saved endless team in the async-fight
+// pools that bracket its stage range (e.g. a stage 6-10 design fights the
+// act1-floor5 and act1-floor10 pools), stepping each Simulation in a tight
+// loop instead of on the room clock — no client rendering, real-time speed
+// irrelevant. ~200 fights complete in seconds.
+//
+// Side-effect hygiene: the simulations are never added to state.simulations
+// (nothing syncs to clients) and neither temp player gets a simulationId, so
+// Simulation.onFinish treats both as ghosts and skips life damage / battle
+// history / gold. room.broadcast is no-oped via a Proxy so ability/board-event
+// chatter from ~200 fights never reaches the connected client.
+// ============================================================================
+
+const SIM_TICK_MS = 50
+// Per-fight simulated-time cap; anything still standing on both sides is a draw.
+// Mirrors the live fight duration (FIGHTING_PHASE_DURATION = 45s) with headroom.
+const SIM_TIME_CAP_MS = 60000
+// Runaway backstop (pools are capped at 100 entries × 2 bracket stages).
+const MAX_FIGHTS_PER_MEASURE = 400
+
+export interface EliteMeasureResult {
+  stage: string
+  wins: number
+  draws: number
+  losses: number
+  sampleSize: number
+}
+
+// Maps an elite design's act + stage range to the endless async-fight pool keys
+// that bracket it. Pools only exist at floors 5/10/15/20 per act, so:
+//   1-5  → previous act floor 20 (when act > 1) + same act floor 5
+//   6-10 → floor 5 + floor 10 · 11-15 → floor 10 + floor 15 · 16-20 → floor 15 + floor 20
+export function bracketStagesForDesign(
+  act: number,
+  stageRange: string
+): string[] {
+  const m = stageRange.match(/^(\d+)-(\d+)$/)
+  if (!m) return []
+  const lo = parseInt(m[1])
+  const hi = parseInt(m[2])
+  const stages: string[] = []
+  if (lo <= 5) {
+    if (act > 1) stages.push(`act${act - 1}-floor20`)
+  } else {
+    stages.push(`act${act}-floor${lo - 1}`)
+  }
+  stages.push(`act${act}-floor${hi}`)
+  return stages
+}
+
+// Builds a temporary blue-team bot Player carrying the design's board. Fresh per
+// fight so beforeSimulationStart hooks can't accumulate state across fights.
+function buildDesignPlayer(
+  design: ParsedEliteDesign,
+  state: GameState
+): Player {
+  const player = new Player(
+    `elite-design-${crypto.randomUUID()}`,
+    design.name,
+    1200,
+    0,
+    "0019/Normal",
+    true,
+    1,
+    new Map(),
+    "",
+    Role.BOT,
+    state
+  )
+  player.team = Team.BLUE_TEAM
+  applyEliteDesignToPlayer(player, design, state)
+  return player
+}
+
+// Runs one headless fight: design (blue) vs a saved endless team (red).
+//
+// CLOCK GOTCHA: abilities/synergies/passives schedule delayed effects on
+// `simulation.room.clock` (e.g. the FIELD on-death heal, synergies.ts). A
+// headless fight completes in ~0 real time, so timers placed on the REAL room
+// clock would (a) never fire during the fight and (b) fire LATER on the live
+// clock against a torn-down simulation — `delete pokemon.simulation` in
+// sim.stop() made that a server-killing `undefined.weather` crash. So each
+// fight gets its own virtual ClockTimer, served via the room Proxy and ticked
+// in lockstep with sim.update(); leftovers are cleared in the finally.
+function runHeadlessEliteFight(
+  room: GameRoom,
+  state: GameState,
+  design: ParsedEliteDesign,
+  opponent: AsyncFightOpponent
+): "win" | "loss" | "draw" {
+  const { ClockTimer } = require("@colyseus/timer")
+  let virtualNow = 0
+  const clock = new ClockTimer(false)
+  clock.now = () => virtualNow
+  clock.start(false) // re-anchor currentTime to virtual 0
+
+  const silentRoom = new Proxy(room, {
+    get(target, key) {
+      if (key === "broadcast") return () => {}
+      if (key === "clock") return clock
+      return Reflect.get(target, key)
+    }
+  }) as GameRoom
+
+  let sim: Simulation | null = null
+  try {
+    const blue = buildDesignPlayer(design, state)
+    const red = reconstructTeamAsPlayer(opponent.snapshot, state)
+    const weather = getWeather(blue, red, red.board)
+    sim = new Simulation(
+      crypto.randomUUID(),
+      silentRoom,
+      blue,
+      red,
+      state.stageLevel,
+      weather,
+      false
+    )
+    sim.start()
+
+    let elapsed = 0
+    while (!sim.finished && elapsed < SIM_TIME_CAP_MS) {
+      sim.update(SIM_TICK_MS)
+      elapsed += SIM_TICK_MS
+      virtualNow = elapsed
+      clock.tick()
+    }
+    // update() only finishes at the START of a tick, so a kill landing exactly on
+    // the final tick before the cap needs one more check to register.
+    if (!sim.finished && (sim.blueTeam.size === 0 || sim.redTeam.size === 0)) {
+      sim.onFinish()
+    }
+
+    return sim.winnerId === blue.id
+      ? "win"
+      : sim.winnerId === red.id
+        ? "loss"
+        : "draw"
+  } finally {
+    // Drop any still-pending delayed effects BEFORE tearing the sim down, so
+    // nothing can fire against deleted references — then stop the sim.
+    clock.clear()
+    clock.stop()
+    try {
+      sim?.stop()
+    } catch {
+      // teardown errors must not mask the fight outcome
+    }
+  }
+}
+
+// One measurement at a time server-wide (CPU latch for the 2-vCPU droplet).
+let measureRunning = false
+export function isEliteMeasureRunning(): boolean {
+  return measureRunning
+}
+
+// A stand-in GameRoom for measurements triggered outside a live room (the REST
+// path — see elite-measure.ts). The ELITE_TEST room never runs startGame, so
+// its state is a virgin GameState parked in an idle PICK phase; this recreates
+// exactly that environment without Colyseus. The stub surface is the complete
+// set of `room.*` accesses reachable from a Simulation (audited via grep over
+// app/core): state.{time,shop,players,stageLevel,specialGameRule,townEncounter,
+// mapNodes,currentNodeId} — all served by the real GameState — plus broadcast /
+// clock (both overridden per fight by the runHeadlessEliteFight Proxy anyway),
+// clients, and 4 no-op methods. If a future ability touches a NEW room member,
+// add it here (a real room isn't behind the Proxy on this path to catch it).
+export function createHeadlessMeasureRoom(): GameRoom {
+  const { GameMode, GamePhaseState } = require("../types/enum/Game")
+  const { ClockTimer } = require("@colyseus/timer")
+  const state = new GameState(
+    "elite-measure",
+    "EliteMeasure",
+    true,
+    GameMode.CUSTOM_LOBBY,
+    null,
+    null,
+    null
+  )
+  // Mirror startEliteTestMode()'s idle PICK phase so fights behave identically
+  // whether measured from a test room or via REST.
+  state.phase = GamePhaseState.PICK
+  state.time = 999 * 1000
+  state.roundTime = 999
+  const stub = {
+    state,
+    clients: [] as unknown[],
+    broadcast: () => {},
+    clock: new ClockTimer(false),
+    computeRoundDamage: () => 0,
+    rankPlayers: () => {},
+    spawnOnBench: () => {},
+    checkEvolutionsAfterPokemonAcquired: () => {},
+    checkEvolutionsAfterItemAcquired: () => {}
+  }
+  return stub as unknown as GameRoom
+}
+
+// Measures a design against its bracketing pools. Yields to the event loop
+// between fights so room ticks/IO never starve. Returns one result per bracket
+// stage (sampleSize 0 when a pool is empty — "no data", not an error).
+//
+// opts.shouldAbort — checked between fights; return true to stop the batch
+//   (partial results discarded, nothing saved). The room path passes "room is
+//   empty"; the REST path passes its cancel flag. Default: never abort.
+// opts.poolCache — shared across a bulk run so designs in the same bracket
+//   don't re-fetch the same pools (see measure-all in elite-measure.ts).
+// opts.skipLatch — the caller already holds the measureRunning latch for a
+//   whole batch (measure-all); skip the per-design acquire/release.
+export async function measureEliteDesign(
+  room: GameRoom,
+  designJson: string,
+  act: number,
+  stageRange: string,
+  onProgress?: (done: number, total: number) => void,
+  opts?: {
+    shouldAbort?: () => boolean
+    poolCache?: Map<string, AsyncFightOpponent[]>
+    skipLatch?: boolean
+  }
+): Promise<EliteMeasureResult[] | { error: string }> {
+  if (!opts?.skipLatch && measureRunning) return { error: "busy" }
+  const design = parseEliteDesignExport(designJson)
+  if (!design || design.board.length === 0) return { error: "empty_design" }
+  const stages = bracketStagesForDesign(act, stageRange)
+  if (stages.length === 0) return { error: "bad_stage" }
+  const shouldAbort = opts?.shouldAbort ?? (() => false)
+
+  if (!opts?.skipLatch) measureRunning = true
+  try {
+    const pools: { stage: string; opponents: AsyncFightOpponent[] }[] = []
+    for (const stage of stages) {
+      let opponents = opts?.poolCache?.get(stage)
+      if (!opponents) {
+        opponents = await getAllAsyncOpponentsForStage(stage)
+        opts?.poolCache?.set(stage, opponents)
+      }
+      pools.push({ stage, opponents })
+    }
+    const total = Math.min(
+      pools.reduce((n, p) => n + p.opponents.length, 0),
+      MAX_FIGHTS_PER_MEASURE
+    )
+    let done = 0
+    const results: EliteMeasureResult[] = []
+    for (const pool of pools) {
+      const r: EliteMeasureResult = {
+        stage: pool.stage,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        sampleSize: 0
+      }
+      for (const opponent of pool.opponents) {
+        if (done >= MAX_FIGHTS_PER_MEASURE) break
+        // Caller-defined abort (room emptied / REST cancel) — stop the batch;
+        // partial results are discarded (nothing saved on abort).
+        if (shouldAbort()) return { error: "aborted" }
+        try {
+          const outcome = runHeadlessEliteFight(room, room.state, design, opponent)
+          if (outcome === "win") r.wins++
+          else if (outcome === "loss") r.losses++
+          else r.draws++
+          r.sampleSize++
+        } catch (e) {
+          logger.error("elite measure fight error", e)
+        }
+        done++
+        if (done % 5 === 0 || done === total) onProgress?.(done, total)
+        // Yield between fights — keeps the room update loop and IO responsive.
+        await new Promise<void>((resolve) => setImmediate(resolve))
+      }
+      results.push(r)
+    }
+    return results
+  } finally {
+    if (!opts?.skipLatch) measureRunning = false
+  }
+}
+
+// Batch-latch helpers for measure-all (elite-measure.ts): hold the server-wide
+// latch across a whole bulk run, with measureEliteDesign called skipLatch.
+export function acquireEliteMeasureLatch(): boolean {
+  if (measureRunning) return false
+  measureRunning = true
+  return true
+}
+export function releaseEliteMeasureLatch(): void {
+  measureRunning = false
 }

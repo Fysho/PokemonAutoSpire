@@ -105,6 +105,10 @@ const userMetadataSchema = new Schema({
     type: String,
     default: "town"
   },
+  tutorialCompleted: {
+    type: Boolean,
+    default: false
+  },
   spireStats: {
     type: {
       easy: {

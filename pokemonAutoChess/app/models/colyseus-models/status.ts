@@ -3,6 +3,7 @@ import { CC_COOLDOWN, FIGHTING_PHASE_DURATION, ItemStats } from "../../config"
 import type { Board } from "../../core/board"
 import { transformToIceFace } from "../../core/effects/passives"
 import type { PokemonEntity } from "../../core/pokemon-entity"
+import { Relic } from "../../core/relics"
 import {
   type IPokemonEntity,
   type ISimulation,
@@ -578,6 +579,11 @@ export default class Status extends Schema implements IStatus {
         }
         if (origin.effects.has(EffectEnum.TOXIC)) {
           maxStacks = 5
+        }
+        // Odd Mushroom relic: poison inflicted by the holder's Pokémon can
+        // stack up to twice the normal cap
+        if (origin.player?.relics?.includes(Relic.OddMushroom)) {
+          maxStacks *= 2
         }
       }
       this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)

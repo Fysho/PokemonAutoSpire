@@ -46,6 +46,8 @@ export default function GamePokemonPortrait(props: {
   onMouseEnter?: React.MouseEventHandler<HTMLDivElement>
   onMouseLeave?: React.MouseEventHandler<HTMLDivElement>
   inPlanner?: boolean
+  /** Force the detail tooltip open (touch long-press). undefined = normal hover behavior */
+  detailOpen?: boolean
 }) {
   const pokemon = useMemo(() => {
     if (typeof props.pokemon === "string") {
@@ -191,6 +193,7 @@ export default function GamePokemonPortrait(props: {
         id={`tooltip-${props.origin}-${props.index}`}
         className="custom-theme-tooltip game-pokemon-detail-tooltip"
         place="top"
+        isOpen={props.detailOpen}
       >
         <GamePokemonDetail
           key={pokemonInPortrait.id}

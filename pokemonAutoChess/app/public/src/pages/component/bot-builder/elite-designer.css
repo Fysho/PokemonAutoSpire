@@ -263,3 +263,149 @@
   gap: 4px;
   margin-top: 4px;
 }
+
+/* --- Designer / Library view tabs (elite-designer-modal) --- */
+.elite-view-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* --- Library: saved designs with success rates --- */
+.elite-library {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 75vh;
+  padding-right: 4px;
+}
+
+.elite-library-head .elite-rec-note {
+  margin: 0 0 4px;
+}
+
+.elite-library-notice {
+  color: #e74c3c;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.elite-library-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 4px 0;
+}
+
+.elite-library-filters label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.elite-library-filters select {
+  font-size: 0.95rem;
+  padding: 2px 4px;
+}
+
+.elite-library-group h4 {
+  margin: 0 0 8px;
+  border-bottom: var(--border-thin);
+  padding-bottom: 4px;
+}
+
+.elite-library-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.elite-library-row + .elite-library-row {
+  border-top: var(--border-thin);
+}
+
+.elite-library-row img,
+.elite-library-noicon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.elite-library-noicon {
+  background-color: var(--color-bg-primary);
+  border: var(--border-thin);
+}
+
+.elite-library-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.elite-library-name {
+  font-weight: bold;
+}
+
+.elite-library-creator {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.elite-library-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.8rem;
+}
+
+.elite-library-unmeasured {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.elite-library-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.elite-library-actions .bubbly.small {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+
+.elite-library-shortrate {
+  font-weight: normal;
+  font-size: 0.85em;
+  opacity: 0.85;
+  color: #f1c40f;
+}
+
+#team-builder.elite-designer .elite-save-status {
+  margin: 4px 0 0;
+}
+
+.elite-library-approvedtag {
+  font-weight: normal;
+  font-size: 0.7em;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: #27ae60;
+  color: white;
+  vertical-align: middle;
+}
+
+/* Guest gate — shown instead of the designer when not signed in */
+.elite-guest-gate {
+  padding: 2em;
+  max-width: 40em;
+  text-align: center;
+  font-size: 1.1em;
+  line-height: 1.5;
+}

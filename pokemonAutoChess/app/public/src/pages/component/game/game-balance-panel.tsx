@@ -1,6 +1,7 @@
 import React from "react"
 import { GamePhaseState } from "../../../../../types/enum/Game"
 import { useAppSelector } from "../../../hooks"
+import "./game-balance-panel.css"
 
 const MODE_LABELS: Record<number, string> = { 0: "Easy", 1: "Normal", 2: "Hard", 3: "Impossible" }
 const MODE_COLORS: Record<number, string> = { 0: "#27ae60", 1: "#f39c12", 2: "#e74c3c", 3: "#6a0dad" }
@@ -57,7 +58,7 @@ export default function GameBalancePanel() {
   const offsetStr = offset === 0 ? "" : offset > 0 ? ` (+${offset}★)` : ` (${offset}★)`
 
   return (
-    <div className="my-container" style={{
+    <div className="my-container game-balance-panel" style={{
       position: "absolute",
       bottom: "10px",
       right: "10px",

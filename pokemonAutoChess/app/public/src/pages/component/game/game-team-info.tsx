@@ -12,7 +12,8 @@ export function GameTeamInfo() {
 
   const maxTeamSize = getMaxTeamSize(
     spectatedPlayer.experienceManager.level,
-    specialGameRule
+    specialGameRule,
+    spectatedPlayer.relics
   )
 
   return (

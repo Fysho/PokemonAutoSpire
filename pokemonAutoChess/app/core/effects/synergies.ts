@@ -27,6 +27,7 @@ import { chance } from "../../utils/random"
 import { schemaValues } from "../../utils/schemas"
 import { type Board, effectInLine } from "../board"
 import { FlowerMonByPot, getFlowerPotsUnlocked } from "../flower-pots"
+import { Relic } from "../relics"
 import type { PokemonEntity } from "../pokemon-entity"
 import type Simulation from "../simulation"
 import { DelayedCommand } from "../simulation-command"
@@ -843,6 +844,14 @@ export const cloneBugs = ({
     ) {
       const clone = PokemonFactory.createPokemonFromName(clonePkm, player)
       clone.stacks = pokemonCloned.stacks
+
+      // Ring of the Serpent relic: the strongest bug's clone copies its items
+      if (
+        i === 0 &&
+        player?.relics?.includes(Relic.RingoftheSerpent)
+      ) {
+        pokemonCloned.items.forEach((item) => clone.items.add(item))
+      }
 
       const coord = simulation.getClosestFreeCellToPokemon(
         pokemonCloned,

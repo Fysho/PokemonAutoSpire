@@ -59,6 +59,7 @@ import {
   OnSpawnEffect
 } from "./effects/effect"
 import { WaterSpringEffect } from "./effects/passives"
+import { applyRelicBattleEffects } from "./relic-battle-effects"
 import {
   cloneBugs,
   electricTripleAttackEffect,
@@ -321,6 +322,11 @@ export default class Simulation extends Schema implements ISimulation {
       team === Team.BLUE_TEAM ? Orientation.UPRIGHT : Orientation.DOWNLEFT
     this.applySynergyEffects(pokemonEntity)
     this.applyItemsEffects(pokemonEntity)
+    // Spire relic battle effects — player (BLUE) team only; reconstructed
+    // Champion/E4/async opponents (RED) never carry the human's relics.
+    if (team === Team.BLUE_TEAM) {
+      applyRelicBattleEffects(pokemonEntity, this.bluePlayer)
+    }
 
     this.board.setEntityOnCell(
       pokemonEntity.positionX,

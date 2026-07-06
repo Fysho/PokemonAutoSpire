@@ -56,9 +56,11 @@ export async function getAsyncFightOpponents(
   return Array.from({ length: count }, () => buildFallbackMagikarpOpponent())
 }
 
-// Lists every stage that currently has at least one saved team, with its entry
-// count. Used by the Elite Designer test feature (stage picker) — empty stages
-// are omitted so the designer only offers stages it can actually fight against.
+// Lists every ENDLESS stage that currently has at least one saved team, with its
+// entry count. Used by the Elite Designer test feature (stage picker) — empty
+// stages are omitted so the designer only offers stages it can actually fight
+// against. The regex keeps the classic difficulty-testing archives
+// ("classic-<difficulty>-actN-floorM" keys, same collection) out of the picker.
 export async function getPopulatedAsyncStages(): Promise<
   { stage: string; count: number }[]
 > {
@@ -71,7 +73,7 @@ export async function getPopulatedAsyncStages(): Promise<
           count: { $size: { $ifNull: ["$entries", []] } }
         }
       },
-      { $match: { count: { $gt: 0 } } }
+      { $match: { count: { $gt: 0 }, stage: { $regex: /^act\d+-floor\d+$/ } } }
     ])
     return (docs as { stage: string; count: number }[]).sort((a, b) =>
       compareStages(a.stage, b.stage)
@@ -100,6 +102,23 @@ export async function getRandomAsyncOpponentNoFallback(
     logger.error("Failed to get random async opponent:", e)
   }
   return null
+}
+
+// Returns EVERY saved team for an exact stage (no fallback, no Magikarp default).
+// Used by the elite-design success-rate measurement, which fights a design against
+// the entire pool of a bracketing stage.
+export async function getAllAsyncOpponentsForStage(
+  stage: string
+): Promise<AsyncFightOpponent[]> {
+  try {
+    const doc = await AsyncFightPool.findOne({ stage }).lean()
+    if (doc && doc.entries.length > 0) {
+      return doc.entries.map(entryToOpponent)
+    }
+  } catch (e) {
+    logger.error("Failed to get all async opponents:", e)
+  }
+  return []
 }
 
 // Sorts stage keys ("act{N}-floor{M}") by act, then floor.

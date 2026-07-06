@@ -1,0 +1,115 @@
+.leaderboard-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  min-width: 540px;
+  max-width: 720px;
+}
+
+.leaderboard-manager .lbm-intro {
+  margin: 0;
+  font-size: 0.9em;
+  opacity: 0.85;
+}
+
+.leaderboard-manager .lbm-tabs,
+.leaderboard-manager .lbm-difficulties,
+.leaderboard-manager .lbm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  align-items: center;
+}
+
+.leaderboard-manager .lbm-actions {
+  margin-top: 0.25em;
+}
+
+.leaderboard-manager .lbm-status {
+  font-size: 0.85em;
+  opacity: 0.9;
+}
+
+.leaderboard-manager .lbm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 0.25em;
+}
+
+.leaderboard-manager .lbm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.5em 0.75em;
+}
+
+.leaderboard-manager .lbm-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.leaderboard-manager .lbm-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.leaderboard-manager .lbm-row-title {
+  font-weight: bold;
+}
+
+.leaderboard-manager .lbm-row-subtitle {
+  font-size: 0.82em;
+  opacity: 0.8;
+}
+
+.leaderboard-manager .lbm-team {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin-top: 0.2em;
+}
+
+.leaderboard-manager .lbm-team-portrait {
+  width: 26px;
+  height: 26px;
+}
+
+.leaderboard-manager .lbm-remove {
+  flex-shrink: 0;
+}
+
+.leaderboard-manager .lbm-empty {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.lbm-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.lbm-confirm {
+  max-width: 420px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.lbm-confirm-actions {
+  display: flex;
+  gap: 0.75em;
+  justify-content: center;
+}

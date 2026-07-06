@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
 import { toast } from "react-toastify"
 import {
-  getCurrentGameEvent,
   MinStageForGameToCount,
   RegionDetails
 } from "../../../config"
@@ -27,10 +26,10 @@ import { CloseCodes, CloseCodesMessages } from "../../../types/enum/CloseCodes"
 import { ConnectionStatus } from "../../../types/enum/ConnectionStatus"
 import { GamePhaseState, Team } from "../../../types/enum/Game"
 import { Item } from "../../../types/enum/Item"
+import { ALL_RELICS, RELICS, Relic } from "../../../core/relics"
 import { Passive } from "../../../types/enum/Passive"
 import { Pkm } from "../../../types/enum/Pokemon"
 import type { Synergy } from "../../../types/enum/Synergy"
-import { GameEvent } from "../../../types/events"
 import type { NonFunctionPropNames } from "../../../types/HelperTypes"
 import type { DisplayText } from "../../../types/strings/DisplayText"
 import type { ErrorMessage } from "../../../types/strings/ErrorMessage"
@@ -38,6 +37,7 @@ import { getAvatarString } from "../../../utils/avatar"
 import { logger } from "../../../utils/logger"
 import { schemaValues } from "../../../utils/schemas"
 import GameContainer from "../game/game-container"
+import { BoardMode } from "../game/components/board-manager"
 import type GameScene from "../game/scenes/game-scene"
 import {
   selectConnectedPlayer,
@@ -70,6 +70,9 @@ import {
   setRunHP,
   setDifficultyMode,
   setIsEndless,
+  setIsSpire,
+  setIsTutorial,
+  setSpireClass,
   setCurrentAct,
   setCurrentFloor,
   setEncounterDifficulty,
@@ -77,6 +80,8 @@ import {
   setEncounterPokemonCount,
   setEncounterTotalStars,
   setEncounterTotalItems,
+  setEncounterName,
+  setEncounterAvatar,
   setEncounterInventory,
   setEncounterGroundHoles,
   setGameSpeed,
@@ -102,14 +107,13 @@ import {
 import GameChoice from "./component/game/game-choice"
 import GameEventOverlay from "./component/game/game-event"
 import GameOpponentItems from "./component/game/game-opponent-items"
-import GameRelicBar from "./component/game/game-relic-bar"
+import GameRelicContainer from "./component/game/game-relic-container"
 import GameRunEnd from "./component/game/game-run-end"
 import GameMap from "./component/game/game-map"
 import GameRest from "./component/game/game-rest"
-import GameReward from "./component/game/game-reward"
+import GameRewardsScreen from "./component/game/game-rewards-screen"
 import GameDpsMeter from "./component/game/game-dps-meter"
 import GameExperience from "./component/game/game-experience"
-import GameExpeditions from "./component/game/game-expeditions"
 import GameFinalRank from "./component/game/game-final-rank"
 import { GameLifeInfo } from "./component/game/game-life-info"
 import GameLoadingScreen from "./component/game/game-loading-screen"
@@ -120,12 +124,14 @@ import { GameTeamInfo } from "./component/game/game-team-info"
 import GameSpectatePlayerInfo from "./component/game/game-spectate-player-info"
 import GameBalancePanel from "./component/game/game-balance-panel"
 import GameStageInfo from "./component/game/game-stage-info"
+import GameBottomBar from "./component/game/game-bottom-bar"
 import GameOpponentSynergies from "./component/game/game-opponent-synergies"
 import GameSynergies from "./component/game/game-synergies"
 import GameToasts from "./component/game/game-toasts"
+import TutorialDialog from "./component/game/tutorial-dialog"
 import { MainSidebar } from "./component/main-sidebar/main-sidebar"
 import { ConnectionStatusNotification } from "./component/system/connection-status-notification"
-import { playMusic, preloadMusic } from "./utils/audio"
+import { getMusicMode, playMusic, preloadMusic } from "./utils/audio"
 import { LocalStoreKeys, localStore } from "./utils/store"
 import { transformEntityCoordinates } from "./utils/utils"
 
@@ -266,6 +272,13 @@ function AdminGivePokemon() {
   )
 }
 
+// Search synonyms so admins can find items by a friendly name even when the
+// enum id differs (e.g. "compost" → the mulch items used to grow flower pots).
+const ITEM_SEARCH_ALIASES: Partial<Record<Item, string>> = {
+  [Item.RICH_MULCH]: "compost",
+  [Item.AMAZE_MULCH]: "compost"
+}
+
 function AdminGiveItem() {
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
@@ -274,7 +287,11 @@ function AdminGiveItem() {
   const filtered =
     trimmed.length === 0
       ? allItems
-      : allItems.filter((i) => i.toLowerCase().includes(trimmed))
+      : allItems.filter(
+          (i) =>
+            i.toLowerCase().includes(trimmed) ||
+            (ITEM_SEARCH_ALIASES[i]?.includes(trimmed) ?? false)
+        )
 
   function give(item: Item) {
     rooms.game?.send(Transfer.GIVE_ITEM, { item })
@@ -354,6 +371,100 @@ function AdminGiveItem() {
   )
 }
 
+function AdminGiveRelic() {
+  const [query, setQuery] = useState("")
+  const [open, setOpen] = useState(false)
+  const trimmed = query.trim().toLowerCase()
+  const filtered =
+    trimmed.length === 0
+      ? ALL_RELICS
+      : ALL_RELICS.filter(
+          (r) =>
+            r.toLowerCase().includes(trimmed) ||
+            RELICS[r].name.toLowerCase().includes(trimmed)
+        )
+
+  function give(relic: Relic) {
+    rooms.game?.send(Transfer.GIVE_RELIC, { relic })
+    setQuery("")
+    setOpen(false)
+  }
+
+  return (
+    <div style={{ position: "relative", width: "160px" }}>
+      <input
+        type="text"
+        value={query}
+        placeholder="Give Relic…"
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && filtered.length > 0) give(filtered[0])
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        style={{
+          width: "100%",
+          padding: "6px 8px",
+          borderRadius: "4px",
+          border: "none",
+          fontSize: "12px",
+          boxSizing: "border-box"
+        }}
+      />
+      {open && filtered.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            maxHeight: "240px",
+            overflowY: "auto",
+            background: "#2c3e50",
+            border: "1px solid #1a252f",
+            borderRadius: "4px",
+            zIndex: 400,
+            marginTop: "2px"
+          }}
+        >
+          {filtered.slice(0, 100).map((r) => (
+            <div
+              key={r}
+              onMouseDown={() => give(r)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#34495e")}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "4px 8px",
+                color: "white",
+                cursor: "pointer",
+                fontSize: "12px",
+                whiteSpace: "nowrap"
+              }}
+            >
+              <img
+                src={`/assets/relics/${r}.png`}
+                style={{ width: "20px", height: "20px", objectFit: "contain", flexShrink: 0 }}
+                onError={(e) => {
+                  ;(e.target as HTMLImageElement).style.visibility = "hidden"
+                }}
+              />
+              {RELICS[r].name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Payload of Transfer.ELITE_TEST_RESULT (see stopEliteTestFight in game-commands.ts).
 // Either an error (empty design / no saved teams for the stage) or a fight summary.
 interface EliteTestResult {
@@ -409,8 +520,6 @@ export default function Game() {
   const [finalRankVisibility, setFinalRankVisibility] =
     useState<FinalRankVisibility>(FinalRankVisibility.HIDDEN)
   const container = useRef<HTMLDivElement>(null)
-
-  const currentGameEvent = getCurrentGameEvent()
 
   const connectToGame = useCallback(
     async () => {
@@ -695,8 +804,26 @@ export default function Game() {
         setAnnouncement(message)
       })
 
+      // Tutorial: scripted dialog steps. Relayed as a window event so the
+      // TutorialDialog overlay manages its own queue outside this big component.
+      room.onMessage(
+        Transfer.TUTORIAL_DIALOG,
+        (msg: { trigger: string; steps: string[] }) => {
+          window.dispatchEvent(new CustomEvent("tutorial-dialog", { detail: msg }))
+        }
+      )
+
       room.onMessage(Transfer.ELITE_TEST_RESULT, (result: EliteTestResult) => {
         setEliteTestResult(result)
+      })
+
+      // Success-rate measurement progress/result from the elite test sandbox.
+      // Relayed as a window event so the Elite Designer library (which lives in
+      // the sidebar modal, outside this component tree) can show live progress.
+      room.onMessage(Transfer.ELITE_MEASURE_UPDATE, (update: unknown) => {
+        window.dispatchEvent(
+          new CustomEvent("elite-measure-update", { detail: update })
+        )
       })
 
       room.onMessage(Transfer.GAME_END, leave)
@@ -780,6 +907,18 @@ export default function Game() {
         dispatch(setIsEndless(value))
       })
 
+      $state.listen("isSpire", (value) => {
+        dispatch(setIsSpire(value))
+      })
+
+      $state.listen("isTutorial", (value) => {
+        dispatch(setIsTutorial(value))
+      })
+
+      $state.listen("spireClass", (value) => {
+        dispatch(setSpireClass(value))
+      })
+
       $state.listen("currentAct", (value) => {
         dispatch(setCurrentAct(value))
       })
@@ -803,6 +942,12 @@ export default function Game() {
       $state.listen("encounterTotalItems", (value) => {
         dispatch(setEncounterTotalItems(value))
       })
+      $state.listen("encounterName", (value) => {
+        dispatch(setEncounterName(value))
+      })
+      $state.listen("encounterAvatar", (value) => {
+        dispatch(setEncounterAvatar(value))
+      })
 
       const syncEncounterInventory = () => {
         dispatch(setEncounterInventory(Array.from(room.state.encounterInventory)))
@@ -817,6 +962,29 @@ export default function Game() {
       $state.encounterGroundHoles.onChange(syncEncounterGroundHoles)
       $state.encounterGroundHoles.onAdd(syncEncounterGroundHoles)
       $state.encounterGroundHoles.onRemove(syncEncounterGroundHoles)
+
+      // Re-render the board when the opponent's preview team (spireEncounterBoard)
+      // syncs. The opponent board is set and the PICK phase entered in the same
+      // server tick, so the synchronous renderBoard() in the phase listener can run
+      // before the board array is decoded (the data arrives empty) — this redraws
+      // it once the array lands. Coalesced + deferred so a multi-element patch
+      // triggers a single render after the whole patch is applied. Gated to PICK
+      // mode so it never disturbs the live battle (BATTLE) or the map (MAP).
+      let encounterBoardRenderQueued = false
+      const rerenderEncounterBoard = () => {
+        if (encounterBoardRenderQueued) return
+        encounterBoardRenderQueued = true
+        setTimeout(() => {
+          encounterBoardRenderQueued = false
+          const g = getGameScene()
+          if (g?.board && g.board.mode === BoardMode.PICK) {
+            g.board.renderBoard(false)
+          }
+        }, 0)
+      }
+      $state.spireEncounterBoard.onAdd(rerenderEncounterBoard)
+      $state.spireEncounterBoard.onChange(rerenderEncounterBoard)
+      $state.spireEncounterBoard.onRemove(rerenderEncounterBoard)
 
       $state.listen("runComplete", (value) => {
         setRunComplete(value)
@@ -977,6 +1145,20 @@ export default function Game() {
               })
             )
           })
+          // Mirror the player's items into Redux so UI that reads connectedPlayer.items
+          // (e.g. Spire reward-reroll ticket buttons) stays current. The
+          // game-container item listeners only re-render the Phaser inventory.
+          const syncItems = () =>
+            dispatch(
+              changePlayer({
+                id: player.id,
+                field: "items",
+                value: Array.from(player.items)
+              })
+            )
+          $player.items.onAdd(syncItems)
+          $player.items.onRemove(syncItems)
+          $player.items.onChange(syncItems)
         }
         $player.listen("life", (value, previousValue) => {
           dispatch(setLife({ id: player.id, value: value }))
@@ -1031,7 +1213,11 @@ export default function Game() {
         $player.listen("map", (newMap) => {
           if (player.id === store.getState().game.playerIdSpectated) {
             const gameScene = getGameScene()
-            if (gameScene) {
+            // Only auto-switch music while in "auto" mode — a jukebox pick
+            // (manual/shuffle) must survive map changes (Spire resets the map
+            // to "town" after every node, which used to clobber it back to
+            // Treasure Town).
+            if (gameScene && getMusicMode() === "auto") {
               const alreadyLoading = gameScene.load.isLoading()
               if (!alreadyLoading) {
                 gameScene.load.reset()
@@ -1201,6 +1387,46 @@ export default function Game() {
   const money = useAppSelector((state) => state.game.money)
   const difficultyMode = useAppSelector((state) => state.game.difficultyMode)
   const isEndless = useAppSelector((state) => state.game.isEndless)
+  const isSpire = useAppSelector((state) => state.game.isSpire)
+  const isTutorial = useAppSelector((state) => state.game.isTutorial)
+  // Tutorial: the "this is your run map" prompt should appear only once the map
+  // is actually opened (via "Continue to Map"), not while the starter picker is up.
+  const tutorialMapIntroShown = useRef<boolean>(false)
+  const openMap = useCallback(() => {
+    setMapHidden(false)
+    if (isTutorial && !tutorialMapIntroShown.current) {
+      tutorialMapIntroShown.current = true
+      window.dispatchEvent(
+        new CustomEvent("tutorial-dialog", {
+          detail: {
+            trigger: "map_intro",
+            steps: ["tutorial.wild_intro", "tutorial.region_synergies"]
+          }
+        })
+      )
+    }
+  }, [isTutorial])
+
+  // Tutorial: show the welcome prompt the moment the starter picker appears, so
+  // the (blocking) prompt is up before the player can choose a starter.
+  const tutorialWelcomeShown = useRef<boolean>(false)
+  useEffect(() => {
+    if (
+      isTutorial &&
+      !tutorialWelcomeShown.current &&
+      connectedPlayer?.choices?.some((c: any) => c.type === "starter")
+    ) {
+      tutorialWelcomeShown.current = true
+      window.dispatchEvent(
+        new CustomEvent("tutorial-dialog", {
+          detail: {
+            trigger: "start",
+            steps: ["tutorial.welcome", "tutorial.pick_starter"]
+          }
+        })
+      )
+    }
+  }, [isTutorial, connectedPlayer])
   const arceusDamageDealt = useAppSelector((state) => state.game.arceusDamageDealt)
   const isNewArceusRecord = useAppSelector((state) => state.game.isNewArceusRecord)
   const previousArceusRecord = useAppSelector((state) => state.game.previousArceusRecord)
@@ -1216,6 +1442,11 @@ export default function Game() {
   return (
     <main id="game-wrapper" onContextMenu={(e) => e.preventDefault()}>
       <div id="game" ref={container}></div>
+      <div id="rotate-device-overlay">
+        <div className="rotate-device-icon">📱</div>
+        <p>Rotate your device</p>
+        <span>Pokemon Auto Spire plays in landscape</span>
+      </div>
       {loaded ? (
         <>
           <MainSidebar page="game" leave={leave} leaveLabel={t("leave_game")} />
@@ -1237,7 +1468,7 @@ export default function Game() {
               Spectating
             </div>
           )}
-          <GameRelicBar items={Array.from((isSpectator ? spectatedPlayer : connectedPlayer)?.items ?? [])} />
+          <GameRelicContainer relics={Array.from((isSpectator ? spectatedPlayer : connectedPlayer)?.relics ?? [])} />
           <GameOpponentItems />
           {(runComplete || runFailed) && (() => {
             const history = Array.from(connectedPlayer?.history ?? [])
@@ -1292,7 +1523,7 @@ export default function Game() {
               isEndless={isEndless}
               onHide={() => setMapHidden(true)}
               readOnly={spectate || (!isMapPhase && (connectedPlayer?.choices?.length ?? 0) > 0)}
-              showRerollMap={!spectate && (connectedPlayer?.choices?.some((c: any) => c.type === "starter") ?? false)}
+              showRerollMap={!spectate && !isSpire && (connectedPlayer?.choices?.some((c: any) => c.type === "starter") ?? false)}
               hasChoicesPending={(connectedPlayer?.choices?.length ?? 0) > 0}
               isMapPhase={isMapPhase}
               isAdmin={isAdmin}
@@ -1322,9 +1553,7 @@ export default function Game() {
               readOnly={spectate}
             />
           )}
-          {isRewardPhase && (
-            <GameReward runHP={runHP} gold={money} />
-          )}
+          {isRewardPhase && <GameRewardsScreen />}
           {!spectate && !runComplete && !runFailed && isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
             <div style={{
               position: "absolute",
@@ -1334,7 +1563,7 @@ export default function Game() {
               zIndex: 50
             }}>
               <button
-                onClick={() => setMapHidden(false)}
+                onClick={openMap}
                 style={{
                   padding: "8px 24px",
                   fontSize: "16px",
@@ -1372,6 +1601,33 @@ export default function Game() {
                 }}
               >
                 Start Fight
+              </button>
+            </div>
+          )}
+          {!spectate && phase === GamePhaseState.PICK && isEliteTestActive() && !eliteTestAwaitingBegin && (
+            <div style={{
+              position: "absolute",
+              bottom: "170px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 50
+            }}>
+              <button
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent("open-elite-designer"))
+                }
+                style={{
+                  padding: "8px 24px",
+                  fontSize: "16px",
+                  borderRadius: "6px",
+                  border: "2px solid #fff",
+                  background: "#2ecc71",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }}
+              >
+                Open Elite Designer
               </button>
             </div>
           )}
@@ -1434,19 +1690,21 @@ export default function Game() {
               </button>
             </div>
           )}
-          {!isBoardHidden && <GameStageInfo />}
+          {!isBoardHidden && <GameStageInfo onLeave={() => setShowLeaveConfirm(true)} />}
+          {!isBoardHidden && <GameBottomBar onShowMap={mapVersion > 0 ? () => setMapHidden(false) : undefined} />}
           {!isBoardHidden && <GameSynergies />}
           {!isBoardHidden && <GameOpponentSynergies />}
-          {!isBoardHidden && <GameShop onShowMap={mapHidden && mapVersion > 0 ? () => setMapHidden(false) : undefined} />}
-          <GameChoice />
+          {!isBoardHidden && <GameShop />}
+          {!isRewardPhase && <GameChoice />}
           <GameBalancePanel />
           <GameDpsMeter />
           <GameToasts />
+          <TutorialDialog onExit={leave} />
+          {isAdmin && !spectate && (
           <div style={{
             position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
             display: "flex", flexDirection: "column", gap: "8px", zIndex: 300
           }}>
-            {isAdmin && !spectate && (
               <>
                 <button
                   onClick={() => { setRunComplete(true); setEliteFourAvailable(true) }}
@@ -1488,6 +1746,7 @@ export default function Game() {
                 </button>
                 <AdminGivePokemon />
                 <AdminGiveItem />
+                <AdminGiveRelic />
                 <button
                   onClick={() => rooms.game?.send(Transfer.ADMIN_HEAL)}
                   style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
@@ -1524,15 +1783,8 @@ export default function Game() {
                   Reset E4/Champion
                 </button>
               </>
-            )}
-            <button
-              onClick={() => setShowLeaveConfirm(true)}
-              style={{ padding: "6px 12px", background: "#e74c3c", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
-            >
-              Leave Game
-            </button>
           </div>
-          {currentGameEvent === GameEvent.EXPEDITIONS && !spectate && <GameExpeditions />}
+          )}
         </>
       ) : (
         <GameLoadingScreen connectError={connectError} />

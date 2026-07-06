@@ -22,6 +22,7 @@ import EliteDesignerModal from "../bot-builder/elite-designer-modal"
 import PokemonCollection from "../collection/pokemon-collection"
 import Jukebox from "../jukebox/jukebox"
 import HowToPlay from "../how-to-play/how-to-play"
+import LeaderboardManager from "../leaderboard-manager/leaderboard-manager"
 import { Modal } from "../modal/modal"
 import ModerationPanel from "../moderation/moderation-panel"
 import GameOptionsModal from "../options/game-options-modal"
@@ -61,6 +62,25 @@ export function MainSidebar(props: MainSidebarProps) {
   const profile = useAppSelector((state) => state.network.profile)
   const profileLevel = profile?.level ?? 0
   const [preferences] = usePreferences()
+
+  // Redux `profile.role` is only populated inside a game; in the lobby it's
+  // unset, so admin-only sidebar items need a direct role lookup (same pattern
+  // as spire-lobby / elite-library). Falls back to the Redux role in-game.
+  const uid = useAppSelector((state) => state.network.uid)
+  const [isAdmin, setIsAdmin] = useState(false)
+  useEffect(() => {
+    if (profile?.role === Role.ADMIN) {
+      setIsAdmin(true)
+      return
+    }
+    if (!uid || uid === "local-player") return
+    fetch(`/api/user-role/${uid}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.role === Role.ADMIN) setIsAdmin(true)
+      })
+      .catch(() => {})
+  }, [uid, profile?.role])
 
   const { isNewPatch, updateVersionChecked } = usePatchVersion()
 
@@ -247,11 +267,21 @@ export function MainSidebar(props: MainSidebarProps) {
 
         {profileLevel >= GADGETS.team_planner.levelRequired && (
           <NavLink
-            svg="team-builder"
+            svg="elite-planner"
             location="elite-designer"
             handleClick={changeModal}
           >
             {t("elite_designer")}
+          </NavLink>
+        )}
+
+        {isAdmin && (
+          <NavLink
+            svg="leaderboard"
+            location="leaderboard-manager"
+            handleClick={changeModal}
+          >
+            Leaderboard Manager
           </NavLink>
         )}
 
@@ -358,7 +388,7 @@ export function MainSidebar(props: MainSidebarProps) {
           <NavLink
             svg="discord"
             className="discord"
-            onClick={() => window.open(process.env.DISCORD_SERVER, "_blank")}
+            onClick={() => window.open("https://discord.gg/EXnfYhwZte", "_blank")}
           >
             Discord
           </NavLink>
@@ -461,6 +491,7 @@ export type Modals =
   | "jukebox"
   | "keybinds"
   | "how-to-play"
+  | "leaderboard-manager"
   | "news"
   | "options"
   | "pokeguesser"
@@ -579,6 +610,13 @@ function Modals({
       </Modal>
       <Modal onClose={closeModal} show={modal === "admin"} header="Admin">
         <AdminPanel />
+      </Modal>
+      <Modal
+        onClose={closeModal}
+        show={modal === "leaderboard-manager"}
+        header="Leaderboard Manager"
+      >
+        <LeaderboardManager />
       </Modal>
       <Jukebox show={modal === "jukebox"} handleClose={closeModal} />
       <PokeGuesser show={modal === "pokeguesser"} handleClose={closeModal} />

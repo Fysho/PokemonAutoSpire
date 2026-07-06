@@ -35,6 +35,7 @@
    top act/stage bar, bottom level-up + map bar, and the reward/pick panel.
    Default colours preserved; tune the 80%. */
 #game-stage-info,
+#game-bottom-bar,
 .game-shop,
 .game-choice > .my-container {
   background-color: color-mix(in srgb, var(--color-bg-primary) 80%, transparent);

@@ -49,9 +49,37 @@ export default class ItemsContainer extends GameObjects.Container {
     const items = schemaValues(inventory)
 
     this.items = []
-    items
-      .sort((a, b) => this.getOrderPriority(b) - this.getOrderPriority(a))
-      .forEach((item, i) => {
+    const sorted = items.sort(
+      (a, b) => this.getOrderPriority(b) - this.getOrderPriority(a)
+    )
+
+    if (this.pokemonId === null) {
+      // Player inventory: stack identical items into a single icon with a
+      // count badge. Map preserves insertion order, so sort order is kept.
+      const stacks = new Map<Item, number>()
+      sorted.forEach((item) => {
+        this.items.push(item)
+        stacks.set(item, (stacks.get(item) ?? 0) + 1)
+      })
+      let i = 0
+      stacks.forEach((count, item) => {
+        const x = -1 * itemSize * Math.floor(i / ITEMS_PER_COLUMN)
+        const y = (i % ITEMS_PER_COLUMN) * itemSize
+        const container = new ItemContainer(
+          this.scene,
+          x,
+          y,
+          item,
+          this.pokemonId,
+          this.playerId
+        )
+        container.setStackCount(count)
+        this.add(container)
+        i++
+      })
+    } else {
+      // Pokemon held items: always rendered individually
+      sorted.forEach((item, i) => {
         this.items.push(item)
         const x = -1 * itemSize * Math.floor(i / ITEMS_PER_COLUMN)
         const y = (i % ITEMS_PER_COLUMN) * itemSize
@@ -66,6 +94,7 @@ export default class ItemsContainer extends GameObjects.Container {
           )
         )
       })
+    }
   }
 
   getOrderPriority(item: Item): number {

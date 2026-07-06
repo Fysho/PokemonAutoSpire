@@ -139,7 +139,10 @@ export enum Transfer {
   TEST_ELITE_DESIGN = "TEST_ELITE_DESIGN",
   BEGIN_ELITE_TEST = "BEGIN_ELITE_TEST",
   ELITE_TEST_RESULT = "ELITE_TEST_RESULT",
+  MEASURE_ELITE_DESIGN = "MEASURE_ELITE_DESIGN",
+  ELITE_MEASURE_UPDATE = "ELITE_MEASURE_UPDATE",
   SKIP_REWARD = "SKIP_REWARD",
+  SKIP_ALL_REWARDS = "SKIP_ALL_REWARDS",
   REROLL_REWARD = "REROLL_REWARD",
   REROLL_ELITE_REWARD = "REROLL_ELITE_REWARD",
   REROLL_STARTER = "REROLL_STARTER",
@@ -156,10 +159,13 @@ export enum Transfer {
   GIVE_DITTO = "GIVE_DITTO",
   GIVE_POKEMON = "GIVE_POKEMON",
   GIVE_ITEM = "GIVE_ITEM",
+  GIVE_RELIC = "GIVE_RELIC",
+  USE_REWARD_TICKET = "USE_REWARD_TICKET",
   GIVE_GOLD = "GIVE_GOLD",
   SELL_ITEM = "SELL_ITEM",
   ADMIN_TELEPORT_NODE = "ADMIN_TELEPORT_NODE",
-  SERVER_ANNOUNCEMENT = "SERVER_ANNOUNCEMENT"
+  SERVER_ANNOUNCEMENT = "SERVER_ANNOUNCEMENT",
+  TUTORIAL_DIALOG = "TUTORIAL_DIALOG"
 }
 
 export enum ReadWriteMode {
@@ -286,6 +292,7 @@ export interface IPlayer {
   opponentTitle: Title | "WILD" | ""
   boardSize: number
   items: ArraySchema<Item>
+  relics: ArraySchema<string>
   scarvesItems: ArraySchema<Item>
   fairyWands: ArraySchema<Item>
   rank: number
@@ -653,6 +660,8 @@ export interface IGameMetadata {
   tournamentId: string | null
   bracketId: string | null
   difficultyMode?: number
+  isEndless?: boolean
+  isEliteTest?: boolean
   currentAct?: number
   currentFloor?: number
   runHP?: number

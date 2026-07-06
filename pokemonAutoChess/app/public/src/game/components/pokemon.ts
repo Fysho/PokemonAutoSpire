@@ -130,6 +130,10 @@ export default class PokemonSprite extends DraggableObject {
   floatingTween?: Phaser.Tweens.Tween
   troopers?: PokemonSprite[]
   isTeleporting: boolean = false
+  /** Long-press timer for showing stats on touch devices (mirrors right-click). */
+  private longPressTimer?: Phaser.Time.TimerEvent
+  private longPressStartX = 0
+  private longPressStartY = 0
 
   constructor(
     scene: GameScene | DebugScene,
@@ -396,6 +400,36 @@ export default class PokemonSprite extends DraggableObject {
     }
   }
 
+  /**
+   * Long-press (touch) opens the stats detail, mirroring desktop right-click.
+   * The timer is cancelled if the finger moves beyond a small tolerance (so a
+   * drag never triggers the detail) or lifts early, and ignored entirely if a
+   * drag has started. */
+  private startLongPress(pointer: Phaser.Input.Pointer) {
+    this.cancelLongPress()
+    this.longPressStartX = pointer.x
+    this.longPressStartY = pointer.y
+    this.longPressTimer = this.scene.time.delayedCall(450, () => {
+      this.longPressTimer = undefined
+      // Ignore if the pointer has since started dragging this pokemon, or the
+      // finger has moved/wandered off the sprite, or a detail is already open.
+      if (this.detail) return
+      if (isGameScene(this.scene) && this.scene.pokemonDragged === this) return
+      const dx = pointer.x - this.longPressStartX
+      const dy = pointer.y - this.longPressStartY
+      if (dx * dx + dy * dy > 64) return // ~8px movement tolerance
+      if (!pointer.isDown) return
+      this.openDetail()
+    })
+  }
+
+  private cancelLongPress() {
+    if (this.longPressTimer) {
+      this.longPressTimer.remove()
+      this.longPressTimer = undefined
+    }
+  }
+
   openDetail() {
     if (!isGameScene(this.scene)) return
     this.scene.closeTooltips()
@@ -437,10 +471,22 @@ export default class PokemonSprite extends DraggableObject {
     if (pointer.leftButtonDown() && !this.inBattle) {
       this.emoteAnimation()
     }
+    // Touch devices have no right-click — start a long-press timer that opens
+    // the stats detail instead. Cancelled on pointer up/out/move/dragstart.
+    // (wasTouch is Phaser's "did this event come from a touch" flag; there is
+    // no Pointer.touch property, which is why this never fired before.)
+    if (
+      pointer.wasTouch &&
+      this.shouldShowTooltip &&
+      !this.detail
+    ) {
+      this.startLongPress(pointer)
+    }
   }
 
   onPointerUp(): void {
     super.onPointerUp()
+    this.cancelLongPress()
     if (
       this.shouldShowTooltip &&
       preference("showDetailsOnHover") &&
@@ -452,6 +498,7 @@ export default class PokemonSprite extends DraggableObject {
 
   onPointerOut(): void {
     super.onPointerOut()
+    this.cancelLongPress()
     if (this.shouldShowTooltip && preference("showDetailsOnHover")) {
       this.closeDetail()
     }

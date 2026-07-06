@@ -106,6 +106,16 @@ export function getEndlessLeaderboardForClient(): {
   }))
 }
 
+// Admin tool: remove a single record by its index (rank) in the top-5 list.
+export function removeEndlessRecord(index: number): boolean {
+  const lb = loadEndlessLeaderboard()
+  if (index < 0 || index >= lb.records.length) return false
+  lb.records.splice(index, 1)
+  saveEndlessLeaderboard(lb)
+  logger.info(`Admin removed endless record #${index + 1}`)
+  return true
+}
+
 export function resetEndlessLeaderboard(): void {
   try {
     if (fs.existsSync(DATA_FILE)) fs.unlinkSync(DATA_FILE)

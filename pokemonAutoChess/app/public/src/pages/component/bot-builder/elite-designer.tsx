@@ -55,6 +55,10 @@ export interface EliteDesign {
   // How many options to draw at random from each pool per fight (pick 1).
   winRewardsShown: number
   lossRewardsShown: number
+  // Library entry this design was loaded from / saved to (own entries only).
+  // Editor-side tracking only — never part of the export string. When set, the
+  // save button becomes "Update Library" and a "Create New" button appears.
+  libraryId?: string
 }
 
 export const DEFAULT_ELITE_DESIGN: EliteDesign = {
@@ -239,6 +243,10 @@ export default function EliteDesigner(props: {
   })
   const [selectedPokemon, setSelectedPokemon] = useState<IDetailledPokemon>()
   const [copied, setCopied] = useState(false)
+  const uid = useAppSelector((state) => state.network.uid)
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error" | "full" | "taken" | "missing" | "invalid"
+  >("idle")
   // The reward option currently being edited (picker/item clicks route to it).
   const [activeReward, setActiveReward] = useState<{
     set: "winRewards" | "lossRewards"
@@ -507,6 +515,60 @@ export default function EliteDesigner(props: {
       },
       () => {}
     )
+  }
+
+  // --- save to library ---
+  // With design.libraryId set (loaded from / previously saved to the library),
+  // "Update Library" overwrites that entry in place and "Create New" makes a
+  // separate entry (needs a unique name). Without it, "Save to Library" creates
+  // one and remembers its id so subsequent saves become updates.
+  async function saveToLibrary(asNew: boolean) {
+    if (saveState === "saving") return
+    setSaveState("saving")
+    try {
+      const res = await fetch("/api/elite-designs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: uid || "local-player",
+          design: exportString,
+          id: asNew ? undefined : design.libraryId
+        })
+      })
+      const body = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setSaveState("saved")
+        if (body?.id && body.id !== design.libraryId) {
+          updateDesign({ ...design, libraryId: body.id })
+        }
+      } else {
+        // Server-side content validation codes (crafted/corrupted imports —
+        // the designer UI itself can't produce these).
+        const invalidCodes = [
+          "invalid_pokemon",
+          "bad_position",
+          "bad_items",
+          "bad_stats",
+          "bad_rewards",
+          "board_too_large",
+          "bad_stage"
+        ]
+        setSaveState(
+          body?.error === "library_full"
+            ? "full"
+            : body?.error === "name_taken"
+              ? "taken"
+              : body?.error === "not_found"
+                ? "missing"
+                : invalidCodes.includes(body?.error)
+                  ? "invalid"
+                  : "error"
+        )
+      }
+    } catch {
+      setSaveState("error")
+    }
+    setTimeout(() => setSaveState("idle"), 2500)
   }
 
   function importFromPrompt() {
@@ -790,7 +852,48 @@ export default function EliteDesigner(props: {
             <button className="bubbly dark" onClick={importFromPrompt}>
               {t("elite_designer_import")}
             </button>
+            <button
+              className="bubbly green"
+              onClick={() => saveToLibrary(false)}
+              disabled={board.length === 0 || saveState === "saving"}
+              title={
+                board.length === 0
+                  ? "Place some Pokémon first"
+                  : design.libraryId
+                    ? "Overwrite the library entry this design was loaded from (changing an approved design's content clears its approval — an admin must re-approve)"
+                    : "Save to the shared library (Library tab) for success-rate measurement"
+              }
+            >
+              {design.libraryId ? "Update Library" : "Save to Library"}
+            </button>
+            {design.libraryId && (
+              <button
+                className="bubbly dark"
+                onClick={() => saveToLibrary(true)}
+                disabled={board.length === 0 || saveState === "saving"}
+                title="Save as a separate new library entry (give it a different name first)"
+              >
+                Create New
+              </button>
+            )}
           </div>
+          {saveState !== "idle" && (
+            <p className="elite-rec-note elite-save-status">
+              {saveState === "saving"
+                ? "Saving…"
+                : saveState === "saved"
+                  ? "Saved to library ✓"
+                  : saveState === "taken"
+                    ? "Name already used — rename the design first"
+                    : saveState === "full"
+                      ? "Library full (50 designs max)"
+                      : saveState === "missing"
+                        ? "Original entry was deleted — use Create New"
+                        : saveState === "invalid"
+                          ? "Design contains invalid data (Pokémon, items, positions, stats or stage) — re-import or rebuild it"
+                          : "Save failed"}
+            </p>
+          )}
           <p className="elite-rec-note">{t("elite_designer_export_hint")}</p>
         </div>
 
@@ -816,16 +919,10 @@ function formatStageLabel(s: string): string {
   return m ? `Act ${m[1]} · Floor ${m[2]}` : s
 }
 
-// "Test vs Endless Team" controls. Lets the user load a dedicated sandbox room
-// (Enter Test Mode), pick which endless stage's saved player teams to fight, and
-// run an AI-vs-AI test of the current design against a random team from that
-// stage. The fight is watched in the game view (this modal closes on Test) and a
-// result summary popup is shown by game.tsx.
-function EliteTestControls(props: {
-  design: EliteDesign
-  onRequestClose?: () => void
-}) {
-  const { design, onRequestClose } = props
+// Tab-row button (rendered next to Designer/Library in elite-designer-modal)
+// that creates and joins the elite test sandbox room. Disabled when already in
+// test mode or mid-run.
+export function EnterTestModeTab(props: { onRequestClose?: () => void }) {
   const navigate = useNavigate()
   const uid = useAppSelector((state) => state.network.uid)
   // NEVER use state.network.displayName here — that is the Firebase/Google auth
@@ -835,12 +932,76 @@ function EliteTestControls(props: {
     (state) => state.network.profile?.displayName
   )
   const avatar = useAppSelector((state) => state.network.profile?.avatar)
+  const [entering, setEntering] = useState(false)
+
+  const inTestRoom = isEliteTestActive()
+  const inOtherRoom = !!rooms.game && !inTestRoom
+
+  async function enterTestMode() {
+    if (entering || inTestRoom || inOtherRoom) return
+    setEntering(true)
+    try {
+      // In-game username, resolved like spire-lobby: DB-backed SPIRE_PLAYER_NAME
+      // wins, the "Username"/"Player" placeholders count as unset, then the
+      // profile name, then a generic fallback. Never the Google account name.
+      const localName = localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME)
+      const inGameName =
+        (typeof localName === "string" &&
+          localName.trim() &&
+          localName !== "Username" &&
+          localName !== "Player" &&
+          localName.trim()) ||
+        profileName ||
+        "EliteTester"
+      await createEliteTestRoom({
+        uid: uid || "local-player",
+        displayName: inGameName,
+        avatar: avatar || "0019/Normal"
+      })
+      props.onRequestClose?.()
+      navigate("/game")
+    } catch (e) {
+      setEntering(false)
+    }
+  }
+
+  return (
+    <button
+      className={`bubbly ${inTestRoom ? "green" : "orange"}`}
+      onClick={enterTestMode}
+      disabled={entering || inTestRoom || inOtherRoom}
+      title={
+        inTestRoom
+          ? "You are already in test mode"
+          : inOtherRoom
+            ? "Test mode is unavailable during a run"
+            : "Load a sandbox room so you can test fights and measure designs without starting a run"
+      }
+    >
+      {inTestRoom
+        ? "In Test Mode ✓"
+        : entering
+          ? "Loading…"
+          : "Enter Test Mode"}
+    </button>
+  )
+}
+
+// "Test vs Endless Team" controls: pick which endless stage's saved player
+// teams to fight and run an AI-vs-AI test of the current design against a
+// random team from that stage. Requires being in the test sandbox (see
+// EnterTestModeTab in the modal's tab row). The fight is watched in the game
+// view (this modal closes on Test) and a result popup is shown by game.tsx.
+function EliteTestControls(props: {
+  design: EliteDesign
+  onRequestClose?: () => void
+}) {
+  const { design, onRequestClose } = props
 
   const [stages, setStages] = useState<{ stage: string; count: number }[]>([])
   const [stage, setStage] = useState<string>(
     () => localStore.get(LocalStoreKeys.ELITE_TEST_STAGE) ?? ""
   )
-  const [entering, setEntering] = useState(false)
 
   const inTestRoom = isEliteTestActive()
   const inOtherRoom = !!rooms.game && !inTestRoom
@@ -866,34 +1027,6 @@ function EliteTestControls(props: {
   useEffect(() => {
     if (stage) localStore.set(LocalStoreKeys.ELITE_TEST_STAGE, stage)
   }, [stage])
-
-  async function enterTestMode() {
-    if (entering) return
-    setEntering(true)
-    try {
-      // In-game username, resolved like spire-lobby: DB-backed SPIRE_PLAYER_NAME
-      // wins, the "Username"/"Player" placeholders count as unset, then the
-      // profile name, then a generic fallback. Never the Google account name.
-      const localName = localStore.get(LocalStoreKeys.SPIRE_PLAYER_NAME)
-      const inGameName =
-        (typeof localName === "string" &&
-          localName.trim() &&
-          localName !== "Username" &&
-          localName !== "Player" &&
-          localName.trim()) ||
-        profileName ||
-        "EliteTester"
-      await createEliteTestRoom({
-        uid: uid || "local-player",
-        displayName: inGameName,
-        avatar: avatar || "0019/Normal"
-      })
-      onRequestClose?.()
-      navigate("/game")
-    } catch (e) {
-      setEntering(false)
-    }
-  }
 
   function runTest() {
     if (!inTestRoom || !stage || design.board.length === 0) return
@@ -927,31 +1060,22 @@ function EliteTestControls(props: {
           ))}
         </select>
       </label>
-      {!inTestRoom ? (
-        <button
-          className="bubbly blue"
-          onClick={enterTestMode}
-          disabled={entering}
-          title="Load a sandbox room so you can test fights without starting a run"
-        >
-          {entering ? "Loading…" : "Enter Test Mode"}
-        </button>
-      ) : (
-        <button
-          className="bubbly green"
-          onClick={runTest}
-          disabled={!stage || design.board.length === 0}
-          title={
-            design.board.length === 0
+      <button
+        className="bubbly green"
+        onClick={runTest}
+        disabled={!inTestRoom || !stage || design.board.length === 0}
+        title={
+          !inTestRoom
+            ? "Enter Test Mode first (button at the top of this window)"
+            : design.board.length === 0
               ? "Place some Pokémon first"
               : !stage
                 ? "No endless stage with saved teams"
                 : "Fight a random saved team from the selected stage"
-          }
-        >
-          ▶ Test
-        </button>
-      )}
+        }
+      >
+        ▶ Test
+      </button>
     </span>
   )
 }

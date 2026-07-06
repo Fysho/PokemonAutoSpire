@@ -72,6 +72,15 @@ export default class GameState extends Schema {
   @type("boolean") championChallenged: boolean = false
   @type("boolean") arceusChallenged: boolean = false
   @type("boolean") isEndless: boolean = false
+  // Spire mode: a third run mode (alongside classic + endless). 16-floor acts,
+  // class + starting relic, relic rewards, ends at Act 3 (no Elite Four/Arceus),
+  // its own difficulty curve. `spireClass` is the chosen SpireClass id.
+  @type("boolean") isSpire: boolean = false
+  @type("string") spireClass: string = ""
+  // Tutorial mode: a fully-scripted single-act run (normal-mode ruleset) with a
+  // fixed map and guided dialog at each stage. Never saved/resumed, never counted
+  // toward stats/leaderboards. Gated by `isTutorial`.
+  @type("boolean") isTutorial: boolean = false
   // Elite Designer test sandbox: true while both teams are staged on the board in a
   // preview (PICK) and waiting for the player to press "Begin" to start the fight.
   @type("boolean") eliteTestAwaitingBegin: boolean = false
@@ -82,6 +91,7 @@ export default class GameState extends Schema {
   @type("uint8") encounterTotalStars: number = 0
   @type("uint8") encounterTotalItems: number = 0
   @type("string") encounterName: string = ""
+  @type("string") encounterAvatar: string = ""
   @type(["string"]) encounterInventory = new ArraySchema<string>()
   // Gold the snapshot opponent (Elite Four / Champion / async) held — shown to the
   // player and used by gold-scaling effects on the reconstructed team. 0 for PVE.

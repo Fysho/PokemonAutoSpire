@@ -385,7 +385,7 @@ const UNIQUE_ELITE_ENCOUNTERS: UnlockEncounterTemplate[] = [
 const HATCH_BASES: Pkm[] = [
   Pkm.TYMPOLE, Pkm.AXEW, Pkm.DREEPY, Pkm.SNIVY, Pkm.SCORBUNNY,
   Pkm.POPPLIO, Pkm.GOTHITA, Pkm.ROWLET, Pkm.FROAKIE, Pkm.TEPIG,
-  Pkm.GRUBBIN, Pkm.SCATTERBUG
+  Pkm.GRUBBIN, Pkm.SCATTERBUG, Pkm.SANDILE
 ]
 
 const HATCH_EVOLUTIONS: Partial<Record<Pkm, Pkm>> = {
@@ -400,7 +400,8 @@ const HATCH_EVOLUTIONS: Partial<Record<Pkm, Pkm>> = {
   [Pkm.FROAKIE]: Pkm.FROGADIER,
   [Pkm.TEPIG]: Pkm.PIGNITE,
   [Pkm.GRUBBIN]: Pkm.CHARJABUG,
-  [Pkm.SCATTERBUG]: Pkm.SPEWPA
+  [Pkm.SCATTERBUG]: Pkm.SPEWPA,
+  [Pkm.SANDILE]: Pkm.KROKOROK
 }
 
 const HATCH_UNLOCK_ENCOUNTERS: UnlockEncounterTemplate[] = HATCH_BASES.map(pkm => ({
@@ -559,7 +560,8 @@ interface DifficultyConfig {
   useCraftedItems: boolean
 }
 
-function getDifficultyConfig(act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false): DifficultyConfig {
+function getDifficultyConfig(act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false, isSpire: boolean = false): DifficultyConfig {
+  if (isSpire) return getSpireDifficultyConfig(act, floor)
   const clampedAct = Math.min(act, 3)
   const progress = (clampedAct - 1) * 20 + floor // 1-60
 
@@ -620,6 +622,31 @@ function getDifficultyConfig(act: number, floor: number, mode: DifficultyMode = 
   }
 
   return config
+}
+
+// Spire mode's OWN difficulty curve — 16-floor acts, so an act boss lands on
+// floor 16/32/48 with boss-grade scaling. Independent of classic getDifficultyConfig:
+// tune these freely (more mons / stars / items) without touching Normal mode.
+function getSpireDifficultyConfig(act: number, floor: number): DifficultyConfig {
+  const clampedAct = Math.min(act, 3)
+  const progress = (clampedAct - 1) * 16 + floor // 1-48
+  // --- Act 1 (1-16) ---
+  if (progress <= 1) return { pokemonCount: 1, maxStarsPerPokemon: 1, starBudget: [1, 1], allowedRarities: ["COMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
+  if (progress <= 2) return { pokemonCount: 2, maxStarsPerPokemon: 1, starBudget: [2, 2], allowedRarities: ["COMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
+  if (progress <= 4) return { pokemonCount: randomBetween(2, 3), maxStarsPerPokemon: 1, starBudget: [2, 3], allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 0, useCraftedItems: false }
+  if (progress <= 7) return { pokemonCount: randomBetween(3, 4), maxStarsPerPokemon: 2, starBudget: [4, 5], allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
+  if (progress <= 11) return { pokemonCount: randomBetween(3, 4), maxStarsPerPokemon: 2, starBudget: [4, 6], allowedRarities: ["COMMON", "UNCOMMON"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
+  if (progress <= 14) return { pokemonCount: randomBetween(3, 5), maxStarsPerPokemon: 2, starBudget: [6, 8], allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: false }
+  if (progress <= 16) return { pokemonCount: randomBetween(4, 5), maxStarsPerPokemon: 2, starBudget: [7, 9], allowedRarities: ["UNCOMMON", "RARE"], minItemsPerPokemon: 0, maxItemsPerPokemon: 1, useCraftedItems: true }
+  // --- Act 2 (17-32) ---
+  if (progress <= 21) return { pokemonCount: randomBetween(5, 7), maxStarsPerPokemon: 3, starBudget: [6, 10], allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
+  if (progress <= 26) return { pokemonCount: randomBetween(6, 7), maxStarsPerPokemon: 3, starBudget: [8, 12], allowedRarities: ["RARE", "EPIC"], minItemsPerPokemon: 1, maxItemsPerPokemon: 2, useCraftedItems: true }
+  if (progress <= 30) return { pokemonCount: randomBetween(6, 7), maxStarsPerPokemon: 3, starBudget: [10, 14], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 1, maxItemsPerPokemon: 3, useCraftedItems: true }
+  if (progress <= 32) return { pokemonCount: randomBetween(7, 8), maxStarsPerPokemon: 3, starBudget: [12, 15], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
+  // --- Act 3 (33-48) ---
+  if (progress <= 37) return { pokemonCount: randomBetween(7, 8), maxStarsPerPokemon: 3, starBudget: [13, 18], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
+  if (progress <= 42) return { pokemonCount: randomBetween(7, 9), maxStarsPerPokemon: 3, starBudget: [15, 21], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 2, maxItemsPerPokemon: 3, useCraftedItems: true }
+  return { pokemonCount: randomBetween(8, 9), maxStarsPerPokemon: 3, starBudget: [17, 23], allowedRarities: ["EPIC", "ULTRA"], minItemsPerPokemon: 3, maxItemsPerPokemon: 3, useCraftedItems: true }
 }
 
 function selectWithStarBudget(
@@ -718,13 +745,13 @@ function positionByRange(pokemon: Pkm[], act: number): [Pkm, number, number][] {
   return board
 }
 
-export function getRegionalWildEncounter(act: number, floor: number, region: string, mode: DifficultyMode = 1, isEndless: boolean = false): SpireEncounter {
+export function getRegionalWildEncounter(act: number, floor: number, region: string, mode: DifficultyMode = 1, isEndless: boolean = false, isSpire: boolean = false): SpireEncounter {
   const synergies = RegionDetails[region as DungeonPMDO]?.synergies ?? []
   if (synergies.length === 0) {
     return getWildEncounter(act, floor, 0)
   }
 
-  const difficulty = getDifficultyConfig(act, floor, mode, isEndless)
+  const difficulty = getDifficultyConfig(act, floor, mode, isEndless, isSpire)
 
   // Build candidate pool filtered by region synergies, stars, and rarity
   // In acts 2+3, focus on one synergy for most of the team
@@ -843,8 +870,8 @@ export function getWildEncounter(act: number, floor: number, seed: number): Spir
   }
 }
 
-export function generateGymEncounter(synergy: Synergy, act: number, floor: number, mode: DifficultyMode = 1, displayName?: string, isEndless: boolean = false): SpireEncounter {
-  const difficulty = getDifficultyConfig(act, floor, mode, isEndless)
+export function generateGymEncounter(synergy: Synergy, act: number, floor: number, mode: DifficultyMode = 1, displayName?: string, isEndless: boolean = false, isSpire: boolean = false): SpireEncounter {
+  const difficulty = getDifficultyConfig(act, floor, mode, isEndless, isSpire)
   difficulty.starBudget = [difficulty.starBudget[0], difficulty.starBudget[1] + 1]
   const signaturePokemon = GYM_LEADER_POKEMON[synergy] ?? []
   const names = GYM_LEADER_NAMES[synergy] ?? ["Gym Leader"]
@@ -1037,7 +1064,7 @@ export function getGymLeaderGem(synergy: Synergy): Item {
   return Item.NORMAL_GEM
 }
 
-function addHardModeItems(encounter: SpireEncounter, act: number, floor: number, mode: DifficultyMode): SpireEncounter {
+export function addHardModeItems(encounter: SpireEncounter, act: number, floor: number, mode: DifficultyMode): SpireEncounter {
   if (mode < 2) return encounter
   if (act >= 3) return encounter
   if (act >= 2 && mode === 3) return encounter // Impossible Act 2 uses class items
@@ -1057,7 +1084,7 @@ function addHardModeItems(encounter: SpireEncounter, act: number, floor: number,
   return adjusted
 }
 
-function adjustEncounterItems(encounter: SpireEncounter, mode: DifficultyMode, act?: number): SpireEncounter {
+export function adjustEncounterItems(encounter: SpireEncounter, mode: DifficultyMode, act?: number): SpireEncounter {
   if (mode === 1 || !encounter.items) return encounter
   if (act !== undefined && (act >= 3 || (act >= 2 && mode === 3))) return encounter
   const adjusted = { ...encounter, items: encounter.items.map(list => [...list]) }
@@ -1073,8 +1100,8 @@ function adjustEncounterItems(encounter: SpireEncounter, mode: DifficultyMode, a
   return adjusted
 }
 
-function generateLegendaryEliteEncounter(legendary: Pkm, act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false): SpireEncounter {
-  const difficulty = getDifficultyConfig(act, floor, mode, isEndless)
+function generateLegendaryEliteEncounter(legendary: Pkm, act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false, isSpire: boolean = false): SpireEncounter {
+  const difficulty = getDifficultyConfig(act, floor, mode, isEndless, isSpire)
   difficulty.starBudget = [difficulty.starBudget[0] + 2, difficulty.starBudget[1] + 3]
   const legendaryData = getPokemonData(legendary)
   const synergies = (legendaryData.types ?? []) as Synergy[]
@@ -1187,14 +1214,14 @@ function getUnlockPool(act: number, isEndless: boolean = false): UnlockEncounter
   return UNLOCK_ENCOUNTERS_BY_ACT[act] ?? HATCH_UNLOCK_ENCOUNTERS
 }
 
-export function getUnlockEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false): SpireEncounter {
+export function getUnlockEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false, isSpire: boolean = false): SpireEncounter {
   const encounters = getUnlockPool(act, isEndless)
   const template = encounters[index % encounters.length]
 
   if (template.eliteType === "hatch") {
     return addHardModeItems(adjustEncounterItems(generateHatchUnlockEncounter(template.avatar, floor), mode, act), act, floor, mode)
   }
-  return addHardModeItems(adjustEncounterItems(generateLegendaryEliteEncounter(template.avatar, act, floor, mode, isEndless), mode, act), act, floor, mode)
+  return addHardModeItems(adjustEncounterItems(generateLegendaryEliteEncounter(template.avatar, act, floor, mode, isEndless, isSpire), mode, act), act, floor, mode)
 }
 
 export function getUnlockEncounterCount(act: number, isEndless: boolean = false): number {
@@ -1222,11 +1249,11 @@ export function getUnlockEncounterPokemon(index: number, act: number, isEndless:
   return [template.avatar]
 }
 
-export function getEliteEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false): SpireEncounter {
+export function getEliteEncounter(index: number, act: number, floor: number, mode: DifficultyMode = 1, isEndless: boolean = false, isSpire: boolean = false): SpireEncounter {
   const clampedAct = Math.min(act, 3)
   const encounters = ELITE_ENCOUNTERS_BY_ACT[clampedAct] ?? ACT1_ELITE_ENCOUNTERS
   const template = encounters[index % encounters.length]
-  const difficulty = getDifficultyConfig(act, floor, mode, isEndless)
+  const difficulty = getDifficultyConfig(act, floor, mode, isEndless, isSpire)
 
   const mainPkm = template.mainPokemon
   const mainStars = getPokemonData(mainPkm).stars
@@ -1543,6 +1570,84 @@ export function generateWildRewardPokemon(region: string, act: number): Pkm[] {
   }
 
   return picks
+}
+
+// --- Spire reward-reroll tickets ---------------------------------------------
+
+const REWARD_RARITY_LADDER = ["COMMON", "UNCOMMON", "RARE", "EPIC", "ULTRA"]
+
+function nextRewardRarity(rarity: string): string {
+  const i = REWARD_RARITY_LADDER.indexOf(rarity)
+  if (i < 0) return rarity
+  return REWARD_RARITY_LADDER[Math.min(i + 1, REWARD_RARITY_LADDER.length - 1)]
+}
+
+// Pick a 1★ base-form offerable Pokémon of the given rarity that has one of the
+// synergies, excluding any already chosen. Tries synergies in order.
+function pickRewardPokemonBy(
+  rarity: string,
+  synergies: string[],
+  exclude: Pkm[]
+): Pkm | null {
+  const candidates: Pkm[] = []
+  for (const syn of synergies) {
+    const typed = PRECOMPUTED_POKEMONS_PER_TYPE[syn as Synergy] ?? []
+    for (const pkm of typed) {
+      const data = getPokemonData(pkm)
+      if (
+        data.rarity === rarity &&
+        data.stars === 1 &&
+        !exclude.includes(pkm) &&
+        !candidates.includes(pkm)
+      ) {
+        candidates.push(pkm)
+      }
+    }
+  }
+  return candidates.length > 0 ? pickRandomIn(candidates) : null
+}
+
+// CLASS_REROLL_TICKET: each Pokémon -> same rarity, sharing a class synergy
+// (ignores the region).
+export function rerollWildRewardClass(
+  current: Pkm[],
+  classSynergies: string[]
+): Pkm[] {
+  const result: Pkm[] = []
+  for (const pkm of current) {
+    const rarity = getPokemonData(pkm).rarity
+    const replacement =
+      pickRewardPokemonBy(rarity, classSynergies, [...result, ...current]) ??
+      pickRewardPokemonBy(rarity, classSynergies, [...result]) ??
+      pkm
+    result.push(replacement)
+  }
+  return result
+}
+
+// UPGRADE_TICKET: each Pokémon -> one rarity higher, keeping a region synergy,
+// always swapping (if already at the top tier, a different same-tier mon).
+export function rerollWildRewardUpgrade(current: Pkm[], region: string): Pkm[] {
+  const regionSyns = (RegionDetails[region as DungeonPMDO]?.synergies ?? []).map(
+    (s) => s as string
+  )
+  const result: Pkm[] = []
+  for (const pkm of current) {
+    const data = getPokemonData(pkm)
+    const ownTypes = (data.types as string[]) ?? []
+    const synOrder = [
+      ...regionSyns.filter((s) => ownTypes.includes(s)),
+      ...regionSyns
+    ]
+    const target = nextRewardRarity(data.rarity)
+    const replacement =
+      pickRewardPokemonBy(target, synOrder, [...result, pkm]) ??
+      // can't go higher (top tier / none found) — force a different same-tier mon
+      pickRewardPokemonBy(data.rarity, synOrder, [...result, pkm]) ??
+      pkm
+    result.push(replacement)
+  }
+  return result
 }
 
 const RARITY_WEIGHT: Record<string, number> = {

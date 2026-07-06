@@ -27,6 +27,7 @@ dialog {
 .draggable-window.my-container,
 .game-shop .information > div,
 #game-stage-info,
+#game-bottom-bar,
 .game-spectate-player-info.my-container {
   background-color: rgba(30, 30, 46, 0.7);
   backdrop-filter: blur(5px);

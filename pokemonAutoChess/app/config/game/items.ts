@@ -5,6 +5,11 @@ export const ItemStats: { [item in Item]?: { [stat in Stat]?: number } } = {
   // Boss-only item held by Arceus (Act 5). Pure effect, no stats:
   // grants item-theft immunity and caps any single damage instance at 1000.
   [Item.LEGEND_PLATE]: {},
+  // Spire reward-reroll tickets — pure consumables, no held stats.
+  [Item.REROLL_TICKET]: {},
+  [Item.CLASS_REROLL_TICKET]: {},
+  [Item.UPGRADE_TICKET]: {},
+  [Item.ITEM_REROLL_TICKET]: {},
   [Item.TWISTED_SPOON]: { [Stat.AP]: 10 },
   [Item.MAGNET]: { [Stat.SPEED]: 10 },
   [Item.BLACK_GLASSES]: { [Stat.CRIT_CHANCE]: 10 },

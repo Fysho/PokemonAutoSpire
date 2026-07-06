@@ -42,6 +42,7 @@ interface IUserMetadata {
   pokemonCollection: Map<string, IPokemonCollectionItem>
   spireStats?: ISpireStats
   spireRegion?: string
+  tutorialCompleted?: boolean
 }
 
 interface IPokemonCollectionItem {

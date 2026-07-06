@@ -13,6 +13,7 @@ import { PassiveEffects } from "../../core/effects/passives"
 import { carryOverPermanentStats } from "../../core/evolution-logic/evolution-handler"
 import { EvolutionManager } from "../../core/evolution-logic/evolution-manager"
 import { MulchStockCaps } from "../../core/flower-pots"
+import { Relic } from "../../core/relics"
 import type { PokemonEntity } from "../../core/pokemon-entity"
 import type GameState from "../../rooms/states/game-state"
 import {
@@ -120,6 +121,9 @@ export default class Player extends Schema implements IPlayer {
   @type("string") spectatedPlayerId: string
   @type("uint8") boardSize: number = 0
   @type(["string"]) items = new ArraySchema<Item>()
+  // Spire relics — run-wide passive bonuses (Slay-the-Spire style). Unique per run.
+  // See app/core/relics.ts. Displayed in the top-left relic container HUD.
+  @type(["string"]) relics = new ArraySchema<string>()
   @type(["string"]) dojoFamilies = new ArraySchema<string>()
   @type(["string"]) scarvesItems = new ArraySchema<Item>()
   @type(["string"]) fairyWands = new ArraySchema<Item>()
@@ -351,10 +355,16 @@ export default class Player extends Schema implements IPlayer {
   updateSynergies() {
     const pokemons: Pokemon[] = schemaValues(this.board)
     const previousSynergies = this.synergies.toMap()
+    // Matryoshka relic: same-family units each count for synergies — reuse the
+    // FAMILY_OUTING synergy-counting path (without touching the real game rule,
+    // which would also change shop behavior).
+    const effectiveRule = this.relics.includes(Relic.Matryoshka)
+      ? SpecialGameRule.FAMILY_OUTING
+      : this.specialGameRule
     let updatedSynergies = computeSynergies(
       pokemons,
       this.bonusSynergies,
-      this.specialGameRule
+      effectiveRule
     )
 
     const normalNeedsRecomputing = this.updateScarves(
@@ -372,7 +382,7 @@ export default class Player extends Schema implements IPlayer {
       adressed when losing a type (Axew double dragon + artif item for example) ;
       it's not as easy as just decrementing by 1 in updatedSynergies map count
       */
-      updatedSynergies = computeSynergies(pokemons, this.bonusSynergies)
+      updatedSynergies = computeSynergies(pokemons, this.bonusSynergies, effectiveRule)
     }
 
     const previousLight = previousSynergies.get(Synergy.LIGHT) ?? 0

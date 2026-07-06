@@ -330,8 +330,12 @@ class GameContainer {
   }
 
   resize() {
-    const screenWidth = window.innerWidth - 60
-    const screenHeight = window.innerHeight
+    // Use the actual container size: the 60px sidebar rail is only reserved
+    // on wide screens — at <=960px the sidebar floats over the corner and
+    // #game spans the full viewport, so a hardcoded -60 letterboxed the
+    // board by exactly the sidebar width.
+    const screenWidth = this.div?.clientWidth || window.innerWidth - 60
+    const screenHeight = this.div?.clientHeight || window.innerHeight
     const screenRatio = screenWidth / screenHeight
     const IDEAL_WIDTH = 42 * 48
     const MIN_HEIGHT = 1050
@@ -579,6 +583,20 @@ class GameContainer {
         this.gameScene?.itemsContainer?.render(player.items)
       }
     })
+
+    // Relics are a React HUD (top-left container) reading the Redux player copy,
+    // so push a plain-array snapshot into Redux on every relic change.
+    const syncRelics = () =>
+      store.dispatch(
+        changePlayer({
+          id: player.id,
+          field: "relics",
+          value: Array.from(player.relics)
+        })
+      )
+    $player.relics.onAdd(syncRelics)
+    $player.relics.onRemove(syncRelics)
+    $player.relics.onChange(syncRelics)
 
     $player.listen("map", async (value) => {
       if (player.id === this.playerIdSpectated && this.gameScene) {

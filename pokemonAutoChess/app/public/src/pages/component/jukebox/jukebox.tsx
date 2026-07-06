@@ -5,10 +5,17 @@ import {
   DungeonMusic,
   DungeonMusicCredits
 } from "../../../../../types/enum/Dungeon"
+import { RegionDetails } from "../../../../../config"
 import { pickRandomIn } from "../../../../../utils/random"
 import { usePreference } from "../../../preferences"
+import { selectSpectatedPlayer, useAppSelector } from "../../../hooks"
 import { getGameScene } from "../../game"
-import { playMusic, preloadMusic } from "../../utils/audio"
+import {
+  getMusicMode,
+  loadAndPlayMusic,
+  type MusicMode,
+  setMusicMode
+} from "../../utils/audio"
 import { cc } from "../../utils/jsx"
 import { Modal } from "../modal/modal"
 import "./jukebox.css"
@@ -28,6 +35,8 @@ export default function Jukebox(props: {
   const [music, setMusic] = useState<DungeonMusic>(musicPlaying)
   const [loading, setLoading] = useState<boolean>(false)
   const [volume, setVolume] = usePreference("musicVolume")
+  const [mode, setModeState] = useState<MusicMode>(getMusicMode())
+  const spectatedPlayer = useAppSelector(selectSpectatedPlayer)
 
   useEffect(() => {
     if (musicPlaying !== music && !loading) {
@@ -37,26 +46,38 @@ export default function Jukebox(props: {
 
   const credits = DungeonMusicCredits[musicPlaying] ?? null
 
-  function changeMusic(name: DungeonMusic) {
+  // A jukebox pick switches the music mode so region/map changes stop
+  // overriding it (Spire resets the map to "town" after every node, which
+  // used to force the track back to Treasure Town). Shuffle plays unlooped
+  // and chains random tracks (handled in utils/audio playMusic).
+  function changeMode(newMode: MusicMode) {
+    setMusicMode(newMode)
+    setModeState(newMode)
+  }
+
+  function changeMusic(name: DungeonMusic, newMode: MusicMode = "manual") {
+    changeMode(newMode)
     setMusic(name)
     const gameScene = getGameScene()
     if (gameScene) {
       gameScene.music?.destroy()
-      const musicKey = "music_" + name
-      if (gameScene.cache.audio.exists(musicKey)) {
-        playMusic(gameScene, name)
-        setLoading(false)
-      } else {
-        setLoading(true)
-        gameScene.cache.audio.events.on("add", (cache, key) => {
-          if (key === musicKey) {
-            playMusic(gameScene, name)
-            setLoading(false)
-          }
-        })
-        preloadMusic(gameScene, name)
-        gameScene.load.start()
-      }
+      setLoading(true)
+      loadAndPlayMusic(gameScene, name, () => setLoading(false))
+    }
+  }
+
+  function backToAuto() {
+    changeMode("auto")
+    // Resume the current region's music right away
+    const map = spectatedPlayer?.map as keyof typeof RegionDetails | undefined
+    const regionMusic = map
+      ? (RegionDetails[map]?.music ?? DungeonMusic.TREASURE_TOWN)
+      : null
+    const gameScene = getGameScene()
+    if (gameScene && regionMusic) {
+      setMusic(regionMusic)
+      setLoading(true)
+      loadAndPlayMusic(gameScene, regionMusic, () => setLoading(false))
     }
   }
 
@@ -73,7 +94,7 @@ export default function Jukebox(props: {
 
   function randomizeMusic() {
     const newMusic = pickRandomIn(MUSICS.filter((m) => m !== music))
-    changeMusic(newMusic)
+    changeMusic(newMusic, "shuffle")
   }
 
   return (
@@ -124,13 +145,33 @@ export default function Jukebox(props: {
           ))}
         </select>
         <button
-          className="bubbly blue"
+          className={cc("bubbly", mode === "shuffle" ? "green" : "blue")}
           onClick={() => randomizeMusic()}
-          title={t("jukebox.random_music")}
+          title={
+            mode === "shuffle"
+              ? "Shuffle is on: a new random track plays when this one ends"
+              : t("jukebox.random_music")
+          }
         >
           <img src="/assets/ui/randomize.svg" style={{ marginRight: 0 }} />
         </button>
+        <button
+          className={cc("bubbly", mode === "auto" ? "green" : "blue")}
+          onClick={() => backToAuto()}
+          disabled={mode === "auto"}
+          title="Follow the region music (changes with the map)"
+        >
+          Auto
+        </button>
       </div>
+
+      <p style={{ textAlign: "center", fontSize: "80%", opacity: 0.7, margin: "0 0 0.5em" }}>
+        {mode === "auto"
+          ? "Music follows the current region"
+          : mode === "shuffle"
+            ? "Shuffle: random track when this one ends"
+            : "Playing your pick on loop"}
+      </p>
 
       {credits ? (
         <p className="credits">

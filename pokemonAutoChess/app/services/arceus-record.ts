@@ -118,6 +118,16 @@ export function checkAndUpdateArceusRecord(
   return { isNewRecord, rank: rank, previousRecord: previousTopRecord }
 }
 
+// Admin tool: remove a single record by its index (rank) in the top-5 list.
+export function removeArceusRecord(index: number, mode: DifficultyMode = 1): boolean {
+  const lb = loadArceusLeaderboard(mode)
+  if (index < 0 || index >= lb.records.length) return false
+  lb.records.splice(index, 1)
+  saveArceusLeaderboard(lb, mode)
+  logger.info(`Admin removed Arceus record #${index + 1} (${DIFFICULTY_LABELS[mode]})`)
+  return true
+}
+
 export function getArceusLeaderboardForClient(mode: DifficultyMode = 1): {
   name: string
   avatar: string

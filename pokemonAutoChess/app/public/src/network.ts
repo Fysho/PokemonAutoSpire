@@ -30,8 +30,25 @@ export async function getIdToken(): Promise<string | undefined> {
   return undefined
 }
 
-export function authenticateUser() {
-  const user = firebase.auth().currentUser
+// After a page refresh, firebase.auth().currentUser is null until Firebase
+// finishes restoring the session asynchronously. Reading it synchronously
+// misidentifies signed-in users as guests. This resolves once the initial
+// auth state is known (with the restored user, or null for true guests).
+let authReadyPromise: Promise<firebase.User | null> | null = null
+export function waitForFirebaseAuth(): Promise<firebase.User | null> {
+  if (!authReadyPromise) {
+    authReadyPromise = new Promise((resolve) => {
+      const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+        unsubscribe()
+        resolve(user)
+      })
+    })
+  }
+  return authReadyPromise
+}
+
+export async function authenticateUser() {
+  const user = firebase.auth().currentUser ?? (await waitForFirebaseAuth())
   if (user) {
     store.dispatch(logIn(user as any))
     store.dispatch(

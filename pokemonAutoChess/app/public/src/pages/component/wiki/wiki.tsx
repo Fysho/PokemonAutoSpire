@@ -6,6 +6,7 @@ import WikiFaq from "./wiki-faq"
 import WikiItems from "./wiki-items"
 import WikiPokemons from "./wiki-pokemons"
 import WikiRegions from "./wiki-regions"
+import WikiRelics from "./wiki-relics"
 import WikiStages from "./wiki-stages"
 import WikiStatistic from "./wiki-statistic"
 import WikiStatus from "./wiki-status"
@@ -28,6 +29,7 @@ export default function Wiki({ inGame = false }: { inGame: boolean }) {
             </>
           )}
           <Tab key="title-pokemon">{t("wiki.nav.pokemons_label")}</Tab>
+          <Tab key="title-relics">Relics</Tab>
           <Tab key="title-ability">{t("wiki.nav.abilities_label")}</Tab>
           <Tab key="title-items">{t("wiki.nav.items_label")}</Tab>
           <Tab key="title-types">{t("wiki.nav.synergies_label")}</Tab>
@@ -52,6 +54,9 @@ export default function Wiki({ inGame = false }: { inGame: boolean }) {
         )}
         <TabPanel key="pokemon">
           <WikiPokemons />
+        </TabPanel>
+        <TabPanel key="relics">
+          <WikiRelics />
         </TabPanel>
         <TabPanel key="ability">
           <WikiAbility />

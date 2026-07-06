@@ -1,0 +1,22 @@
+{
+  "name": "Pokemon Auto Spire",
+  "short_name": "Auto Spire",
+  "description": "Single-player roguelike auto-battler: Pokemon Auto Chess battles with Slay the Spire progression.",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#61738a",
+  "theme_color": "#61738a",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

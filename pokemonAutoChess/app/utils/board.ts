@@ -3,6 +3,7 @@ import type { Pokemon } from "../models/colyseus-models/pokemon"
 import type PokemonSprite from "../public/src/game/components/pokemon"
 import type { IPokemon } from "../types"
 import { SpecialGameRule } from "../types/enum/SpecialGameRule"
+import { Relic } from "../core/relics"
 import { schemaValues } from "./schemas"
 
 export function isOnBench(pokemon: IPokemon | PokemonSprite) {
@@ -71,8 +72,11 @@ export function getFreeSpaceOnBench(board: MapSchema<Pokemon, string>): number {
 
 export function getMaxTeamSize(
   playerLevel: number,
-  specialGameRule?: SpecialGameRule | null
+  specialGameRule?: SpecialGameRule | null,
+  relics?: { includes: (value: string) => boolean } | null
 ) {
-  if (specialGameRule === SpecialGameRule.CROWDED) return playerLevel + 3
-  return playerLevel
+  let max = specialGameRule === SpecialGameRule.CROWDED ? playerLevel + 3 : playerLevel
+  // Bag of Preparation relic: +1 board slot.
+  if (relics?.includes(Relic.BagofPreparation)) max += 1
+  return max
 }

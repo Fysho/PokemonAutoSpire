@@ -1,0 +1,69 @@
+.tutorial-dialog-overlay {
+  position: absolute;
+  inset: 0;
+  /* Above the reward/starter picker (DEPTH.MODAL = 71), the map (100), and the
+     run-end victory window (200) so the prompt always blocks what's behind it. */
+  z-index: 250;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* Blocking: the overlay captures all clicks so the player must read and
+     dismiss the prompt before interacting with the game behind it. */
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.3);
+  padding-bottom: 8%;
+}
+
+.tutorial-dialog {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  max-width: 640px;
+  width: min(90%, 640px);
+  padding: 1em 1.25em;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
+  border: 2px solid var(--color-special, #f1c40f);
+  animation: tutorial-dialog-in 0.18s ease-out;
+}
+
+@keyframes tutorial-dialog-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.tutorial-dialog-portrait {
+  width: 80px;
+  height: 80px;
+  flex: 0 0 auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+
+.tutorial-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  flex: 1 1 auto;
+}
+
+.tutorial-dialog-text {
+  font-size: 1.05em;
+  line-height: 1.4;
+}
+
+.tutorial-dialog-text img {
+  height: 1.2em;
+  vertical-align: middle;
+}
+
+.tutorial-dialog-next {
+  align-self: flex-end;
+  min-width: 96px;
+}

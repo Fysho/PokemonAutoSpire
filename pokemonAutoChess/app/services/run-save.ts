@@ -8,7 +8,7 @@ import { RunHistory } from "../models/mongo-models/run-history"
 import UserMetadata from "../models/mongo-models/user-metadata"
 import PokemonFactory from "../models/pokemon-factory"
 import GameState from "../rooms/states/game-state"
-import { snapshotPlayerTeam, SnapshotPokemon, TeamSnapshot } from "./team-snapshot"
+import { snapshotPlayerTeam, SnapshotPokemon, TeamSnapshot, PokemonStatBoosts } from "./team-snapshot"
 import { Emotion } from "../types"
 import { Ability } from "../types/enum/Ability"
 import { GamePhaseState } from "../types/enum/Game"
@@ -45,6 +45,11 @@ interface SerializedFlowerPot {
   positionY: number
   shiny: boolean
   emotion: string
+  // Flower-pot mons live in player.flowerPots, NOT player.board, so they bypass
+  // snapshotPlayerTeam entirely. Persist their permanent stat boosts the same way
+  // the board snapshot does (e.g. Amaze Mulch's +50 HP / +30 AP) — without this the
+  // boost is silently dropped on resume because the pot is rebuilt from name alone.
+  statBoosts?: PokemonStatBoosts
 }
 
 export interface SavedRunData {
@@ -54,6 +59,8 @@ export interface SavedRunData {
   currentFloor: number
   difficultyMode: number
   isEndless: boolean
+  isSpire?: boolean
+  spireClass?: string
   runHP: number
   stageLevel: number
   eliteFourAvailable: boolean
@@ -110,7 +117,7 @@ export interface SavedRunData {
   fairyWands: string[]
   regions: string[]
   shopsSinceLastUnownShop: number
-  choices?: { type: string; pokemons: string[]; items: string[] }[]
+  choices?: { type: string; pokemons: string[]; items: string[]; value?: number }[]
   phase?: number
 }
 
@@ -147,13 +154,29 @@ function serializeMapEdges(edges: ArraySchema<MapEdge>): { from: string; to: str
 function serializeFlowerPots(pots: Pokemon[]): SerializedFlowerPot[] {
   return pots
     .filter((p) => p && p.name)
-    .map((p) => ({
-      name: p.name,
-      positionX: p.positionX,
-      positionY: p.positionY,
-      shiny: p.shiny,
-      emotion: p.emotion
-    }))
+    .map((p) => {
+      const baseline = PokemonFactory.createPokemonFromName(p.name as Pkm)
+      const boosts: PokemonStatBoosts = {
+        hp: p.hp - baseline.hp,
+        atk: p.atk - baseline.atk,
+        def: p.def - baseline.def,
+        speDef: p.speDef - baseline.speDef,
+        ap: p.ap - baseline.ap,
+        speed: p.speed - baseline.speed,
+        luck: p.luck - baseline.luck
+      }
+      const hasBoosts =
+        boosts.hp || boosts.atk || boosts.def || boosts.speDef || boosts.ap || boosts.speed || boosts.luck
+      const serialized: SerializedFlowerPot = {
+        name: p.name,
+        positionX: p.positionX,
+        positionY: p.positionY,
+        shiny: p.shiny,
+        emotion: p.emotion
+      }
+      if (hasBoosts) serialized.statBoosts = boosts
+      return serialized
+    })
 }
 
 // Per-player serialized save queues. Saves are dispatched fire-and-forget from
@@ -206,6 +229,8 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
       currentFloor: state.currentFloor,
       difficultyMode: state.difficultyMode,
       isEndless: state.isEndless,
+      isSpire: state.isSpire,
+      spireClass: state.spireClass,
       runHP: state.runHP,
       stageLevel: state.stageLevel,
       eliteFourAvailable: state.eliteFourAvailable,
@@ -262,7 +287,8 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
         ? Array.from(player.choices).map((c) => ({
             type: c.type,
             pokemons: [...c.pokemons] as string[],
-            items: [...c.items] as string[]
+            items: [...c.items] as string[],
+            value: c.value
           }))
         : undefined,
       phase: state.phase
@@ -280,6 +306,8 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
       currentFloor: state.currentFloor,
       difficultyMode: state.difficultyMode,
       isEndless: state.isEndless,
+      isSpire: state.isSpire,
+      spireClass: state.spireClass,
       runHP: state.runHP,
       teamPreview,
       data
@@ -343,6 +371,37 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
             )
           }
         }
+
+        // Streak integrity: a DIFFERENT run (different runId) overwriting an existing
+        // saved run means that old run is being abandoned — a new run was started over
+        // it (or a newer session won) — WITHOUT it ever formally ending. Loss-on-abandon
+        // was otherwise only enforced by the client calling DELETE /api/saved-run, so a
+        // player could keep a victory streak alive forever by starting a fresh run on top
+        // of a losing one (this upsert silently clobbers it, no loss recorded). Record the
+        // loss here, server-side, so the streak resets no matter how the old run was
+        // discarded. Runs that already reached a victory (Act-3 boss beaten — counted once
+        // at boss fall) are skipped: don't double-count the win, don't mislabel it a loss.
+        // Endless/guests are no-ops inside updateVictoryRecord; recordLoss just zeroes the
+        // streak, so a benign race with a normal run-end delete is idempotent/harmless.
+        const overwritingDifferentRun = !!(
+          before && before.runId && state.runId && before.runId !== state.runId
+        )
+        if (overwritingDifferentRun && before!.data && !isRunVictory(before!.data as SavedRunData)) {
+          try {
+            await saveRunHistoryFromSavedRun(odToken, before!.data as SavedRunData)
+            await updateVictoryRecord(
+              odToken,
+              player.name,
+              player.avatar,
+              before!.difficultyMode,
+              false,
+              before!.isEndless ?? false
+            )
+            logger.info(`↪️ ABANDON LOSS — ${player.name} [${odToken}]: recorded a loss for run ${before!.runId} discarded by a new run (streak reset).`)
+          } catch (lossErr) {
+            logger.error(`Failed to record loss for overwritten run — ${player.name} [${odToken}]`, lossErr)
+          }
+        }
       } catch (e) {
         const streak = recordSaveFailure(odToken)
         logger.error(
@@ -404,6 +463,8 @@ export function restoreRunToState(
   state.currentFloor = savedData.currentFloor
   state.difficultyMode = savedData.difficultyMode
   state.isEndless = savedData.isEndless ?? false
+  state.isSpire = savedData.isSpire ?? false
+  state.spireClass = savedData.spireClass ?? ""
   state.runHP = savedData.runHP
   state.stageLevel = savedData.stageLevel
   state.eliteFourAvailable = savedData.eliteFourAvailable
@@ -466,7 +527,14 @@ export function restoreRunToState(
       }
     }
 
-    if (snap.skill) {
+    // Restore the ability. A TM takes precedence (re-applies the tm marker +
+    // skill + 100 PP, like applying the TM); otherwise a non-TM skill change
+    // (Skill Swap / Sketch) just sets the skill. Mirrors reconstructTeamAsPlayer.
+    if (snap.tm) {
+      pkm.tm = snap.tm as Ability
+      pkm.skill = snap.tm as Ability
+      pkm.maxPP = 100
+    } else if (snap.skill) {
       pkm.skill = snap.skill as Ability
     }
 
@@ -490,6 +558,8 @@ export function restoreRunToState(
     if (snap.evolution) pkm.evolution = snap.evolution as Pkm
     if (snap.stacks) pkm.stacks = snap.stacks
     if (snap.stacksRequired) pkm.stacksRequired = snap.stacksRequired
+    if (snap.deathCount) pkm.deathCount = snap.deathCount
+    if (snap.originalMap) (pkm as { originalMap?: string }).originalMap = snap.originalMap
 
     player.board.set(pkm.id, pkm)
   }
@@ -512,7 +582,13 @@ export function restoreRunToState(
   player.experienceManager.level = savedData.level
   player.experienceManager.experience = savedData.experience
   const { ExpTable, ENDLESS_MAX_LEVEL } = require("../config")
-  player.experienceManager.expNeeded = ExpTable[savedData.level] ?? 4
+  if (savedData.isSpire) {
+    // Re-point to the Spire curve (runtime flag isn't part of the snapshot),
+    // keeping the restored level.
+    player.experienceManager.useSpireMode(false)
+  } else {
+    player.experienceManager.expNeeded = ExpTable[savedData.level] ?? 4
+  }
   if (savedData.isEndless) {
     player.experienceManager.maxLevel = ENDLESS_MAX_LEVEL
   }
@@ -543,6 +619,16 @@ export function restoreRunToState(
         })
         pot.positionX = fp.positionX
         pot.positionY = fp.positionY
+        if (fp.statBoosts) {
+          const b = fp.statBoosts
+          if (b.hp) pot.addMaxHP(b.hp)
+          if (b.atk) pot.addAttack(b.atk)
+          if (b.def) pot.addDefense(b.def)
+          if (b.speDef) pot.addSpecialDefense(b.speDef)
+          if (b.ap) pot.addAbilityPower(b.ap)
+          if (b.speed) pot.addSpeed(b.speed)
+          if (b.luck) pot.addLuck(b.luck)
+        }
         player.flowerPots[i] = pot
       }
     }
@@ -620,7 +706,8 @@ export function restoreRunToState(
         new PlayerChoice({
           type: c.type as PlayerChoiceType,
           pokemons: c.pokemons as any[],
-          items: c.items as Item[]
+          items: c.items as Item[],
+          value: c.value
         })
       )
     }
@@ -764,6 +851,22 @@ export async function incrementRunStarted(uid: string, difficultyMode: number): 
     )
   } catch (e) {
     logger.error("Failed to increment runsStarted:", e)
+  }
+}
+
+// Tutorial completion flag on the player's profile. Set once when the tutorial
+// boss is beaten; the lobby reads it to mark the Tutorial button done. Does not
+// affect any stats/leaderboards.
+export async function markTutorialCompleted(uid: string): Promise<void> {
+  if (uid === "local-player") return
+  try {
+    await UserMetadata.updateOne(
+      { uid },
+      { $set: { tutorialCompleted: true } },
+      { upsert: false }
+    )
+  } catch (e) {
+    logger.error("Failed to mark tutorial completed:", e)
   }
 }
 

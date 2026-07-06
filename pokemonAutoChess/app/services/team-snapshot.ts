@@ -5,6 +5,7 @@ import Synergies, { computeSynergies } from "../models/colyseus-models/synergies
 import { Effects } from "../models/effects"
 import PokemonFactory from "../models/pokemon-factory"
 import GameState from "../rooms/states/game-state"
+import { EvolutionRuleType } from "../types/EvolutionRules"
 import { Emotion, Role, TMs } from "../types"
 import { Ability } from "../types/enum/Ability"
 import { EffectEnum } from "../types/enum/Effect"
@@ -37,6 +38,14 @@ export interface SnapshotPokemon {
   evolution?: Pkm
   stacks?: number
   stacksRequired?: number
+  // Battle deaths this run. Drives STATE evolutions (Corsola→Galarian Corsola at
+  // deathCount>0) and the Basculin→Basculegion male/female form. Must be persisted
+  // or the beginning-of-turn STATE re-check fails on resume and the form reverts.
+  deathCount?: number
+  // Map region where the mon was acquired (Stantler.originalMap, set in onAcquired).
+  // Drives Stantler→Wyrdeer (evolves once you've travelled away from it). Not a schema
+  // field, so it must be persisted or it resets to "town" and the check misfires.
+  originalMap?: string
 }
 
 export interface TeamSnapshot {
@@ -79,8 +88,22 @@ export function snapshotPlayerTeam(
     }
     const hasBoosts = boosts.hp || boosts.atk || boosts.def || boosts.speDef || boosts.ap || boosts.speed || boosts.luck
 
+    // A HATCH evolution that has already met its requirement transforms a moment
+    // later via a deferred setTimeout in updateHatch(). A snapshot taken in that
+    // window would capture the pre-evolution form and "revert" it on resume, so
+    // record the imminent evolved form instead. Stat boosts carry across evolution
+    // (the evolved form re-applies the same diff), so boosts stay computed against
+    // the current form's baseline above. Skipped for eggs (evolution === DEFAULT →
+    // random hatch that must not be predicted).
+    const hatchPending =
+      pkm.evolutionRule?.type === EvolutionRuleType.HATCH &&
+      pkm.evolution !== Pkm.DEFAULT &&
+      pkm.stacksRequired > 0 &&
+      pkm.stacks >= pkm.stacksRequired
+    const effectiveName = (hatchPending ? pkm.evolution : pkm.name) as Pkm
+
     const snap: SnapshotPokemon = {
-      name: pkm.name as Pkm,
+      name: effectiveName,
       x: pkm.positionX,
       y: pkm.positionY,
       items: [...pkm.items] as Item[]
@@ -97,9 +120,16 @@ export function snapshotPlayerTeam(
       snap.dishes = [...pkm._cookedDishes] as Item[]
     }
 
-    if (pkm.evolution !== Pkm.DEFAULT) snap.evolution = pkm.evolution
-    if (pkm.stacks > 0) snap.stacks = pkm.stacks
-    if (pkm.stacksRequired > 0) snap.stacksRequired = pkm.stacksRequired
+    // When promoting a pending hatch, let the evolved form supply its own
+    // evolution/stacks defaults — don't carry the pre-evolution counters.
+    if (!hatchPending) {
+      if (pkm.evolution !== Pkm.DEFAULT) snap.evolution = pkm.evolution
+      if (pkm.stacks > 0) snap.stacks = pkm.stacks
+      if (pkm.stacksRequired > 0) snap.stacksRequired = pkm.stacksRequired
+    }
+    if (pkm.deathCount > 0) snap.deathCount = pkm.deathCount
+    const originalMap = (pkm as { originalMap?: string }).originalMap
+    if (originalMap && originalMap !== "town") snap.originalMap = originalMap
 
     pokemon.push(snap)
   })
@@ -170,6 +200,8 @@ export function reconstructTeamAsBoard(snapshot: TeamSnapshot): {
     if (snap.evolution) pkm.evolution = snap.evolution
     if (snap.stacks) pkm.stacks = snap.stacks
     if (snap.stacksRequired) pkm.stacksRequired = snap.stacksRequired
+    if (snap.deathCount) pkm.deathCount = snap.deathCount
+    if (snap.originalMap) (pkm as { originalMap?: string }).originalMap = snap.originalMap
 
     board.set(pkm.id, pkm)
   }
@@ -265,6 +297,8 @@ export function reconstructTeamAsPlayer(
     if (snap.evolution) pkm.evolution = snap.evolution
     if (snap.stacks) pkm.stacks = snap.stacks
     if (snap.stacksRequired) pkm.stacksRequired = snap.stacksRequired
+    if (snap.deathCount) pkm.deathCount = snap.deathCount
+    if (snap.originalMap) (pkm as { originalMap?: string }).originalMap = snap.originalMap
 
     player.board.set(pkm.id, pkm)
   }

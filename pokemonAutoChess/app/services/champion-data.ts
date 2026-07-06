@@ -369,6 +369,75 @@ export function incrementE4Victory(e4Index: number, mode: DifficultyMode): void 
   saveChampionData(data, mode)
 }
 
+// Admin tool: remove a single ladder entry and cascade the weaker teams up.
+//
+// Removing an Elite Four slot (0 = E4 #1 weakest … 3 = E4 #4 strongest) slides
+// every team BELOW the removed slot up one rung to fill the gap, and seeds a
+// fresh Magikarp "Fish" at E4 #1. Removing the Champion promotes E4 #4 into the
+// Champion slot, then cascades the Elite Four up the same way (Magikarp at #1).
+// Mirrors the win-cascade in promoteNewChampion / placePlayerInEliteFour so the
+// ladder never ends up with a hole or a duplicate.
+export function removeChampionLadderEntry(
+  slot: "champion" | 0 | 1 | 2 | 3,
+  mode: DifficultyMode
+): void {
+  const data = loadChampionData(mode)
+  const now = new Date().toISOString()
+  const fresh = (): TeamSnapshot => ({
+    ...DEFAULT_SNAPSHOT,
+    pokemon: [...DEFAULT_SNAPSHOT.pokemon]
+  })
+
+  // Normalise the parallel metadata arrays so the shift below always has values.
+  const crowned: [string, string, string, string] = [...(data.eliteFourCrownedAt ?? [now, now, now, now])] as [string, string, string, string]
+  const vics: [number, number, number, number] = [...(data.eliteFourVictories ?? [0, 0, 0, 0])] as [number, number, number, number]
+  const ties: [number, number, number, number] = [...(data.eliteFourTies ?? [0, 0, 0, 0])] as [number, number, number, number]
+
+  if (slot === "champion") {
+    // E4 #4 climbs into the Champion slot, carrying its defense record.
+    data.champion = data.eliteFour[3]
+    data.championSince = crowned[3] || now
+    data.championVictories = vics[3]
+    data.championTies = ties[3]
+    // Reset the longest-reign-in-progress bookkeeping for the new champion.
+    // (longestReign history is left intact — it's an all-time record.)
+    cascadeEliteFourUp(data.eliteFour, crowned, vics, ties, 3, fresh, now)
+  } else {
+    cascadeEliteFourUp(data.eliteFour, crowned, vics, ties, slot, fresh, now)
+  }
+
+  data.eliteFourCrownedAt = crowned
+  data.eliteFourVictories = vics
+  data.eliteFourTies = ties
+
+  saveChampionData(data, mode)
+  console.log(`Removed ${slot === "champion" ? "Champion" : `E4 #${slot + 1}`} from ${DIFFICULTY_LABELS[mode]} ladder; cascaded up with a fresh Magikarp at E4 #1.`)
+}
+
+// Slide eliteFour[0..gap-1] up into [1..gap] (and their metadata in lockstep),
+// then drop a fresh Magikarp into slot 0. Used by both the E4-removal and the
+// champion-promotion cascade.
+function cascadeEliteFourUp(
+  eliteFour: [TeamSnapshot, TeamSnapshot, TeamSnapshot, TeamSnapshot],
+  crowned: [string, string, string, string],
+  vics: [number, number, number, number],
+  ties: [number, number, number, number],
+  gap: number,
+  fresh: () => TeamSnapshot,
+  now: string
+): void {
+  for (let i = gap; i > 0; i--) {
+    eliteFour[i] = eliteFour[i - 1]
+    crowned[i] = crowned[i - 1]
+    vics[i] = vics[i - 1]
+    ties[i] = ties[i - 1]
+  }
+  eliteFour[0] = fresh()
+  crowned[0] = now
+  vics[0] = 0
+  ties[0] = 0
+}
+
 export function incrementChampionTie(mode: DifficultyMode): void {
   const data = loadChampionData(mode)
   data.championTies = (data.championTies ?? 0) + 1

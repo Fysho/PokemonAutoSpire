@@ -1,62 +1,12 @@
 import { ToastContainer } from "react-toastify"
-import { Transfer } from "../../../../../types"
-import { useAppSelector } from "../../../hooks"
-import { rooms } from "../../../network"
-import { LocalStoreKeys, localStore } from "../../utils/store"
-import GameExperience from "./game-experience"
-import { GameLifeInfo } from "./game-life-info"
-import { GameMoneyInfo } from "./game-money-info"
-// import GameRefresh from "./game-refresh"
-import { GameRegionalPokemonsIcon } from "./game-regional-pokemons"
-import { GameStreakInfo } from "./game-streak-info"
-import { GameTeamInfo } from "./game-team-info"
 import "./game-shop.css"
-import { DEPTH } from "../../../game/depths"
 
-export default function GameShop({ onShowMap }: { onShowMap?: () => void }) {
-  const gameSpeed = useAppSelector((state) => state.game.gameSpeed)
-
-  function cycleSpeed() {
-    const speeds = [0.5, 1, 2, 3]
-    const idx = speeds.indexOf(gameSpeed)
-    const next = speeds[(idx + 1) % speeds.length]
-    localStore.set(LocalStoreKeys.SPIRE_GAME_SPEED, next)
-    rooms.game?.send(Transfer.GAME_SPEED, { speed: next })
-  }
-
+// The regional-pokemon icon + encounter-rate chips moved into the bottom
+// bar (game-bottom-bar.tsx); this component now only hosts the money/life
+// toast containers (targeted by containerId elsewhere — do not remove).
+export default function GameShop() {
   return (
     <>
-      <div
-        className="game-shop my-container"
-        style={{ zIndex: DEPTH.GAME_SHOP }}
-      >
-        <div className="game-shop-left-buttons">
-          <button
-            className="bubbly blue speed-button"
-            onClick={cycleSpeed}
-            title={`Game speed: ${gameSpeed}x`}
-          >
-            {gameSpeed}x
-          </button>
-          {onShowMap && (
-            <button
-              className="bubbly orange show-map-button"
-              onClick={onShowMap}
-            >
-              Map
-            </button>
-          )}
-        </div>
-        <div id="game-shop-info">
-          <GameLifeInfo />
-          <GameMoneyInfo />
-          <GameRegionalPokemonsIcon />
-          <GameStreakInfo />
-          <div className="spacer"></div>
-          <GameTeamInfo />
-        </div>
-        <GameExperience />
-      </div>
       <ToastContainer
         className="toast"
         toastClassName="toast-shop"

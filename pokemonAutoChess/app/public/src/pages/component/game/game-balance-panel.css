@@ -1,0 +1,9 @@
+/* Balance info panel is desktop-only — it crowds the screen on mobile.
+   Gated on pointer type, not width: wide phones in landscape (933px+) and
+   tablets slip past a width breakpoint. Also keep the old width gate for
+   small desktop windows. */
+@media (pointer: coarse), (max-width: 900px) {
+  .game-balance-panel {
+    display: none !important;
+  }
+}

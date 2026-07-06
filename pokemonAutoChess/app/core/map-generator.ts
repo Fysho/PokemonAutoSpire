@@ -10,6 +10,7 @@ import { pickRandomIn, randomBetween, shuffleArray } from "../utils/random"
 const ALL_DUNGEONS = Object.values(DungeonPMDO)
 
 const FLOORS_PER_ACT = 20
+const SPIRE_FLOORS_PER_ACT = 16
 const MIN_NODES_PER_FLOOR = 3
 const MAX_NODES_PER_FLOOR = 5
 
@@ -46,6 +47,38 @@ function assignEndlessNodeType(floor: number, totalFloors: number): MapNodeType 
   }
 
   if (roll < 0.50) return MapNodeType.WILD_BATTLE
+  if (roll < 0.62) return MapNodeType.MYSTERY_ENCOUNTER
+  if (floor >= 6 && roll < 0.78) return MapNodeType.POKEMART
+  if (floor >= 4 && roll < 0.82) return MapNodeType.POKEMON_CENTER
+  return MapNodeType.WILD_BATTLE
+}
+
+// Spire mode: 16-floor acts. Boss on 16, pre-boss heal on 15, gyms 5/11 (+8 @40%),
+// one elite/unlock floor per quarter (3/7/10/13 — act 1 skips floor 3, the design
+// library has no act-1 "1-5" bracket), a mid center/mart on 9, a mart on 12,
+// wilds/mystery fill. Spire elites are approved library designs (see
+// populateEliteDesignNodes), so they roll generously — a 45% elite / 25% unlock
+// split per node on elite floors.
+function assignSpireNodeType(act: number, floor: number, totalFloors: number): MapNodeType {
+  if (floor === totalFloors) return MapNodeType.LEGENDARY_BOSS
+  if (floor === 1) return MapNodeType.WILD_BATTLE
+  if (floor === totalFloors - 1) return MapNodeType.POKEMON_CENTER
+
+  const roll = Math.random()
+
+  if (floor === 5 || floor === 11) return MapNodeType.GYM_LEADER
+  if (floor === 8) return roll < 0.4 ? MapNodeType.GYM_LEADER : MapNodeType.WILD_BATTLE
+
+  if ((floor === 3 && act > 1) || floor === 7 || floor === 10 || floor === 13) {
+    if (roll < 0.45) return MapNodeType.ELITE
+    if (roll < 0.7) return MapNodeType.UNLOCK
+    return MapNodeType.WILD_BATTLE
+  }
+
+  if (floor === 9) return roll < 0.5 ? MapNodeType.POKEMON_CENTER : MapNodeType.POKEMART
+  if (floor === 12) return roll < 0.5 ? MapNodeType.POKEMART : MapNodeType.WILD_BATTLE
+
+  if (roll < 0.5) return MapNodeType.WILD_BATTLE
   if (roll < 0.62) return MapNodeType.MYSTERY_ENCOUNTER
   if (floor >= 6 && roll < 0.78) return MapNodeType.POKEMART
   if (floor >= 4 && roll < 0.82) return MapNodeType.POKEMON_CENTER
@@ -164,6 +197,72 @@ function generateEliteFourMap(
   }
 }
 
+// Tutorial mode: a fixed, fully-scripted single-act map. Most floors have one
+// node (linear); the item and synergy stages have two wild nodes so the player
+// learns to choose a path. Floor types teach one mechanic each (see TUTORIAL_MAP
+// in models/tutorial.ts). Edges connect every node of a floor to every node of
+// the next; since adjacent floors are only ever 1↔1 or 1↔2, paths never cross.
+export function generateTutorialMap(
+  mapNodes: MapSchema<MapNode>,
+  mapEdges: ArraySchema<MapEdge>
+) {
+  const { TUTORIAL_MAP, getTutorialEncounter } = require("../models/tutorial")
+  const act = 1
+  const floorIds: string[][] = []
+  for (let f = 0; f < TUTORIAL_MAP.length; f++) {
+    const floor = f + 1
+    const defs = TUTORIAL_MAP[f]
+    const ids: string[] = []
+    for (let col = 0; col < defs.length; col++) {
+      const def = defs[col]
+      const id = nodeId(act, floor, col)
+      const x = defs.length === 1 ? 2 : Math.round((col / (defs.length - 1)) * 4)
+      const node = new MapNode(
+        id,
+        def.nodeType,
+        x,
+        floor,
+        act,
+        floor,
+        `tutorial_floor${floor}_${col}`,
+        def.region ?? ""
+      )
+      if (def.nodeType === MapNodeType.GYM_LEADER) {
+        node.gymLeaderIndex = 0
+        node.gymLeaderIsEarly = false
+        node.gymLeaderSynergy = def.gymSynergy ?? ""
+        node.displayName = def.displayName || getGymLeaderDisplayName(def.gymSynergy)
+      } else if (def.nodeType === MapNodeType.ELITE) {
+        // eliteEncounterIndex must be >= 0 for the elite reward path to fire; the
+        // encounter itself is overridden in onSelectMapNode for tutorial nodes.
+        const encounter = getTutorialEncounter(floor)
+        node.eliteEncounterIndex = 0
+        node.displayName = def.displayName || encounter.name
+        node.eliteAvatar = PkmIndex[encounter.avatar as keyof typeof PkmIndex] ?? ""
+      } else if (def.nodeType === MapNodeType.LEGENDARY_BOSS) {
+        const encounter = getTutorialEncounter(floor)
+        node.displayName = def.displayName || encounter.name
+        node.bossSprites = encounter.board
+          .map(([pkm]: [string]) => PkmIndex[pkm as keyof typeof PkmIndex] ?? "")
+          .join(",")
+      } else if (def.displayName) {
+        node.displayName = def.displayName
+      }
+      if (floor === 1) node.available = true
+      mapNodes.set(id, node)
+      ids.push(id)
+    }
+    floorIds.push(ids)
+  }
+  for (let f = 0; f < floorIds.length - 1; f++) {
+    for (const from of floorIds[f]) {
+      for (const to of floorIds[f + 1]) {
+        mapEdges.push(new MapEdge(from, to))
+      }
+    }
+  }
+}
+
 function generateAct5Map(
   mapNodes: MapSchema<MapNode>,
   mapEdges: ArraySchema<MapEdge>
@@ -183,16 +282,17 @@ export function generateActMap(
   mapNodes: MapSchema<MapNode>,
   mapEdges: ArraySchema<MapEdge>,
   difficultyMode: DifficultyMode = 1,
-  isEndless: boolean = false
+  isEndless: boolean = false,
+  isSpire: boolean = false
 ) {
-  if (!isEndless && act === 5) {
+  if (!isEndless && !isSpire && act === 5) {
     return generateAct5Map(mapNodes, mapEdges)
   }
-  if (!isEndless && act === 4) {
+  if (!isEndless && !isSpire && act === 4) {
     return generateEliteFourMap(mapNodes, mapEdges, difficultyMode)
   }
 
-  const totalFloors = FLOORS_PER_ACT
+  const totalFloors = isSpire ? SPIRE_FLOORS_PER_ACT : FLOORS_PER_ACT
   const floorNodes: string[][] = []
 
   const gymSynergies = [...getGymSynergies()]
@@ -230,7 +330,9 @@ export function generateActMap(
       const x = nodeCount === 1 ? 2 : Math.round((col / (nodeCount - 1)) * 4)
       const nodeType = isEndless
         ? assignEndlessNodeType(floor, totalFloors)
-        : assignNodeType(act, floor, totalFloors)
+        : isSpire
+          ? assignSpireNodeType(act, floor, totalFloors)
+          : assignNodeType(act, floor, totalFloors)
 
       let region = ""
       if (nodeType === MapNodeType.WILD_BATTLE) {

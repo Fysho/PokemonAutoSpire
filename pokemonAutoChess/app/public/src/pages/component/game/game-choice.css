@@ -66,3 +66,83 @@
   font-size: 80%;
   max-width: 240px;
 }
+
+/* STS-style rewards screen */
+.game-rewards-screen {
+  min-width: 340px;
+}
+
+.game-rewards-list {
+  display: flex;
+  flex-flow: column;
+  gap: 0.5em;
+  padding: 10px;
+}
+
+.game-rewards-list > .game-reward-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  width: 100%;
+  padding: 0.6em 1em;
+  font-size: 1.1em;
+  color: var(--color-fg-primary);
+  text-align: left;
+}
+
+.game-rewards-list > .game-reward-row:hover {
+  background-color: var(--color-bg-accent);
+}
+
+.game-reward-icon {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  image-rendering: pixelated;
+}
+
+.game-reward-label {
+  flex: 1 1 auto;
+}
+
+.game-reward-arrow {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.game-rewards-skip {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin: 0.5em 1em 1em;
+}
+
+/* Touch: tap picks immediately; press-and-hold shows the pokemon details
+   (see game-choice.tsx). Suppress the iOS long-press callout (image save
+   sheet) and text selection so the hold gesture stays ours. */
+.game-choice .my-box.clickable {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* Small screens: the 20vw cap collapses item boxes to ~78px on phones.
+   Give them a readable floor and let the lists wrap; keep the whole
+   picker inside the viewport. */
+@media (width <= 900px) {
+  .game-choice-pokemons-list,
+  .game-choice-items-list {
+    flex-wrap: wrap;
+  }
+
+  .game-choice-items-list > .my-box {
+    width: auto;
+    min-width: 140px;
+    max-width: 34vw;
+  }
+
+  .game-choice > .my-container {
+    max-width: 96vw;
+    max-height: 82vh;
+    overflow-y: auto;
+  }
+}

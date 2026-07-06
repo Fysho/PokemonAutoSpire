@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router"
 import { useTranslation } from "react-i18next"
-import { clearGameReconnection, client, getIdToken, joinGame, spectateGame } from "../network"
+import { authenticateUser, clearGameReconnection, client, getIdToken, joinGame, spectateGame, waitForFirebaseAuth } from "../network"
 import { useAppSelector, useAppDispatch } from "../hooks"
 import { changeName } from "../stores/NetworkStore"
 import { SynergyTriggers } from "../../../config"
@@ -12,9 +12,13 @@ import { DungeonPMDO } from "../../../types/enum/Dungeon"
 import { Pkm, PkmIndex } from "../../../types/enum/Pokemon"
 import { SynergyGem, SynergyGivenByGem } from "../../../types/enum/Item"
 import { Synergy } from "../../../types/enum/Synergy"
+import { ALL_SPIRE_CLASSES, SpireClass } from "../../../core/spire-classes"
+import { Tooltip } from "react-tooltip"
+import { RELICS } from "../../../core/relics"
 import { getPortraitSrc, getAvatarSrc } from "../../../utils/avatar"
 import { MainSidebar } from "./component/main-sidebar/main-sidebar"
 import SynergyIcon from "./component/icons/synergy-icon"
+import { addIconsToDescription } from "./utils/descriptions"
 import { cc } from "./utils/jsx"
 import { LocalStoreKeys, localStore } from "./utils/store"
 import pkg from "../../../../package.json"
@@ -136,7 +140,9 @@ export default function SpireLobby() {
   const [savedRun, setSavedRun] = useState<SavedRunSummary | null>(null)
   const [loadingSave, setLoadingSave] = useState(true)
   const [confirmOverwrite, setConfirmOverwrite] = useState<number | null>(null)
-  const [confirmActiveSession, setConfirmActiveSession] = useState<{ difficultyMode: number; resume: boolean; isEndless: boolean } | null>(null)
+  // Spire-class chosen for the run being launched, carried through the saved-run / active-session confirm dialogs
+  const [pendingSpireClass, setPendingSpireClass] = useState<SpireClass | null>(null)
+  const [confirmActiveSession, setConfirmActiveSession] = useState<{ difficultyMode: number; resume: boolean; isEndless: boolean; spireClass: SpireClass | null } | null>(null)
   const [lostRunPopup, setLostRunPopup] = useState<"found" | "not-found" | "error" | "searching" | null>(null)
   const [hasHardWin, setHasHardWin] = useState(false)
   const [endlessEnabled, setEndlessEnabled] = useState(true)
@@ -153,8 +159,22 @@ export default function SpireLobby() {
   const [joiningSpectate, setJoiningSpectate] = useState(false)
 
   useEffect(() => {
-    if (!uid) {
-      navigate("/")
+    // On a page refresh Redux resets and Firebase restores the session
+    // asynchronously. Wait for the initial auth state: a restored user is
+    // logged back in (stays in the lobby); no user → back to the login page.
+    // Guests reaching the lobby via "Play as Guest" already have a uid here.
+    if (uid) return
+    let cancelled = false
+    waitForFirebaseAuth().then((user) => {
+      if (cancelled) return
+      if (user) {
+        authenticateUser()
+      } else {
+        navigate("/")
+      }
+    })
+    return () => {
+      cancelled = true
     }
   }, [uid])
 
@@ -348,7 +368,7 @@ export default function SpireLobby() {
 
   const [nameWarning, setNameWarning] = useState(false)
 
-  async function createRoom(difficultyMode: number, resume: boolean, isEndless: boolean = false, skipActiveCheck: boolean = false) {
+  async function createRoom(difficultyMode: number, resume: boolean, isEndless: boolean = false, skipActiveCheck: boolean = false, spireClass: SpireClass | null = null, isTutorial: boolean = false) {
     if (starting) return
     const name = playerName.trim()
     if (!name || name === "Username" || name === "Player") {
@@ -362,7 +382,7 @@ export default function SpireLobby() {
         const res = await fetch(`/api/active-game/${odToken}`)
         const { active } = await res.json()
         if (active) {
-          setConfirmActiveSession({ difficultyMode, resume, isEndless })
+          setConfirmActiveSession({ difficultyMode, resume, isEndless, spireClass })
           return
         }
       } catch {
@@ -398,7 +418,10 @@ export default function SpireLobby() {
         bracketId: null,
         difficultyMode,
         resume,
-        isEndless
+        isEndless,
+        isSpire: spireClass != null,
+        spireClass,
+        isTutorial
       })
       joinGame(room as any)
       navigate("/game")
@@ -409,6 +432,7 @@ export default function SpireLobby() {
   }
 
   function startRun(difficultyMode: number) {
+    setPendingSpireClass(null)
     if (savedRun) {
       setConfirmOverwrite(difficultyMode)
     } else {
@@ -416,27 +440,49 @@ export default function SpireLobby() {
     }
   }
 
+  // Tutorial: a guided scripted run. It is never saved and never overwrites the
+  // player's real saved run, so it skips the overwrite confirmation entirely.
+  function startTutorial() {
+    setPendingSpireClass(null)
+    // skipActiveCheck=true: the active-session confirm path doesn't carry the
+    // tutorial flag, and a tutorial is unsaved/harmless, so bypass it entirely.
+    createRoom(1, false, false, true, null, true)
+  }
+
+  // Spire Mode: launch a run with the chosen class (difficulty defaults to Normal for now).
+  function startSpireRun(spireClass: SpireClass) {
+    setPendingSpireClass(spireClass)
+    if (savedRun) {
+      setConfirmOverwrite(1)
+    } else {
+      createRoom(1, false, false, false, spireClass)
+    }
+  }
+
   function confirmNewRun() {
     if (confirmOverwrite === null) return
     const diff = confirmOverwrite
     const endless = diff === -1
+    const spireClass = pendingSpireClass
     setConfirmOverwrite(null)
+    setPendingSpireClass(null)
     fetch(`/api/saved-run/${uid}`, { method: "DELETE" })
       .then(() => {
         setSavedRun(null)
-        createRoom(endless ? 1 : diff, false, endless)
+        createRoom(endless ? 1 : diff, false, endless, false, spireClass)
       })
-      .catch(() => createRoom(endless ? 1 : diff, false, endless))
+      .catch(() => createRoom(endless ? 1 : diff, false, endless, false, spireClass))
   }
 
   function confirmKickActiveSession() {
     if (!confirmActiveSession) return
     const c = confirmActiveSession
     setConfirmActiveSession(null)
-    createRoom(c.difficultyMode, c.resume, c.isEndless, true)
+    createRoom(c.difficultyMode, c.resume, c.isEndless, true, c.spireClass)
   }
 
   function startEndlessRun() {
+    setPendingSpireClass(null)
     if (savedRun) {
       setConfirmOverwrite(-1)
     } else {
@@ -524,7 +570,9 @@ export default function SpireLobby() {
       <div className="lobby-container">
         <SpireLobbyContent
           startRun={startRun}
+          startSpireRun={startSpireRun}
           startEndlessRun={startEndlessRun}
+          startTutorial={startTutorial}
           resumeRun={resumeRun}
           abandonRun={abandonRun}
           starting={starting}
@@ -565,7 +613,9 @@ export default function SpireLobby() {
 
 function SpireLobbyContent({
   startRun,
+  startSpireRun,
   startEndlessRun,
+  startTutorial,
   resumeRun,
   abandonRun,
   starting,
@@ -600,7 +650,9 @@ function SpireLobbyContent({
   setAnnouncement
 }: {
   startRun: (difficultyMode: number) => void
+  startSpireRun: (spireClass: SpireClass) => void
   startEndlessRun: () => void
+  startTutorial: () => void
   resumeRun: () => void
   abandonRun: () => void
   starting: boolean
@@ -614,8 +666,8 @@ function SpireLobbyContent({
   confirmOverwrite: number | null
   setConfirmOverwrite: (v: number | null) => void
   confirmNewRun: () => void
-  confirmActiveSession: { difficultyMode: number; resume: boolean; isEndless: boolean } | null
-  setConfirmActiveSession: (v: { difficultyMode: number; resume: boolean; isEndless: boolean } | null) => void
+  confirmActiveSession: { difficultyMode: number; resume: boolean; isEndless: boolean; spireClass: SpireClass | null } | null
+  setConfirmActiveSession: (v: { difficultyMode: number; resume: boolean; isEndless: boolean; spireClass: SpireClass | null } | null) => void
   confirmKickActiveSession: () => void
   findLostRun: () => void
   lostRunPopup: "found" | "not-found" | "error" | "searching" | null
@@ -645,6 +697,12 @@ function SpireLobbyContent({
   const [runFilterDifficulty, setRunFilterDifficulty] = useState<number | null>(
     () => localStore.get(LocalStoreKeys.SPIRE_RUN_FILTER_DIFFICULTY) ?? null
   )
+  // Left panel sub-tab: leaderboards (default) vs live runs
+  const [boardTab, setBoardTab] = useState<"leaderboards" | "runs">("leaderboards")
+  // Central Play panel tab: play (default) vs leaderboards (wider layout)
+  const [playTab, setPlayTab] = useState<"play" | "leaderboards">("play")
+  // Spire Mode: currently selected class card
+  const [selectedSpireClass, setSelectedSpireClass] = useState<SpireClass>(SpireClass.IRONCLAD)
   const [showPatchPopup, setShowPatchPopup] = useState(false)
   const [showHotfixButton, setShowHotfixButton] = useState(false)
   const { t } = useTranslation()
@@ -685,7 +743,7 @@ function SpireLobbyContent({
             className={cc({ active: activeSection === "leaderboard" })}
           >
             <img width={32} height={32} src={`assets/ui/meta.svg`} />
-            Live Runs
+            Leaderboards
           </li>
           <li
             onClick={() => setActive("rooms")}
@@ -710,6 +768,34 @@ function SpireLobbyContent({
         })}
       >
         <div className="my-container custom-bg hidden-scrollable" style={{ padding: "12px 16px", color: "var(--color-fg-primary)", height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {/* Sub-tab toggle: Leaderboards (default) | Live Runs */}
+          <div style={{ display: "flex", gap: "4px", marginBottom: "10px" }}>
+            <button
+              className="bubbly"
+              onClick={() => setBoardTab("leaderboards")}
+              style={{ flex: 1, fontSize: "13px", padding: "5px 10px", background: boardTab === "leaderboards" ? "#c0392b" : "#555", fontWeight: boardTab === "leaderboards" ? "bold" : "normal" }}
+            >
+              Leaderboards
+            </button>
+            <button
+              className="bubbly"
+              onClick={() => setBoardTab("runs")}
+              style={{ flex: 1, fontSize: "13px", padding: "5px 10px", background: boardTab === "runs" ? "#c0392b" : "#555", fontWeight: boardTab === "runs" ? "bold" : "normal" }}
+            >
+              Live Runs
+            </button>
+          </div>
+
+          {boardTab === "leaderboards" && (
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              <ChampionDisplay />
+              <ArceusRecordDisplay />
+              <EndlessLeaderboardDisplay />
+              <VictoryLeaderboardDisplay />
+            </div>
+          )}
+
+          {boardTab === "runs" && (<>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
             <h2 style={{ margin: 0, flex: 1 }}>Live Runs</h2>
             <button
@@ -813,12 +899,40 @@ function SpireLobbyContent({
               </div>
             )
           })()}
+          </>)}
         </div>
       </section>
 
       <section className={cc("rooms", { active: activeSection === "rooms" })}>
         <div className="my-container room-menu custom-bg hidden-scrollable">
-          <h2>Play</h2>
+          {/* Central panel tabs: Play (default) | Leaderboards */}
+          <div style={{ display: "flex", gap: "4px", marginBottom: "10px" }}>
+            <button
+              className="bubbly"
+              onClick={() => setPlayTab("play")}
+              style={{ flex: 1, fontSize: "13px", padding: "5px 10px", background: playTab === "play" ? "#c0392b" : "#555", fontWeight: playTab === "play" ? "bold" : "normal" }}
+            >
+              Play
+            </button>
+            <button
+              className="bubbly"
+              onClick={() => setPlayTab("leaderboards")}
+              style={{ flex: 1, fontSize: "13px", padding: "5px 10px", background: playTab === "leaderboards" ? "#c0392b" : "#555", fontWeight: playTab === "leaderboards" ? "bold" : "normal" }}
+            >
+              Leaderboards
+            </button>
+          </div>
+
+          {playTab === "leaderboards" && (
+            <div style={{ overflowY: "auto" }}>
+              <ChampionDisplay wide />
+              <ArceusRecordDisplay wide />
+              <EndlessLeaderboardDisplay />
+              <VictoryLeaderboardDisplay />
+            </div>
+          )}
+
+          {playTab === "play" && (<>
           <ul className="room-list" style={{ padding: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
             {/* Resume Run Panel */}
             <li style={{ listStyle: "none" }}>
@@ -894,28 +1008,31 @@ function SpireLobbyContent({
             {/* New Run Panel */}
             <li style={{ listStyle: "none" }}>
               <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
-                <span className="room-name">
-                  Pokemon Auto Spire v{CURRENT_VERSION}
-                  {showHotfixButton && (
-                    <span
-                      style={{
-                        marginLeft: "8px",
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontSize: "11px",
-                        fontWeight: "bold",
-                        backgroundColor: "#2d6a2d",
-                        color: "#7fff7f",
-                        verticalAlign: "middle",
-                        cursor: "pointer"
-                      }}
-                      onClick={() => setShowHotfixButton(false)}
-                    >
-                      NEW HOTFIX
-                    </span>
-                  )}
+                <span className="room-name" style={{ width: "100%", position: "relative", textAlign: "center" }}>
+                  <span style={{ fontSize: "clamp(14px, 1.25vw, 20px)", fontWeight: "bold" }}>Pokemon Auto Spire</span>
+                  <span style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", display: "inline-flex", alignItems: "center" }}>
+                    v{CURRENT_VERSION}
+                    {showHotfixButton && (
+                      <span
+                        style={{
+                          marginLeft: "8px",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          fontSize: "11px",
+                          fontWeight: "bold",
+                          backgroundColor: "#2d6a2d",
+                          color: "#7fff7f",
+                          verticalAlign: "middle",
+                          cursor: "pointer"
+                        }}
+                        onClick={() => setShowHotfixButton(false)}
+                      >
+                        NEW HOTFIX
+                      </span>
+                    )}
+                  </span>
                 </span>
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div className="difficulty-buttons-row" style={{ display: "flex", gap: "8px", maxWidth: "100%" }}>
                   <button
                     className={cc("bubbly", { loading: starting })}
                     disabled={starting}
@@ -940,66 +1057,43 @@ function SpireLobbyContent({
                   >
                     {starting ? t("loading") : "Start Hard"}
                   </button>
-                  <span style={{ position: "relative", display: "inline-block" }} className={(!hasHardWin && !isAdmin) ? "hometown-help" : ""}>
-                    <button
-                      className={cc("bubbly", { loading: starting })}
-                      disabled={starting || (!hasHardWin && !isAdmin)}
-                      onClick={() => startRun(3)}
-                      style={{
-                        backgroundColor: "#222222",
-                        minWidth: "150px",
-                        opacity: (!hasHardWin && !isAdmin) ? 0.4 : 1,
-                        cursor: (!hasHardWin && !isAdmin) ? "not-allowed" : "pointer"
-                      }}
-                    >
-                      {starting ? t("loading") : "Start Impossible"}
-                    </button>
-                    {(!hasHardWin && !isAdmin) && (
-                      <span className="hometown-help-tooltip">
-                        Defeat Hard mode to unlock Impossible
-                      </span>
-                    )}
-                  </span>
+                  <button
+                    className={cc("bubbly", { loading: starting })}
+                    disabled={starting || (!hasHardWin && !isAdmin)}
+                    onClick={() => startRun(3)}
+                    style={{
+                      backgroundColor: "#222222",
+                      minWidth: "150px",
+                      opacity: (!hasHardWin && !isAdmin) ? 0.4 : 1,
+                      cursor: (!hasHardWin && !isAdmin) ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    {starting ? t("loading") : "Start Impossible"}
+                  </button>
                 </div>
+                {/* Shown below the row (not a hover tooltip) — the scrollable
+                    button row clips overflowing content, and touch devices
+                    can't hover anyway. */}
+                {(!hasHardWin && !isAdmin) && (
+                  <span style={{ fontSize: "11px", opacity: 0.6 }}>
+                    Defeat Hard mode to unlock Impossible
+                  </span>
+                )}
               </div>
             </li>
 
-            {/* Ascension + Endless Row */}
-            <li style={{ listStyle: "none", display: "flex", gap: "8px" }}>
+            {/* Tutorial + Endless Row (stacks vertically on phones via .lobby-mode-row) */}
+            <li className="lobby-mode-row" style={{ listStyle: "none", display: "flex", gap: "8px" }}>
               <div className="room-item my-box" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", flex: 1 }}>
-                <span className="room-name">Ascension Run</span>
+                <span className="room-name">Tutorial</span>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <img
-                    src={`assets/ranks/${selectedAscension.rank}.svg`}
-                    alt={selectedAscension.name}
-                    style={{ width: "32px", height: "32px" }}
-                  />
-                  <select
-                    value={ascensionIndex}
-                    onChange={(e) => setAscensionIndex(Number(e.target.value))}
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: "4px",
-                      border: "1px solid #555",
-                      background: "rgba(0,0,0,0.3)",
-                      color: "white",
-                      fontSize: "14px",
-                      fontFamily: "inherit",
-                      minWidth: "140px"
-                    }}
-                  >
-                    {ASCENSION_RANKS.map((r, i) => (
-                      <option key={r.rank} value={i}>
-                        {i + 1}. {r.name}
-                      </option>
-                    ))}
-                  </select>
                   <button
-                    className="bubbly"
-                    disabled
-                    style={{ backgroundColor: "#555", cursor: "not-allowed" }}
+                    className={cc("bubbly", { loading: starting })}
+                    disabled={starting}
+                    onClick={startTutorial}
+                    style={{ backgroundColor: "#3498db" }}
                   >
-                    Coming Soon
+                    {starting ? t("loading") : "Start Tutorial"}
                   </button>
                 </div>
                 <span style={{
@@ -1008,7 +1102,7 @@ function SpireLobbyContent({
                   textAlign: "center",
                   maxWidth: "400px"
                 }}>
-                  {selectedAscension.description}
+                  Learn how to play Pokemon Auto Spire, great for all new players whether you have pokemon auto chess experience or not.
                 </span>
               </div>
 
@@ -1141,10 +1235,124 @@ function SpireLobbyContent({
                 ))}
             </select>
           </div>
-          <ChampionDisplay />
-          <ArceusRecordDisplay />
-          <EndlessLeaderboardDisplay />
-          <VictoryLeaderboardDisplay />
+
+          {/* Spire Mode — class selection. Admin-only while in development
+              (server enforces the same gate in game-room.ts onCreate). */}
+          {isAdmin && (
+          <div className="my-box" style={{ marginTop: "12px", padding: "12px 14px" }}>
+            <h2 style={{ margin: "0 0 8px" }}>Spire Mode</h2>
+            <h3 style={{ margin: "0 0 6px", fontSize: "18px", opacity: 0.85 }}>Choose your class</h3>
+            <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "6px" }}>
+              {ALL_SPIRE_CLASSES.map((cls) => {
+                const selected = selectedSpireClass === cls.id
+                const relic = RELICS[cls.startingRelic]
+                return (
+                  <div
+                    key={cls.id}
+                    onClick={() => setSelectedSpireClass(cls.id)}
+                    style={{
+                      cursor: "pointer",
+                      flex: "1 0 200px",
+                      minWidth: "200px",
+                      border: selected ? "2px solid #f1c40f" : "2px solid #444",
+                      borderRadius: "6px",
+                      padding: "8px 10px",
+                      background: selected ? "rgba(241,196,15,0.12)" : "rgba(0,0,0,0.25)",
+                      display: "flex", flexDirection: "column", gap: "6px"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+                      <strong style={{ fontSize: "14px" }}>{cls.name}</strong>
+                      <span style={{ fontSize: "11px", opacity: 0.6 }}>{cls.theme}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
+                      {cls.synergies.map((syn) => (
+                        <SynergyIcon key={syn} type={syn} size="22px" />
+                      ))}
+                    </div>
+                    <div
+                      data-tooltip-id="spire-relic-tooltip"
+                      data-relic-id={cls.startingRelic}
+                      style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "help" }}
+                    >
+                      <img
+                        src={`/assets/relics/${cls.startingRelic}.png`}
+                        alt={relic.name}
+                        style={{ width: 28, height: 28, imageRendering: "pixelated" }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden" }}
+                      />
+                      <span style={{ fontSize: "11px" }}>
+                        <span style={{ opacity: 0.6 }}>Starting Relic:</span> {relic.name}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <Tooltip
+              id="spire-relic-tooltip"
+              className="custom-theme-tooltip"
+              render={({ activeAnchor }) => {
+                const id = activeAnchor?.getAttribute("data-relic-id")
+                const r = id ? RELICS[id as keyof typeof RELICS] : undefined
+                if (!r) return null
+                return (
+                  <div style={{ maxWidth: 240 }}>
+                    <strong>{r.name}</strong>
+                    <p className="relic-effect-desc" style={{ margin: "4px 0 0" }}>{addIconsToDescription(r.description)}</p>
+                  </div>
+                )
+              }}
+            />
+            {/* Ascension selection — choose after your class, before entering */}
+            <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid #444" }}>
+              <h3 style={{ margin: "0 0 8px", fontSize: "18px", opacity: 0.85 }}>Ascension Level</h3>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+                  <img
+                    src={`assets/ranks/${selectedAscension.rank}.svg`}
+                    alt={selectedAscension.name}
+                    style={{ width: "32px", height: "32px" }}
+                  />
+                  <select
+                    value={ascensionIndex}
+                    onChange={(e) => setAscensionIndex(Number(e.target.value))}
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: "4px",
+                      border: "1px solid #555",
+                      background: "rgba(0,0,0,0.3)",
+                      color: "white",
+                      fontSize: "14px",
+                      fontFamily: "inherit",
+                      minWidth: "140px"
+                    }}
+                  >
+                    {ASCENSION_RANKS.map((r, i) => (
+                      <option key={r.rank} value={i}>
+                        {i + 1}. {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <span style={{ fontSize: "12px", opacity: 0.7, flex: 1 }}>
+                  {selectedAscension.description}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "center", marginTop: "12px" }}>
+              <button
+                className={cc("bubbly green", { loading: starting })}
+                disabled={starting}
+                onClick={() => startSpireRun(selectedSpireClass)}
+                style={{ fontSize: "16px", padding: "8px 24px" }}
+              >
+                {starting ? "Loading..." : "Enter the Spire"}
+              </button>
+            </div>
+          </div>
+          )}
+          </>)}
         </div>
       </section>
 
@@ -1604,7 +1812,7 @@ function formatDurationClient(ms: number): string {
   return `${Math.max(1, minutes)}m`
 }
 
-function ChampionDisplay() {
+function ChampionDisplay({ wide }: { wide?: boolean }) {
   const [data, setData] = useState<Record<number, ChampionData>>({})
   const [expanded, setExpanded] = useState<number | null>(null)
   const { t } = useTranslation()
@@ -1640,14 +1848,14 @@ function ChampionDisplay() {
             </div>
             {isOpen && d && (
               <div style={{ padding: "0 12px 10px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                <ChampionSlotRow slot={d.champion} title="Champion" highlight />
+                <ChampionSlotRow slot={d.champion} title="Champion" highlight wide={wide} />
                 {d.championSince && (
                   <div style={{ fontSize: "12px", opacity: 0.6, textAlign: "center", margin: "-2px 0" }}>
                     Champion for {formatDurationClient(Date.now() - new Date(d.championSince).getTime())}
                   </div>
                 )}
                 {[...d.eliteFour].reverse().map((e4, i, arr) => (
-                  <ChampionSlotRow key={i} slot={e4} title={`Elite Four ${arr.length - i}`} />
+                  <ChampionSlotRow key={i} slot={e4} title={`Elite Four ${arr.length - i}`} wide={wide} />
                 ))}
                 {d.longestReign && (
                   <div style={{
@@ -1694,14 +1902,13 @@ function getTopSynergiesFromSlot(pokemon: { name: string; items: string[] }[], i
     .slice(0, 3)
 }
 
-function ChampionSlotRow({ slot, title, highlight }: { slot: ChampionSlot; title: string; highlight?: boolean }) {
+function ChampionSlotRow({ slot, title, highlight, wide }: { slot: ChampionSlot; title: string; highlight?: boolean; wide?: boolean }) {
   const { t } = useTranslation()
   const topSynergies = getTopSynergiesFromSlot(slot.pokemon, slot.inventory)
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: "8px", padding: "4px 0",
-      borderTop: "1px solid rgba(255,255,255,0.1)"
-    }}>
+
+  // Header elements: title, avatar, name, win/draw badges, synergies.
+  const header = (
+    <>
       <span style={{
         fontSize: "14px", opacity: 0.7, minWidth: "80px", flexShrink: 0, fontWeight: "bold"
       }}>{title}</span>
@@ -1738,34 +1945,64 @@ function ChampionSlotRow({ slot, title, highlight }: { slot: ChampionSlot; title
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", flex: 1, alignItems: "center" }}>
-        {slot.pokemon.map((p, i) => {
-          const idx = PkmIndex[p.name as Pkm]
-          return idx ? (
-            <div key={i} style={{ position: "relative" }}>
-              <img
-                src={getPortraitSrc(idx)}
-                alt={p.name}
-                title={t(`pkm.${p.name}` as any)}
-                style={{ width: 50, height: 50, imageRendering: "pixelated" }}
-              />
-              {p.items.length > 0 && (
-                <div style={{ position: "absolute", bottom: 0, left: 0, display: "flex", gap: "1px" }}>
-                  {p.items.map((item, j) => (
-                    <img
-                      key={j}
-                      src={`/assets/item/${item}.png`}
-                      alt={item}
-                      title={t(`item.${item}` as any)}
-                      style={{ width: 15, height: 15 }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null
-        })}
+    </>
+  )
+
+  // Pokémon team. In the wide central panel it shares the row (flex:1); in the
+  // narrow left panel it sits on its own row below the header so it isn't squeezed.
+  const team = (
+    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", flex: wide ? 1 : undefined, alignItems: "center" }}>
+      {slot.pokemon.map((p, i) => {
+        const idx = PkmIndex[p.name as Pkm]
+        return idx ? (
+          <div key={i} style={{ position: "relative" }}>
+            <img
+              src={getPortraitSrc(idx)}
+              alt={p.name}
+              title={t(`pkm.${p.name}` as any)}
+              style={{ width: 50, height: 50, imageRendering: "pixelated" }}
+            />
+            {p.items.length > 0 && (
+              <div style={{ position: "absolute", bottom: 0, left: 0, display: "flex", gap: "1px" }}>
+                {p.items.map((item, j) => (
+                  <img
+                    key={j}
+                    src={`/assets/item/${item}.png`}
+                    alt={item}
+                    title={t(`item.${item}` as any)}
+                    style={{ width: 15, height: 15 }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null
+      })}
+    </div>
+  )
+
+  if (wide) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", gap: "8px", padding: "4px 0",
+        borderTop: "1px solid rgba(255,255,255,0.1)"
+      }}>
+        {header}
+        {team}
       </div>
+    )
+  }
+
+  // Stacked: header row on top, team on a row below.
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", gap: "4px", padding: "4px 0",
+      borderTop: "1px solid rgba(255,255,255,0.1)"
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        {header}
+      </div>
+      {team}
     </div>
   )
 }
@@ -1778,7 +2015,7 @@ interface ArceusLeaderboardEntry {
   inventory: string[]
 }
 
-function ArceusRecordDisplay() {
+function ArceusRecordDisplay({ wide }: { wide?: boolean }) {
   const [leaderboards, setLeaderboards] = useState<Record<number, ArceusLeaderboardEntry[]>>({})
   const [expanded, setExpanded] = useState<number | null>(null)
 
@@ -1841,6 +2078,7 @@ function ArceusRecordDisplay() {
                       slot={slot}
                       title={entry.damage.toLocaleString()}
                       highlight={i === 0}
+                      wide={wide}
                     />
                   )
                 })}

@@ -3,6 +3,9 @@
   display: flex;
   flex-flow: column;
   user-select: none;
+  /* Above the fixed top/bottom bars (z-index 60) so a window dragged over
+     them keeps a grabbable header; below modals (71) and tooltips (75). */
+  z-index: 61;
 }
 
 .draggable-window.my-container {

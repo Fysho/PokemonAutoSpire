@@ -54,6 +54,9 @@ export interface GameStateStore {
   runHP: number
   difficultyMode: number
   isEndless: boolean
+  isSpire: boolean
+  isTutorial: boolean
+  spireClass: string
   currentAct: number
   currentFloor: number
   encounterDifficulty: number
@@ -61,6 +64,8 @@ export interface GameStateStore {
   encounterPokemonCount: number
   encounterTotalStars: number
   encounterTotalItems: number
+  encounterName: string
+  encounterAvatar: string
   encounterInventory: string[]
   encounterGroundHoles: number[]
   gameSpeed: number
@@ -104,6 +109,9 @@ const initialState: GameStateStore = {
   runHP: 100,
   difficultyMode: 1,
   isEndless: false,
+  isSpire: false,
+  isTutorial: false,
+  spireClass: "",
   currentAct: 1,
   currentFloor: 0,
   encounterDifficulty: 0,
@@ -111,6 +119,8 @@ const initialState: GameStateStore = {
   encounterPokemonCount: 0,
   encounterTotalStars: 0,
   encounterTotalItems: 0,
+  encounterName: "",
+  encounterAvatar: "",
   encounterInventory: [],
   encounterGroundHoles: [],
   gameSpeed: 1,
@@ -146,6 +156,15 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
     setIsEndless: (state, action: PayloadAction<boolean>) => {
       state.isEndless = action.payload
     },
+    setIsSpire: (state, action: PayloadAction<boolean>) => {
+      state.isSpire = action.payload
+    },
+    setIsTutorial: (state, action: PayloadAction<boolean>) => {
+      state.isTutorial = action.payload
+    },
+    setSpireClass: (state, action: PayloadAction<string>) => {
+      state.spireClass = action.payload
+    },
     setCurrentAct: (state, action: PayloadAction<number>) => {
       state.currentAct = action.payload
     },
@@ -166,6 +185,12 @@ export const gameSlice: Slice<GameStateStore> = createSlice({
     },
     setEncounterTotalItems: (state, action: PayloadAction<number>) => {
       state.encounterTotalItems = action.payload
+    },
+    setEncounterName: (state, action: PayloadAction<string>) => {
+      state.encounterName = action.payload
+    },
+    setEncounterAvatar: (state, action: PayloadAction<string>) => {
+      state.encounterAvatar = action.payload
     },
     setEncounterInventory: (state, action: PayloadAction<string[]>) => {
       state.encounterInventory = action.payload
@@ -417,6 +442,9 @@ export const {
   setRunHP,
   setDifficultyMode,
   setIsEndless,
+  setIsSpire,
+  setIsTutorial,
+  setSpireClass,
   setCurrentAct,
   setCurrentFloor,
   setEncounterDifficulty,
@@ -424,6 +452,8 @@ export const {
   setEncounterPokemonCount,
   setEncounterTotalStars,
   setEncounterTotalItems,
+  setEncounterName,
+  setEncounterAvatar,
   setEncounterInventory,
   setEncounterGroundHoles,
   setWeather,

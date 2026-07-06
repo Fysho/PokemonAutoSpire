@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react"
+import { MouseEvent, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { RegionDetails } from "../../../../../config"
 import { PlayerChoice } from "../../../../../models/colyseus-models/player-choice"
-import { type Item, ShinyItems } from "../../../../../types/enum/Item"
+import { Item, ShinyItems } from "../../../../../types/enum/Item"
 import { DungeonPMDO } from "../../../../../types/enum/Dungeon"
 import {
   Pkm,
@@ -14,6 +14,7 @@ import { Synergy } from "../../../../../types/enum/Synergy"
 import { SpecialGameRule } from "../../../../../types/enum/SpecialGameRule"
 import { Transfer } from "../../../../../types"
 import { isIn } from "../../../../../utils/array"
+import { RELICS } from "../../../../../core/relics"
 import { DEPTH } from "../../../game/depths"
 import { selectConnectedPlayer, useAppSelector } from "../../../hooks"
 import { IDetailledPokemon } from "../../../models/bot-v2"
@@ -30,10 +31,25 @@ function isPokemonChoice(choice: PlayerChoice): boolean {
   return choice.pokemons.length > 0
 }
 
-export default function GameChoice() {
+// Instant reward rows (claimed directly from the rewards screen, no sub-picker)
+const INSTANT_REWARD_TYPES = ["gold", "heal", "xp", "itemGrant"]
+function isPickerChoice(choice: PlayerChoice): boolean {
+  return !INSTANT_REWARD_TYPES.includes(choice.type)
+}
+
+interface GameChoiceProps {
+  // When true, this renders as the sub-picker for the STS-style rewards screen:
+  // it targets the single non-instant reward choice and shows a Back button.
+  rewardSubPicker?: boolean
+  onClose?: () => void
+}
+
+export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps = {}) {
   const { t } = useTranslation()
   const connectedPlayer = useAppSelector(selectConnectedPlayer)
   const specialGameRule = useAppSelector((state) => state.game.specialGameRule)
+  // Spire mode: rerolling is removed for now (will return as a consumable item).
+  const isSpire = useAppSelector((state) => state.game.isSpire)
 
   const life = connectedPlayer?.life ?? 0
   const choices = connectedPlayer?.choices ?? []
@@ -66,11 +82,79 @@ export default function GameChoice() {
 
   const [visible, setVisible] = useState(true)
 
+  // Touch devices: tap picks immediately; press-and-hold (~400ms) opens the
+  // pokemon's detail tooltip instead (hover doesn't exist on touch). The
+  // click fired when the long-press finger lifts is swallowed so it can't
+  // pick, and the next tap anywhere dismisses the details.
+  const [isTouchDevice] = useState(
+    () => window.matchMedia("(pointer: coarse)").matches
+  )
+  const [detailIndex, setDetailIndex] = useState<number | null>(null)
+  const longPressTimer = useRef<number | null>(null)
+  const longPressFired = useRef(false)
+
+  // In rewards-screen sub-picker mode, target the single non-instant reward
+  // (wild/elite/gym/unlock/item/addPick). Reroll swaps it for a new choice with
+  // a fresh id, but it's still the only picker choice, so this keeps tracking it.
+  const choice = rewardSubPicker ? choices.find(isPickerChoice) : choices[0]
+
+  // A reroll/regenerate replaces the choice id — drop any open details.
+  useEffect(() => {
+    setDetailIndex(null)
+  }, [choice?.id])
+
   if (choices.length === 0 || life <= 0) {
     return null
   }
 
-  const choice = choices[0]
+  if (!choice) {
+    return null
+  }
+
+  const startLongPress = (index: number) => {
+    if (!isTouchDevice) return
+    longPressFired.current = false
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current)
+    }
+    longPressTimer.current = window.setTimeout(() => {
+      longPressTimer.current = null
+      longPressFired.current = true
+      setDetailIndex(index)
+    }, 400)
+  }
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+
+  const onChoiceClick = (event: MouseEvent, index: number) => {
+    event.stopPropagation()
+    // Click fired by lifting a long-press: keep the details open, don't pick.
+    if (longPressFired.current) {
+      longPressFired.current = false
+      return
+    }
+    // Details are showing: this tap just dismisses them.
+    if (detailIndex !== null) {
+      setDetailIndex(null)
+      return
+    }
+    playSound(SOUNDS.BUTTON_CLICK)
+    pickChoice(choice.id, index)
+  }
+
+  const longPressHandlers = (index: number) => ({
+    onTouchStart: () => startLongPress(index),
+    onTouchMove: cancelLongPress,
+    onTouchEnd: cancelLongPress,
+    onTouchCancel: cancelLongPress
+  })
+
+  const choiceBoxClass = () => "my-box active clickable"
   const isWildReward = choice.type === "wildReward"
   const isGymReward = choice.type === "gymReward"
   const isEliteReward = choice.type === "eliteReward"
@@ -113,7 +197,11 @@ export default function GameChoice() {
   }
 
   return (
-    <div className="game-choice" style={{ zIndex: DEPTH.MODAL }}>
+    <div
+      className="game-choice"
+      style={{ zIndex: DEPTH.MODAL }}
+      onClick={() => setDetailIndex(null)}
+    >
       <div
         className="my-container"
         style={{ visibility: visible ? "visible" : "hidden" }}
@@ -141,20 +229,18 @@ export default function GameChoice() {
                 return (
                   <div
                     key={`${choice.id}-${index}`}
-                    className="my-box active clickable"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      playSound(SOUNDS.BUTTON_CLICK)
-                      pickChoice(choice.id, index)
-                    }}
+                    className={choiceBoxClass()}
+                    onClick={(event) => onChoiceClick(event, index)}
+                    {...longPressHandlers(index)}
                   >
                     <GamePokemonPortrait
                       origin="proposition"
                       index={index}
                       pokemon={proposition as Pkm}
                       inPlanner={false}
+                      detailOpen={isTouchDevice ? detailIndex === index : undefined}
                     />
-                    {isUnlockReward && item && (
+                    {(isUnlockReward || (isEliteReward && isSpire)) && item && (
                       <img
                         style={{ width: "2rem", height: "2rem", marginTop: "0.25em" }}
                         src={"assets/item/" + item + ".png"}
@@ -164,25 +250,40 @@ export default function GameChoice() {
                   </div>
                 )
               } else {
+                const relic = choice.relics?.[index]
                 return (
                   <div
                     key={`${choice.id}-${index}`}
-                    className="my-box active clickable"
+                    className={choiceBoxClass()}
                     style={{ display: "flex", flexFlow: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      playSound(SOUNDS.BUTTON_CLICK)
-                      pickChoice(choice.id, index)
-                    }}
+                    onClick={(event) => onChoiceClick(event, index)}
                   >
-                    <img
-                      style={{ width: "4rem", height: "4rem" }}
-                      src={"assets/item/" + item + ".png"}
-                    />
-                    <h3 style={{ margin: "0.25em 0" }}>{t(`item.${item}`)}</h3>
-                    <p style={{ marginBottom: "0.5em", fontSize: "80%" }}>
-                      {addIconsToDescription(t(`item_description.${item}`))}
-                    </p>
+                    {relic ? (
+                      <>
+                        <img
+                          style={{ width: "4rem", height: "4rem", objectFit: "contain" }}
+                          src={`/assets/relics/${relic}.png`}
+                          onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden" }}
+                        />
+                        <h3 style={{ margin: "0.25em 0" }}>
+                          {RELICS[relic as keyof typeof RELICS]?.name ?? relic}
+                        </h3>
+                        <p className="relic-effect-desc" style={{ marginBottom: "0.5em", fontSize: "80%" }}>
+                          {addIconsToDescription(RELICS[relic as keyof typeof RELICS]?.description ?? "")}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <img
+                          style={{ width: "4rem", height: "4rem" }}
+                          src={"assets/item/" + item + ".png"}
+                        />
+                        <h3 style={{ margin: "0.25em 0" }}>{t(`item.${item}`)}</h3>
+                        <p style={{ marginBottom: "0.5em", fontSize: "80%" }}>
+                          {addIconsToDescription(t(`item_description.${item}`))}
+                        </p>
+                      </>
+                    )}
                   </div>
                 )
               }
@@ -195,12 +296,9 @@ export default function GameChoice() {
               return (
                 <div
                   key={`${choice.id}-${index}`}
-                  className="my-box active clickable"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    playSound(SOUNDS.BUTTON_CLICK)
-                    pickChoice(choice.id, index)
-                  }}
+                  className={choiceBoxClass()}
+                  onClick={(event) => onChoiceClick(event, index)}
+                  {...longPressHandlers(index)}
                 >
                   {proposition in PkmDuos ? (
                     <GamePokemonDuoPortrait
@@ -222,6 +320,7 @@ export default function GameChoice() {
                       origin="proposition"
                       index={index}
                       pokemon={proposition as Pkm}
+                      detailOpen={isTouchDevice ? detailIndex === index : undefined}
                       inPlanner={
                         teamPlanner?.some((pokemon) => {
                           if (proposition in PkmDuos) {
@@ -257,6 +356,22 @@ export default function GameChoice() {
                       </p>
                     </div>
                   )}
+
+                  {choice.relics?.[index] && (
+                    <div className="choice-additional-item">
+                      <img
+                        style={{ width: "4rem", height: "4rem", objectFit: "contain" }}
+                        src={`/assets/relics/${choice.relics[index]}.png`}
+                        onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden" }}
+                      />
+                      <h3 style={{ margin: "0.25em 0" }}>
+                        {RELICS[choice.relics[index] as keyof typeof RELICS]?.name ?? choice.relics[index]}
+                      </h3>
+                      <p className="relic-effect-desc" style={{ marginBottom: "0.5em" }}>
+                        {addIconsToDescription(RELICS[choice.relics[index] as keyof typeof RELICS]?.description ?? "")}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -265,13 +380,9 @@ export default function GameChoice() {
           <div className="game-choice-items-list">
             {choice.items.map((item: Item, index) => (
               <div
-                className="my-box active clickable"
+                className={choiceBoxClass()}
                 key={`${choice.id}-${index}`}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  playSound(SOUNDS.BUTTON_CLICK)
-                  pickChoice(choice.id, index)
-                }}
+                onClick={(event) => onChoiceClick(event, index)}
               >
                 <img
                   style={{ width: "4rem", height: "4rem" }}
@@ -292,6 +403,18 @@ export default function GameChoice() {
       </div>
 
       <div className="show-hide-action">
+        {rewardSubPicker && onClose && (
+          <button
+            className="bubbly green active"
+            style={{ marginRight: "0.5em" }}
+            onClick={() => {
+              playSound(SOUNDS.BUTTON_CLICK)
+              onClose()
+            }}
+          >
+            ← Back
+          </button>
+        )}
         <button
           className="bubbly orange active"
           onClick={() => {
@@ -300,7 +423,7 @@ export default function GameChoice() {
         >
           {visible ? t("hide") : t("show")}
         </button>
-        {isWildReward && (
+        {isWildReward && !isSpire && (
           <button
             className={`bubbly blue active`}
             style={{ marginLeft: "0.5em" }}
@@ -312,7 +435,30 @@ export default function GameChoice() {
             Reroll (1g)
           </button>
         )}
-        {choice.type === "starter" && (
+        {/* Spire reward-reroll tickets — one button per ticket the player holds. */}
+        {isWildReward && isSpire &&
+          ([
+            [Item.REROLL_TICKET, "Reroll"],
+            [Item.CLASS_REROLL_TICKET, "Class Reroll"],
+            [Item.UPGRADE_TICKET, "Upgrade"],
+            [Item.ITEM_REROLL_TICKET, "Item Reroll"]
+          ] as [Item, string][])
+            .filter(([ticket]) => connectedPlayer?.items?.includes(ticket))
+            .map(([ticket, label]) => (
+              <button
+                key={ticket}
+                className="bubbly blue active"
+                style={{ marginLeft: "0.5em", display: "inline-flex", alignItems: "center", gap: "0.35em" }}
+                onClick={() => {
+                  playSound(SOUNDS.BUTTON_CLICK)
+                  rooms.game?.send(Transfer.USE_REWARD_TICKET, { ticket })
+                }}
+              >
+                <img src={`assets/item/${ticket}.png`} style={{ width: "1.4em", height: "1.4em" }} />
+                {label}
+              </button>
+            ))}
+        {choice.type === "starter" && !isSpire && (
           <button
             className={`bubbly blue active`}
             style={{ marginLeft: "0.5em" }}
@@ -324,7 +470,7 @@ export default function GameChoice() {
             Reroll
           </button>
         )}
-        {isEliteReward && choice.items.length > 0 && (
+        {isEliteReward && choice.items.length > 0 && !isSpire && (
           <button
             className={`bubbly blue active`}
             style={{ marginLeft: "0.5em" }}
@@ -348,7 +494,7 @@ export default function GameChoice() {
             Pass (+5g)
           </button>
         )}
-        {choice.type === "item" && (
+        {choice.type === "item" && !isSpire && (
           <button
             className={`bubbly blue active`}
             style={{ marginLeft: "0.5em" }}

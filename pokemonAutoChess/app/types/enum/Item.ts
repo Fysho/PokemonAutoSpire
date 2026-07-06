@@ -259,6 +259,11 @@ export enum Item {
   BRONZE_DOJO_TICKET = "BRONZE_DOJO_TICKET",
   SILVER_DOJO_TICKET = "SILVER_DOJO_TICKET",
   GOLD_DOJO_TICKET = "GOLD_DOJO_TICKET",
+  // Spire reward-reroll tickets (consumable, used on the wild-reward screen)
+  REROLL_TICKET = "REROLL_TICKET",
+  CLASS_REROLL_TICKET = "CLASS_REROLL_TICKET",
+  UPGRADE_TICKET = "UPGRADE_TICKET",
+  ITEM_REROLL_TICKET = "ITEM_REROLL_TICKET",
   WANTED_NOTICE = "WANTED_NOTICE",
   MEMORY_DISCS = "MEMORY_DISCS",
   FIRE_MEMORY = "FIRE_MEMORY",
@@ -1171,7 +1176,20 @@ export const UnholdableItems = [
   Item.WANTED_NOTICE,
   Item.LEADERS_CREST,
   Item.LAPRAS_PASSPORT,
-  Item.RED_SCALE
+  Item.RED_SCALE,
+  Item.REROLL_TICKET,
+  Item.CLASS_REROLL_TICKET,
+  Item.UPGRADE_TICKET,
+  Item.ITEM_REROLL_TICKET
+] satisfies Item[]
+
+// Spire reward-reroll tickets — consumed on the wild-reward screen to reroll
+// the Pokémon offer (see USE_REWARD_TICKET handler + spire-encounters reroll fns).
+export const RerollTickets = [
+  Item.REROLL_TICKET,
+  Item.CLASS_REROLL_TICKET,
+  Item.UPGRADE_TICKET,
+  Item.ITEM_REROLL_TICKET
 ] satisfies Item[]
 
 export const ConsumableItems = [

@@ -26,6 +26,8 @@ export default class ItemContainer extends DraggableObject {
   tempDetail: ItemDetail | undefined
   tempSprite: GameObjects.Image | undefined
   countText: GameObjects.Text | undefined
+  stackText: GameObjects.Text | undefined
+  stackCount: number = 1
   circle?: GameObjects.Image
   name: Item
   pokemonId: string | null
@@ -210,6 +212,33 @@ export default class ItemContainer extends DraggableObject {
     this.add(this.tempSprite)
     this.add(this.tempDetail)
     this.tempDetail.setVisible(true)
+  }
+
+  // Number of identical inventory items represented by this single icon.
+  // Shown as a badge in the bottom-right corner when 2 or more.
+  setStackCount(value: number) {
+    this.stackCount = value
+    if (value >= 2) {
+      if (this.stackText === undefined) {
+        const textStyle = {
+          fontSize: "16px",
+          fontFamily: "Jost",
+          color: "#FFFFFF",
+          align: "center",
+          strokeThickness: 2,
+          stroke: "#000000"
+        }
+        this.stackText = this.scene.add.existing(
+          new GameObjects.Text(this.scene, 14, 8, value.toString(), textStyle)
+        )
+        this.add(this.stackText)
+      } else {
+        this.stackText.setText(value.toString())
+        this.stackText.setVisible(true)
+      }
+    } else {
+      this.stackText?.setVisible(false)
+    }
   }
 
   updateCount(value: number) {

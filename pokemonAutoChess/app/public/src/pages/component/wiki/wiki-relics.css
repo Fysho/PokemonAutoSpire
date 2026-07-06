@@ -1,0 +1,53 @@
+#wiki-relics {
+  padding: 0.5em 1em;
+  overflow-y: auto;
+}
+
+#wiki-relics .wiki-relics-intro {
+  opacity: 0.8;
+  margin: 0 0 0.5em;
+}
+
+/* section color is set inline to the rarity color; children inherit via currentColor */
+#wiki-relics section {
+  border-top: 4px solid currentColor;
+  margin-bottom: 1em;
+  padding-top: 0.25em;
+}
+
+#wiki-relics section h2 {
+  color: currentColor;
+  margin: 0.3em 0;
+}
+
+#wiki-relics section h2 .count {
+  opacity: 0.6;
+  font-size: 0.8em;
+}
+
+#wiki-relics section ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#wiki-relics section li {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid currentColor;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  cursor: help;
+}
+
+#wiki-relics section li img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}

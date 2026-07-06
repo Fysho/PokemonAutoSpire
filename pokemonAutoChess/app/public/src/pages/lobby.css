@@ -20,7 +20,7 @@
 
 .lobby-title {
   text-shadow: 2px 4px 3px rgba(0, 0, 0, 0.3);
-  font-size: 2.5vw;
+  font-size: clamp(18px, 2.5vw, 40px);
   color: var(--color-fg-primary);
 }
 
@@ -67,6 +67,10 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  /* Never pan the whole panel sideways — overflow-y: auto alone makes
+     overflow-x compute to auto, so any child poking out turned the panel
+     into a horizontal scroller (the "dragging moves the whole panel" bug). */
+  overflow-x: hidden;
 }
 
 .main-lobby ul.react-tabs__tab-list {
@@ -104,7 +108,8 @@
   text-align: center;
   color: var(--color-fg-primary);
   margin: 0.25em 0;
-  font-size: 1.25vw;
+  /* clamp: raw vw shrinks to ~5px on phones */
+  font-size: clamp(15px, 1.25vw, 22px);
 }
 
 .main-lobby {
@@ -174,6 +179,7 @@
   .lobby > .my-container {
     margin-top: 1em;
     max-height: 80vh;
+    max-height: 80dvh;
   }
 
   .lobby-container {
@@ -188,7 +194,15 @@
   #root .main-lobby section {
     width: auto;
     height: calc(100vh - 68px);
+    /* dvh tracks the real visible height when the mobile URL bar collapses
+       (100vh includes the area behind it, cutting off the panel bottom) */
+    height: calc(100dvh - 68px);
     margin: 4px;
+  }
+
+  /* Tutorial | Endless panels stack instead of squeezing side by side */
+  .lobby-mode-row {
+    flex-direction: column;
   }
 
   .main-lobby section:not(.active) {
@@ -206,6 +220,22 @@
   .custom-bg {
     background-position-x: center;
   }
+}
+
+/* Difficulty start buttons scroll horizontally instead of overflowing the
+   panel. Not media-gated: the Play panel is ~50% of the window, so the row
+   can overflow at many widths (iPad landscape, mid-size desktop windows),
+   not just on phones. overflow-x: auto only engages when it actually
+   overflows. The Impossible unlock hint is rendered below the row (see
+   spire-lobby.tsx) because a scroll container would clip a hover tooltip. */
+.difficulty-buttons-row {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.difficulty-buttons-row > * {
+  flex-shrink: 0;
 }
 
 .hometown-help-tooltip {

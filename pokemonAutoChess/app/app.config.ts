@@ -380,6 +380,9 @@ export const server = defineServer({
           .filter((r) => r.clients > 0)
           .map((r) => {
             const meta = typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
+            // Elite Designer test sandboxes are game rooms too, but they're not
+            // runs — keep them out of the lobby's Live Runs / spectate list.
+            if (meta?.isEliteTest) return null
             return meta?.ownerName ? {
               roomId: r.roomId,
               ownerName: meta.ownerName ?? "Unknown",
@@ -417,6 +420,17 @@ export const server = defineServer({
         res.json({ region: user?.spireRegion ?? "town" })
       } catch (error) {
         logger.error("Error fetching spire region:", error)
+        res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    app.get("/api/tutorial-completed/:uid", async (req, res) => {
+      try {
+        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const user = await UserMetadata.findOne({ uid: req.params.uid }, { tutorialCompleted: 1 }).lean()
+        res.json({ completed: !!user?.tutorialCompleted })
+      } catch (error) {
+        logger.error("Error fetching tutorial completion:", error)
         res.status(500).json({ error: "Internal server error" })
       }
     })
@@ -630,6 +644,157 @@ export const server = defineServer({
       }
     })
 
+    // Elite design library: saved Elite Designer creations with success-rate
+    // measurements. See app/models/mongo-models/elite-design.ts.
+    app.get("/api/elite-designs", async (req, res) => {
+      try {
+        const { listEliteDesigns } = await import("./services/elite-design")
+        res.json(await listEliteDesigns())
+      } catch (error) {
+        logger.error("Error listing elite designs:", error)
+        res.json([])
+      }
+    })
+
+    app.post("/api/elite-designs", async (req, res) => {
+      try {
+        const { saveEliteDesign } = await import("./services/elite-design")
+        const { uid, design, id } = req.body ?? {}
+        if (typeof uid !== "string" || !uid || typeof design !== "string") {
+          return res.status(400).json({ error: "bad_request" })
+        }
+        const result = await saveEliteDesign(
+          uid,
+          design,
+          typeof id === "string" && id ? id : undefined
+        )
+        if (!result.ok) return res.status(400).json({ error: result.error })
+        res.json({ id: result.id })
+      } catch (error) {
+        logger.error("Error saving elite design:", error)
+        res.status(500).json({ error: "internal" })
+      }
+    })
+
+    app.put("/api/elite-designs/:id/approve", async (req, res) => {
+      try {
+        const { setEliteDesignApproved } = await import("./services/elite-design")
+        const { uid, approved } = req.body ?? {}
+        if (typeof uid !== "string" || !uid || typeof approved !== "boolean") {
+          return res.status(400).json({ error: "bad_request" })
+        }
+        const ok = await setEliteDesignApproved(req.params.id, uid, approved)
+        if (!ok) return res.status(403).json({ error: "forbidden" })
+        res.json({ ok: true })
+      } catch (error) {
+        logger.error("Error approving elite design:", error)
+        res.status(500).json({ error: "internal" })
+      }
+    })
+
+    app.put("/api/elite-designs/:id/bump", async (req, res) => {
+      try {
+        const { bumpEliteDesign } = await import("./services/elite-design")
+        const { uid, direction } = req.body ?? {}
+        if (
+          typeof uid !== "string" ||
+          !uid ||
+          (direction !== "up" && direction !== "down")
+        ) {
+          return res.status(400).json({ error: "bad_request" })
+        }
+        const result = await bumpEliteDesign(req.params.id, uid, direction)
+        if (!result.ok) return res.status(400).json({ error: result.error })
+        res.json(result)
+      } catch (error) {
+        logger.error("Error bumping elite design:", error)
+        res.status(500).json({ error: "internal" })
+      }
+    })
+
+    app.delete("/api/elite-designs/:id", async (req, res) => {
+      try {
+        const { deleteEliteDesign } = await import("./services/elite-design")
+        const uid = (req.query.uid as string) ?? ""
+        const ok = await deleteEliteDesign(req.params.id, uid)
+        if (!ok) return res.status(403).json({ error: "forbidden" })
+        res.json({ ok: true })
+      } catch (error) {
+        logger.error("Error deleting elite design:", error)
+        res.status(500).json({ error: "internal" })
+      }
+    })
+
+    // Room-less measurement (no test sandbox needed) — see elite-measure.ts.
+    // Both start endpoints respond as soon as the batch is accepted; progress
+    // is polled from /api/elite-measure-status and results persist on the
+    // design docs. measure-all is admin-only (minutes of CPU).
+    app.post("/api/elite-designs/measure-all", async (req, res) => {
+      try {
+        const { startEliteMeasureAll } = await import("./services/elite-measure")
+        const { uid, act, stageRange } = req.body ?? {}
+        if (typeof uid !== "string" || !uid) {
+          return res.status(400).json({ error: "bad_request" })
+        }
+        const result = await startEliteMeasureAll(uid, {
+          act: typeof act === "number" ? act : undefined,
+          stageRange: typeof stageRange === "string" ? stageRange : undefined
+        })
+        if (!result.ok) {
+          const code = result.error === "forbidden" ? 403 : 400
+          return res.status(code).json({ error: result.error })
+        }
+        res.json({ started: true, count: result.count })
+      } catch (error) {
+        logger.error("Error starting elite measure-all:", error)
+        res.status(500).json({ error: "internal" })
+      }
+    })
+
+    app.post("/api/elite-designs/:id/measure", async (req, res) => {
+      try {
+        const { startEliteMeasure } = await import("./services/elite-measure")
+        const { uid } = req.body ?? {}
+        if (typeof uid !== "string" || !uid) {
+          return res.status(400).json({ error: "bad_request" })
+        }
+        const result = await startEliteMeasure(uid, req.params.id)
+        if (!result.ok) return res.status(400).json({ error: result.error })
+        res.json({ started: true })
+      } catch (error) {
+        logger.error("Error starting elite measure:", error)
+        res.status(500).json({ error: "internal" })
+      }
+    })
+
+    app.post("/api/elite-measure/cancel", async (req, res) => {
+      try {
+        const { cancelEliteMeasure } = await import("./services/elite-measure")
+        const { uid } = req.body ?? {}
+        if (typeof uid !== "string" || !uid) {
+          return res.status(400).json({ error: "bad_request" })
+        }
+        const result = await cancelEliteMeasure(uid)
+        if (!result.ok) {
+          const code = result.error === "forbidden" ? 403 : 400
+          return res.status(code).json({ error: result.error })
+        }
+        res.json({ ok: true })
+      } catch (error) {
+        logger.error("Error cancelling elite measure:", error)
+        res.status(500).json({ error: "internal" })
+      }
+    })
+
+    app.get("/api/elite-measure-status", async (req, res) => {
+      try {
+        const { getEliteMeasureStatus } = await import("./services/elite-measure")
+        res.json(getEliteMeasureStatus())
+      } catch (error) {
+        res.json({ running: false })
+      }
+    })
+
     app.get("/api/victory-leaderboard/:difficulty", async (req, res) => {
       try {
         const { getVictoryLeaderboard } = await import("./services/victory-record")
@@ -641,6 +806,69 @@ export const server = defineServer({
       } catch (error) {
         logger.error("Error fetching victory leaderboard:", error)
         res.status(500).json({ error: "Internal server error" })
+      }
+    })
+
+    // --- Admin: Leaderboard Manager (Spire roguelike boards) ---------------
+    // All three routes verify Role.ADMIN inside the service via the supplied uid.
+
+    // List victory records (incl. odToken) for the manager's removal UI.
+    app.get("/api/admin/victory-records/:difficulty", async (req, res) => {
+      try {
+        const { listVictoryRecordsAsAdmin } = await import("./services/leaderboard-admin")
+        const uid = (req.query.uid as string) ?? ""
+        const difficulty = parseInt(req.params.difficulty)
+        const result = await listVictoryRecordsAsAdmin(uid, difficulty)
+        if (!result.ok) {
+          return res.status(result.error === "forbidden" ? 403 : 400).json({ error: result.error })
+        }
+        res.json(result.records)
+      } catch (error) {
+        logger.error("Error listing victory records (admin):", error)
+        res.status(500).json({ error: "internal" })
+      }
+    })
+
+    // Wipe a whole board for one difficulty (Endless ignores difficulty).
+    app.post("/api/admin/leaderboard/wipe", async (req, res) => {
+      try {
+        const { wipeLeaderboard } = await import("./services/leaderboard-admin")
+        const { uid, board, difficulty } = req.body ?? {}
+        if (typeof uid !== "string" || !uid || typeof board !== "string") {
+          return res.status(400).json({ error: "bad_request" })
+        }
+        const result = await wipeLeaderboard(uid, board as any, difficulty)
+        if (!result.ok) {
+          return res.status(result.error === "forbidden" ? 403 : 400).json({ error: result.error })
+        }
+        res.json({ ok: true })
+      } catch (error) {
+        logger.error("Error wiping leaderboard:", error)
+        res.status(500).json({ error: "internal" })
+      }
+    })
+
+    // Remove a single entry from a board.
+    app.post("/api/admin/leaderboard/remove", async (req, res) => {
+      try {
+        const { removeLeaderboardEntry } = await import("./services/leaderboard-admin")
+        const { uid, board, difficulty, slot, index, odToken } = req.body ?? {}
+        if (typeof uid !== "string" || !uid || typeof board !== "string") {
+          return res.status(400).json({ error: "bad_request" })
+        }
+        const result = await removeLeaderboardEntry(uid, board as any, {
+          difficulty,
+          slot,
+          index,
+          odToken
+        })
+        if (!result.ok) {
+          return res.status(result.error === "forbidden" ? 403 : 400).json({ error: result.error })
+        }
+        res.json({ ok: true })
+      } catch (error) {
+        logger.error("Error removing leaderboard entry:", error)
+        res.status(500).json({ error: "internal" })
       }
     })
 
@@ -658,7 +886,7 @@ export const server = defineServer({
 
     app.delete("/api/saved-run/:uid", async (req, res) => {
       try {
-        const { loadRun, deleteSavedRun, saveRunHistoryFromSavedRun, updateVictoryRecord } = await import("./services/run-save")
+        const { loadRun, deleteSavedRun, saveRunHistoryFromSavedRun, updateVictoryRecord, isRunVictory } = await import("./services/run-save")
         const savedRun = await loadRun(req.params.uid)
         if (savedRun?.data) {
           await saveRunHistoryFromSavedRun(req.params.uid, savedRun.data as SavedRunData)
@@ -667,7 +895,7 @@ export const server = defineServer({
             savedRun.data.team?.name ?? "Unknown",
             savedRun.data.team?.avatar ?? "0129/Normal",
             savedRun.difficultyMode,
-            savedRun.currentAct,
+            isRunVictory(savedRun.data as SavedRunData),
             savedRun.isEndless ?? false
           )
         }

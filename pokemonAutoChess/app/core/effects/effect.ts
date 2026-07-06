@@ -11,9 +11,10 @@ import type { Item } from "../../types/enum/Item"
 import type { Passive } from "../../types/enum/Passive"
 import type { Board } from "../board"
 import type { PokemonEntity } from "../pokemon-entity"
+import type { Relic } from "../relics"
 import type Simulation from "../simulation"
 
-type EffectOrigin = EffectEnum | Item | Passive | Ability
+type EffectOrigin = EffectEnum | Item | Passive | Ability | Relic
 
 export abstract class Effect {
   priority: number = 0

@@ -25,10 +25,39 @@
   box-sizing: border-box;
 }
 
+/* Prevent double-tap zoom on touch devices — rapid taps on buttons (buy XP,
+   game speed, reroll) would otherwise zoom the page mid-game. `manipulation`
+   keeps panning and pinch-zoom working. */
+html,
+body,
+button,
+a,
+input,
+select,
+textarea,
+canvas,
+.clickable,
+.bubbly {
+  touch-action: manipulation;
+}
+
+/* iOS zooms the whole page when focusing an input whose font-size is under
+   16px — force a floor on touch devices. !important because several inputs
+   set a small font-size inline (e.g. the lobby player-name field at 14px). */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
 body {
   margin: 0;
   width: 100vw;
   height: 100vh;
+  /* dvh tracks the visible height when the mobile URL bar collapses */
+  height: 100dvh;
   overflow: hidden;
   background-color: var(--color-bg-primary);
   background-image:
@@ -127,6 +156,7 @@ p:last-child {
 
 #game {
   height: 100vh;
+  height: 100dvh;
   width: calc(100vw - var(--sidebar-width));
 }
 
@@ -348,4 +378,65 @@ summary,
 
 .pixelated {
   image-rendering: pixelated;
+}
+
+/* Relic effect tooltips: render synergy types as icons only (hide the text label). */
+.relic-effect-desc .synergy-label {
+  display: none;
+}
+.relic-effect-desc .description-icon.synergy {
+  margin: 0 1px;
+  vertical-align: middle;
+}
+
+/* "Rotate your device" overlay (rendered in game.tsx, game page only).
+   The board is landscape-shaped and Scale.FIT letterboxes it into a sliver
+   in portrait, so touch devices held upright get a blocking prompt. */
+#rotate-device-overlay {
+  display: none;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate-device-overlay {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    padding: 1em;
+    background: rgba(0, 0, 0, 0.92);
+    color: #fff;
+    text-align: center;
+  }
+
+  #rotate-device-overlay .rotate-device-icon {
+    font-size: 3em;
+    animation: rotate-device-hint 2s ease-in-out infinite;
+  }
+
+  #rotate-device-overlay p {
+    margin: 0;
+    font-size: 1.3em;
+    font-weight: 700;
+  }
+
+  #rotate-device-overlay span {
+    opacity: 0.7;
+    font-size: 0.9em;
+  }
+}
+
+@keyframes rotate-device-hint {
+  0%,
+  20% {
+    transform: rotate(0deg);
+  }
+
+  50%,
+  100% {
+    transform: rotate(90deg);
+  }
 }

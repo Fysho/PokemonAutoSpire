@@ -65,6 +65,9 @@ export default class GameScene extends Scene {
   pokemonDragged: PokemonSprite | null = null
   shopIndexHovered: number | null = null
   itemDragged: ItemContainer | null = null
+  // When dragging from a stack of 2+, a static copy of the stack (count - 1)
+  // stays behind; dropping back onto it combines two identical items.
+  itemGhost: ItemContainer | null = null
   dropSpots: Phaser.GameObjects.Image[] = []
   sellZone: SellZone | undefined
   lastDragDropPokemon: PokemonSprite | undefined
@@ -561,6 +564,29 @@ export default class GameScene extends Scene {
           }
         } else if (gameObject instanceof ItemContainer) {
           this.itemDragged = gameObject
+          if (
+            gameObject.stackCount >= 2 &&
+            gameObject.parentContainer === this.itemsContainer
+          ) {
+            // Leave the rest of the stack behind as a drop target so two
+            // identical items can still be combined by dragging one onto it
+            const ghost = new ItemContainer(
+              this,
+              gameObject.x,
+              gameObject.y,
+              gameObject.name as Item,
+              null,
+              this.uid ?? ""
+            )
+            ghost.setStackCount(gameObject.stackCount - 1)
+            // Disabled until the drag moves away from the slot, so releasing
+            // in place doesn't instantly combine (see "drag" handler below)
+            ghost.updateDropZone(false)
+            this.itemsContainer?.add(ghost)
+            this.itemsContainer?.sendToBack(ghost)
+            this.itemGhost = ghost
+            gameObject.setStackCount(1)
+          }
           if (this.sellZone && isItemSellable(gameObject.name as Item)) {
             this.sellZone.showForItem(gameObject.name as Item)
           }
@@ -601,6 +627,15 @@ export default class GameScene extends Scene {
             )
           ) {
             this.sellZone.setVisible(true)
+          }
+        } else if (this.itemDragged != null && this.itemGhost != null) {
+          // Arm the left-behind stack as a combine target only once the drag
+          // has moved away from the slot, so a released-in-place drag is a
+          // no-op instead of an accidental same+same craft
+          const dx = this.itemDragged.x - this.itemGhost.x
+          const dy = this.itemDragged.y - this.itemGhost.y
+          if (dx * dx + dy * dy > 40 * 40) {
+            this.itemGhost.updateDropZone(true)
           }
         }
       }
@@ -711,6 +746,14 @@ export default class GameScene extends Scene {
     this.input.on("dragend", (pointer, gameObject, dropped) => {
       this.sellZone?.hide()
       this.dropSpots.forEach((spot) => spot.setVisible(false))
+      if (this.itemGhost) {
+        // Re-render restores stack badges and removes the ghost; on a
+        // successful drop the server-side item sync re-renders again
+        this.itemGhost.destroy()
+        this.itemGhost = null
+        const player = this.room?.state.players.get(this.uid!)
+        if (player) this.itemsContainer?.render(player.items)
+      }
       if (!dropped && gameObject?.input) {
         gameObject.x = gameObject.input.dragStartX
         gameObject.y = gameObject.input.dragStartY

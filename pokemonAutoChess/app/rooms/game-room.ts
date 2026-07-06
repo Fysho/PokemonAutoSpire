@@ -10,6 +10,7 @@ import {
 import { EvolutionManager } from "../core/evolution-logic/evolution-manager"
 import { getHatchTime } from "../core/evolution-logic/hatch-time"
 import { MiniGame } from "../core/mini-game"
+import { isRelic, Relic } from "../core/relics"
 import { IGameUser } from "../models/colyseus-models/game-user"
 import Player from "../models/colyseus-models/player"
 import { Egg, Pokemon } from "../models/colyseus-models/pokemon"
@@ -117,6 +118,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
   eliteMainBonusAtk: number = 0
   eliteMainBonusAP: number = 0
   asyncFightSnapshots: Map<string, { snapshot: any; name: string; avatar: string; region: string }> = new Map()
+  // Spire mode: elite fights draw from APPROVED library designs instead of the
+  // hardcoded pool. Populated per act map in ALL modes, acts 1-3 (see
+  // populateEliteDesignNodes); keyed by
+  // map node id. spireEliteRewardSource is stashed on elite node select so the
+  // reward phase can offer the design's own win/loss reward pools.
+  spireEliteDesigns: Map<string, import("../services/elite-design").SpireEliteDesignData> = new Map()
+  spireEliteRewardSource: import("../services/elite-design").SpireEliteDesignData | null = null
   // Elite Designer "test fight" sandbox. When true the room runs no real spire run
   // (no map/starter/run-HP); it parks in an idle PICK phase and only runs one-off
   // AI-vs-AI simulations on TEST_ELITE_DESIGN. eliteTestFightStart stamps the start
@@ -160,6 +168,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
     difficultyMode,
     resume,
     isEndless,
+    isSpire,
+    spireClass,
+    isTutorial,
     eliteTest
   }: {
     users: Record<string, IGameUser>
@@ -176,9 +187,21 @@ export default class GameRoom extends Room<{ state: GameState }> {
     difficultyMode?: number
     resume?: boolean
     isEndless?: boolean
+    isSpire?: boolean
+    spireClass?: string
+    isTutorial?: boolean
     eliteTest?: boolean
   }) {
     this.isEliteTest = !!eliteTest
+    if (this.isEliteTest) {
+      // The Elite Designer (and its test sandbox) is sign-in only: guests all
+      // share the "local-player" uid, so they'd co-own one library bucket. The
+      // client gates the whole designer UI; this is the server-side backstop.
+      const creatorUid = Object.keys(users || {})[0]
+      if (!creatorUid || creatorUid === "local-player") {
+        throw new Error("The Elite Designer requires an account")
+      }
+    }
     const diffLabel = isEndless ? "Endless" : difficultyMode === 0 ? "Easy" : difficultyMode === 2 ? "Hard" : difficultyMode === 3 ? "Impossible" : "Normal"
     const playerName = ownerName || Object.values(users || {})[0]?.name || "Unknown"
     logger.info(`Create Game ${this.roomId} | player: ${playerName} | difficulty: ${diffLabel}`)
@@ -200,6 +223,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
       bracketId,
       difficultyMode: difficultyMode ?? 1,
       isEndless: !!isEndless,
+      isEliteTest: !!eliteTest,
       currentAct: 1,
       currentFloor: 0,
       runHP: 100,
@@ -215,7 +239,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
       maxRank,
       specialGameRule
     )
-    if (isEndless) {
+    if (isTutorial) {
+      // Tutorial: a guided, fully-scripted single-act run on the normal-mode
+      // ruleset. Never spire/endless; difficulty pinned to Normal. The scripted
+      // map + encounters + dialog are keyed off `state.isTutorial`.
+      this.state.isTutorial = true
+      this.state.difficultyMode = 1
+    } else if (isEndless) {
       const { isEndlessEnabled } = require("../services/endless-config")
       if (!resume && !isEndlessEnabled()) {
         // Endless is disabled for new runs; allow admins through for testing
@@ -236,6 +266,31 @@ export default class GameRoom extends Room<{ state: GameState }> {
         }
       }
       this.state.isEndless = true
+      this.state.difficultyMode = 1
+    } else if (isSpire) {
+      // Spire mode is admin-only while in development (resuming an
+      // already-started spire run is always permitted).
+      if (!resume) {
+        const creatorUid = Object.keys(users || {})[0]
+        let isCreatorAdmin = false
+        if (creatorUid && creatorUid !== "local-player") {
+          try {
+            const UserMetadata = require("../models/mongo-models/user-metadata").default
+            const meta = await UserMetadata.findOne({ uid: creatorUid }, { role: 1 }).lean()
+            isCreatorAdmin = meta?.role === Role.ADMIN
+          } catch (e) {
+            isCreatorAdmin = false
+          }
+        }
+        if (!isCreatorAdmin) {
+          throw new Error("Spire mode is not available yet")
+        }
+      }
+      // Spire mode: own 16-floor / Act-3 ruleset + own difficulty curve. We keep
+      // difficultyMode = 1 (Normal) so the many `difficultyMode >= 2` hard-mode
+      // checks never fire; Spire's independent scaling is keyed off `isSpire`.
+      this.state.isSpire = true
+      this.state.spireClass = spireClass ?? ""
       this.state.difficultyMode = 1
     } else if (difficultyMode === 0 || difficultyMode === 2 || difficultyMode === 3) {
       this.state.difficultyMode = difficultyMode
@@ -453,6 +508,62 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
     })
 
+    this.onMessage(Transfer.USE_REWARD_TICKET, (client, { ticket }: { ticket: Item }) => {
+      if (this.state.gameFinished || !client.auth || !this.isPlayer(client)) return
+      if (!this.state.isSpire) return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player) return
+      const { RerollTickets } = require("../types/enum/Item")
+      if (!RerollTickets.includes(ticket) || !player.items.includes(ticket)) return
+      const choiceIdx = player.choices.findIndex((c) => c.type === "wildReward")
+      if (choiceIdx < 0) return
+      const node = this.state.mapNodes.get(this.state.currentNodeId)
+      const { MapNodeType } = require("../models/colyseus-models/map-node")
+      if (!node || node.nodeType !== MapNodeType.WILD_BATTLE) return // wild rewards only
+
+      const choice = player.choices[choiceIdx]
+      const currentPokemon = Array.from(choice.pokemons).filter(
+        (p) => p && p !== Pkm.DEFAULT
+      ) as Pkm[]
+
+      // Pick the new Pokémon pool per ticket type (undefined = fresh region reroll).
+      let pool: Pkm[] | undefined
+      let componentsOnlyCount: number | undefined
+      const {
+        rerollWildRewardClass,
+        rerollWildRewardUpgrade
+      } = require("../models/spire-encounters")
+      if (ticket === Item.CLASS_REROLL_TICKET) {
+        const { SPIRE_CLASSES } = require("../core/spire-classes")
+        const classSyns = SPIRE_CLASSES[this.state.spireClass]?.synergies ?? []
+        pool = rerollWildRewardClass(currentPokemon, classSyns)
+      } else if (ticket === Item.UPGRADE_TICKET) {
+        pool = rerollWildRewardUpgrade(currentPokemon, node.region)
+      } else if (ticket === Item.ITEM_REROLL_TICKET) {
+        // Every option (incl. the win item slot) becomes a random component
+        componentsOnlyCount = choice.pokemons.length
+      }
+
+      // Consume the ticket, then regenerate the offer. We keep the old offer in
+      // place for now and overwrite its slot by index afterwards.
+      const itemIdx = player.items.indexOf(ticket)
+      if (itemIdx >= 0) player.items.splice(itemIdx, 1)
+      const won = player.history.at(-1)?.result === BattleResult.WIN
+      const cmd = new OnUpdatePhaseCommand()
+      cmd.setPayload({})
+      cmd.room = this
+      cmd.state = this.state
+      cmd.clock = this.clock
+      cmd.generateWildRewardChoice(player, node, won, true, pool, componentsOnlyCount)
+      // generateWildRewardChoice appends the new offer at the end. Move it back
+      // to the old offer's position so the other reward rows (xp/ticket/berry)
+      // keep their place. We can't splice-insert into the middle of an
+      // ArraySchema (Colyseus requires insertCount <= deleteCount), so overwrite
+      // the old slot by index and drop the duplicate left at the end.
+      const regenerated = player.choices.pop()
+      if (regenerated) player.choices[choiceIdx] = regenerated
+    })
+
     this.onMessage(Transfer.REROLL_ELITE_REWARD, (client) => {
       if (!this.state.gameFinished && client.auth && this.isPlayer(client)) {
         const player = this.state.players.get(client.auth.uid)
@@ -568,8 +679,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const { generateActMap } = require("../core/map-generator")
         this.state.mapNodes.clear()
         this.state.mapEdges.splice(0, this.state.mapEdges.length)
-        generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3, this.state.isEndless)
+        generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3, this.state.isEndless, this.state.isSpire)
         if (this.state.isEndless) this.populateAsyncFightNodes()
+        this.populateEliteDesignNodes()
       }
     })
 
@@ -679,6 +791,16 @@ export default class GameRoom extends Room<{ state: GameState }> {
         if (idx < 0) return
         player.items.splice(idx, 1)
         player.addMoney(getItemSellValue(itemId as Item), false, null)
+        const synType = SynergyGivenByGem[itemId as SynergyGem]
+        if (synType) {
+          const current = player.bonusSynergies.get(synType) ?? 0
+          if (current <= 1) {
+            player.bonusSynergies.delete(synType)
+          } else {
+            player.bonusSynergies.set(synType, current - 1)
+          }
+          player.updateSynergies()
+        }
       }
     })
 
@@ -805,7 +927,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
           )
         ) {
           this.broadcast(Transfer.LOADING_COMPLETE)
-          if (this.isResume) {
+          if (this.isEliteTest) {
+            this.startEliteTestMode()
+          } else if (this.isResume) {
             this.resumeGame()
           } else {
             this.startGame()
@@ -917,10 +1041,110 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
     })
 
+    this.onMessage(
+      Transfer.MEASURE_ELITE_DESIGN,
+      async (client, payload: { id?: string }) => {
+        // Elite Designer sandbox only. Measures a saved library design's success
+        // rate: headless AI-vs-AI fights against every saved endless team in the
+        // pools bracketing its stage range. Results persist to the design doc;
+        // progress/result broadcast via ELITE_MEASURE_UPDATE.
+        if (!this.isEliteTest || !client.auth || !this.isPlayer(client)) return
+        if (this.state.phase === GamePhaseState.FIGHT) return
+        const designId = payload?.id ?? ""
+        try {
+          const {
+            measureEliteDesign,
+            isEliteMeasureRunning
+          } = require("../services/elite-test")
+          const {
+            getEliteDesignById,
+            saveEliteDesignResults
+          } = require("../services/elite-design")
+          if (isEliteMeasureRunning()) {
+            this.broadcast(Transfer.ELITE_MEASURE_UPDATE, {
+              status: "error",
+              designId,
+              error: "busy"
+            })
+            return
+          }
+          const doc = await getEliteDesignById(designId)
+          if (!doc) {
+            this.broadcast(Transfer.ELITE_MEASURE_UPDATE, {
+              status: "error",
+              designId,
+              error: "not_found"
+            })
+            return
+          }
+          const outcome = await measureEliteDesign(
+            this,
+            doc.designJson,
+            doc.act,
+            doc.stageRange,
+            (done: number, total: number) => {
+              try {
+                this.broadcast(Transfer.ELITE_MEASURE_UPDATE, {
+                  status: "progress",
+                  designId,
+                  done,
+                  total
+                })
+              } catch {
+                // Room may be tearing down mid-batch; the measure loop aborts
+                // on its own when the room empties.
+              }
+            },
+            { shouldAbort: () => this.clients.length === 0 }
+          )
+          if (Array.isArray(outcome)) {
+            // doc.designJson = what the fights actually ran against; if the
+            // design was edited/bumped mid-measure the write is skipped.
+            await saveEliteDesignResults(designId, outcome, doc.designJson)
+            this.broadcast(Transfer.ELITE_MEASURE_UPDATE, {
+              status: "done",
+              designId,
+              results: outcome
+            })
+          } else {
+            this.broadcast(Transfer.ELITE_MEASURE_UPDATE, {
+              status: "error",
+              designId,
+              error: outcome.error
+            })
+          }
+        } catch (error) {
+          logger.error("measure elite design error", error)
+          try {
+            this.broadcast(Transfer.ELITE_MEASURE_UPDATE, {
+              status: "error",
+              designId,
+              error: "internal"
+            })
+          } catch {
+            // room already disposed
+          }
+        }
+      }
+    )
+
     this.onMessage(Transfer.SKIP_REWARD, (client) => {
       if (!this.state.gameFinished && client.auth && this.isPlayer(client) &&
         this.state.phase !== GamePhaseState.FIGHT &&
         this.state.phase !== GamePhaseState.MAP) {
+        this.state.updatePhaseNeeded = true
+        this.state.time = 0
+      }
+    })
+
+    // STS-style "Skip" on the rewards screen: forfeit EVERYTHING unclaimed
+    // (gold, heal, XP, and any reward picks) and proceed to the map.
+    this.onMessage(Transfer.SKIP_ALL_REWARDS, (client) => {
+      if (!this.state.gameFinished && client.auth && this.isPlayer(client) &&
+        this.state.phase === GamePhaseState.REWARD) {
+        const player = this.state.players.get(client.auth.uid)
+        if (!player) return
+        player.choices.clear()
         this.state.updatePhaseNeeded = true
         this.state.time = 0
       }
@@ -1078,6 +1302,22 @@ export default class GameRoom extends Room<{ state: GameState }> {
       if (!player || player.role !== Role.ADMIN) return
       if (!Object.values(Item).includes(item)) return
       player.items.push(item)
+      const synType = SynergyGivenByGem[item as SynergyGem]
+      if (synType) {
+        player.bonusSynergies.set(
+          synType,
+          (player.bonusSynergies.get(synType) ?? 0) + 1
+        )
+        player.updateSynergies()
+      }
+    })
+
+    this.onMessage(Transfer.GIVE_RELIC, (client, { relic }: { relic: string }) => {
+      if (!client.auth) return
+      const player = this.state.players.get(client.auth.uid)
+      if (!player || player.role !== Role.ADMIN) return
+      if (!isRelic(relic)) return
+      this.grantRelic(player, relic, client)
     })
 
     this.onMessage(Transfer.ADMIN_TELEPORT_NODE, (client, nodeId: string) => {
@@ -1181,6 +1421,86 @@ export default class GameRoom extends Room<{ state: GameState }> {
     }
   }
 
+  // Spire mode: assigns an APPROVED library design to every ELITE node of the
+  // current act map (spireFloorToStageRange maps the 16-floor act onto the
+  // library's 20-floor brackets). A bracket with no approved designs converts
+  // the node into a normal wild encounter. Avoids repeating a design within one
+  // map when the bracket pool is big enough. Mirrors populateAsyncFightNodes:
+  // called (un-awaited) after map generation and awaited on resume.
+  // Assigns an approved Elite Design library entry to every ELITE node on the
+  // current act map — ALL modes, acts 1-3 (the hardcoded ELITE_ENCOUNTERS_BY_ACT
+  // pool remains only for Endless acts 4+, plus the mid-population/Fisho2
+  // fallbacks). A bracket with no approved design converts the node to a normal
+  // wild encounter, so acts 1-3 elites come ONLY from approved designs.
+  async populateEliteDesignNodes() {
+    // Endless keeps its current behavior in the infinite tail: acts 4+ use the
+    // hardcoded pool with uncapped difficulty scaling (fixed design boards
+    // can't scale there).
+    if (this.state.isEndless && this.state.currentAct > 3) return
+    const { MapNodeType } = require("../models/colyseus-models/map-node")
+    const {
+      getApprovedEliteDesigns,
+      designToSpireEliteData,
+      spireFloorToStageRange,
+      classicFloorToStageRange
+    } = require("../services/elite-design")
+    const { PkmIndex } = require("../types/enum/Pokemon")
+    const { DungeonPMDO } = require("../types/enum/Dungeon")
+    const { pickRandomIn } = require("../utils/random")
+
+    const act = Math.min(this.state.currentAct, 3)
+    this.spireEliteDesigns.clear()
+
+    const eliteNodes: { id: string; node: any }[] = []
+    this.state.mapNodes.forEach((node: any, id: string) => {
+      if (node.nodeType === MapNodeType.ELITE) eliteNodes.push({ id, node })
+    })
+    if (eliteNodes.length === 0) return
+
+    const poolCache = new Map<string, any[]>()
+    const usedDesignIds = new Set<string>()
+    const allDungeons = Object.values(DungeonPMDO)
+
+    for (const { id, node } of eliteNodes) {
+      // Spire's 16-floor acts map onto the library brackets as quarters;
+      // classic/endless 20-floor acts map directly. An empty bracket means "no
+      // elites here" (act-1 floors ≤5 — no act-1 "1-5" library bracket, and no
+      // elites should appear that early) → the node converts to wild below.
+      const bracket = this.state.isSpire
+        ? spireFloorToStageRange(node.floor)
+        : classicFloorToStageRange(act, node.floor)
+      let pool: any[] = poolCache.get(bracket) ?? []
+      if (bracket && !poolCache.has(bracket)) {
+        pool = await getApprovedEliteDesigns(act, bracket)
+        poolCache.set(bracket, pool)
+      }
+      const fresh = pool.filter((d: any) => !usedDesignIds.has(d.id))
+      const candidates = fresh.length > 0 ? fresh : pool
+      const picked = candidates.length > 0 ? pickRandomIn(candidates) : null
+      const data = picked ? designToSpireEliteData(picked) : null
+      if (!data) {
+        // No approved design for this bracket — the node becomes a normal wild
+        // encounter instead of falling back to the hardcoded elite pool.
+        node.nodeType = MapNodeType.WILD_BATTLE
+        node.eliteEncounterIndex = -1
+        node.displayName = ""
+        node.eliteAvatar = ""
+        node.region = pickRandomIn(allDungeons)
+        continue
+      }
+      usedDesignIds.add(picked.id)
+      this.spireEliteDesigns.set(id, data)
+      node.displayName = data.name
+      node.eliteAvatar = PkmIndex[data.icon] ?? ""
+    }
+    logger.info(
+      `Elite design nodes populated (act ${act}): ${this.spireEliteDesigns.size}/${eliteNodes.length} nodes got approved designs` +
+        (eliteNodes.length > this.spireEliteDesigns.size
+          ? `, ${eliteNodes.length - this.spireEliteDesigns.size} converted to wild (no approved design in bracket)`
+          : "")
+    )
+  }
+
   startGame() {
     if (this.state.gameLoaded) return // already started
     this.state.gameLoaded = true
@@ -1199,7 +1519,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
     })
 
     // Initialize the spire map and starter selection
-    const { generateActMap } = require("../core/map-generator")
+    const { generateActMap, generateTutorialMap } = require("../core/map-generator")
     const { PlayerChoice } = require("../models/colyseus-models/player-choice")
     const { Starters } = require("../types/enum/Starters")
     const { pickNRandomIn } = require("../utils/random")
@@ -1213,9 +1533,14 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.state.phase = GamePhaseState.MAP
     this.state.time = 999 * 1000
     this.state.roundTime = 999
-    generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3, this.state.isEndless)
+    if (this.state.isTutorial) {
+      generateTutorialMap(this.state.mapNodes, this.state.mapEdges)
+    } else {
+      generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as 0 | 1 | 2 | 3, this.state.isEndless, this.state.isSpire)
+    }
     logger.info(`Map generated: ${this.state.mapNodes.size} nodes, ${this.state.mapEdges.length} edges`)
     if (this.state.isEndless) this.populateAsyncFightNodes()
+    this.populateEliteDesignNodes()
 
     this.state.players.forEach((player: Player) => {
       player.lightX = this.state.lightX
@@ -1224,9 +1549,23 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const { ENDLESS_MAX_LEVEL } = require("../config")
         player.experienceManager.maxLevel = ENDLESS_MAX_LEVEL
       }
+      if (this.state.isSpire) {
+        // Spire: own level-up curve, starting fresh at level 1.
+        player.experienceManager.useSpireMode()
+      }
       if (!player.isBot) {
-        const { incrementRunStarted } = require("../services/run-save")
-        incrementRunStarted(player.id, this.state.difficultyMode)
+        if (!this.state.isTutorial) {
+          const { incrementRunStarted } = require("../services/run-save")
+          incrementRunStarted(player.id, this.state.difficultyMode)
+        }
+        // Spire mode: grant the chosen class's starting relic.
+        if (this.state.isSpire && this.state.spireClass) {
+          const { SPIRE_CLASSES } = require("../core/spire-classes")
+          const cls = SPIRE_CLASSES[this.state.spireClass]
+          if (cls?.startingRelic) {
+            this.grantRelic(player, cls.startingRelic)
+          }
+        }
         const UserMetadata = require("../models/mongo-models/user-metadata").default
         UserMetadata.findOne({ uid: player.id }, { spireRegion: 1 }).lean().then((u: any) => {
           const region = u?.spireRegion || "town"
@@ -1237,7 +1576,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const { ItemComponentsNoFossilOrScarf } = require("../types/enum/Item")
         const { getPokemonData } = require("../models/precomputed/precomputed-pokemon-data")
         const isImpossible = this.state.difficultyMode === 3
-        const allOneStars = (isImpossible
+        let allOneStars = (isImpossible
           ? [...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON]
           : [
             ...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON,
@@ -1246,6 +1585,17 @@ export default class GameRoom extends Room<{ state: GameState }> {
             ...PRECOMPUTED_POKEMONS_PER_RARITY.EPIC
           ]
         ).filter((p: Pkm) => getPokemonData(p).stars === 1)
+        // Spire mode: starter offers are drawn from the chosen class's synergies.
+        if (this.state.isSpire && this.state.spireClass) {
+          const { SPIRE_CLASSES } = require("../core/spire-classes")
+          const classSynergies: string[] = SPIRE_CLASSES[this.state.spireClass]?.synergies ?? []
+          if (classSynergies.length > 0) {
+            const inClass = allOneStars.filter((p: Pkm) =>
+              getPokemonData(p).types.some((t: string) => classSynergies.includes(t))
+            )
+            if (inClass.length >= 5) allOneStars = inClass
+          }
+        }
         const starterOptions = pickNRandomIn(allOneStars, 5)
         const starterItems = isImpossible
           ? []
@@ -1260,6 +1610,10 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
       }
     })
+
+    // Tutorial: the welcome + map-intro prompts are fired client-side (when the
+    // starter picker / map actually appear) so they're perfectly timed and block
+    // before the player can act. See game.tsx.
   }
 
   // Elite Designer "test fight" sandbox. No spire run is set up (no map, starter,
@@ -1328,6 +1682,10 @@ export default class GameRoom extends Room<{ state: GameState }> {
     // which reads asyncFightSnapshots for ASYNC_FIGHT nodes. Awaited so the DB
     // lookups land first.
     if (this.state.isEndless) await this.populateAsyncFightNodes()
+    // Same for elite designs (all modes, acts 1-3): the stash isn't persisted,
+    // so a resumed map's elite nodes need designs reassigned before any
+    // pending-fight re-select.
+    await this.populateEliteDesignNodes()
 
     const cmd = new OnUpdatePhaseCommand()
     cmd.setPayload({})
@@ -1335,13 +1693,21 @@ export default class GameRoom extends Room<{ state: GameState }> {
     cmd.state = this.state
     cmd.clock = this.clock
 
-    // One-shot finale guard: a run that already STARTED a Champion or Arceus fight
-    // cannot resume back into it. Re-fighting would let players save-scum the Arceus
-    // damage leaderboard (quit a bad roll, retry) or retry the champion fight. Such a
-    // run is finalized here as a forfeit — it still keeps its Act-3 victory (recorded
-    // by runId, so no duplicate), just no second attempt at the finale fight.
-    if (this.state.arceusChallenged || this.state.championChallenged) {
-      logger.info(`Resume forfeit for ${player.name}: finale fight already started (champion=${this.state.championChallenged}, arceus=${this.state.arceusChallenged}) — finalizing run, no re-fight.`)
+    // One-shot finale guard: a run that already entered the Arceus act (classic act 5)
+    // or STARTED a Champion fight cannot resume back into it. Re-entering would let
+    // players save-scum the Arceus damage leaderboard (quit a bad roll, retry) or
+    // retry the champion fight. NOTE: act 5 exists solely for the terminal Arceus
+    // one-shot, and merely ENTERING it (ENTER_ACT_5 → initializeMapPhase) autosaves a
+    // run BEFORE arceusChallenged is set at fight start — so the act itself, not just
+    // arceusChallenged, is the commit point (without this, leaving from the Act-5 map
+    // or the Arceus PICK screen left a resumable run and you could re-enter Arceus).
+    // Endless is EXCLUDED: it increments currentAct unbounded (acts 5/6/7…) with no
+    // Arceus, so those high-act runs are normal resumable progression, not a finale.
+    // Finalized here as a forfeit — it still keeps its Act-3 victory (recorded by
+    // runId, so no duplicate), just no second attempt at the finale.
+    const enteredArceusAct = !this.state.isEndless && this.state.currentAct >= 5
+    if (this.state.arceusChallenged || this.state.championChallenged || enteredArceusAct) {
+      logger.info(`Resume forfeit for ${player.name}: finale already entered (act=${this.state.currentAct}, champion=${this.state.championChallenged}, arceus=${this.state.arceusChallenged}) — finalizing run, no re-fight.`)
       this.state.gameFinished = true
       this.state.runFailed = true
       player.alive = false
@@ -1619,6 +1985,18 @@ export default class GameRoom extends Room<{ state: GameState }> {
     return simplePlayer
   }
 
+  // Tutorial: broadcast the ordered dialog-step i18n keys for a scripted trigger.
+  // The client (tutorial-dialog.tsx) queues and shows them one at a time. No-op
+  // outside tutorial runs so callers don't have to guard every site.
+  sendTutorialDialog(trigger: string) {
+    if (!this.state.isTutorial) return
+    const { getTutorialDialogSteps } = require("../models/tutorial")
+    const steps: string[] = getTutorialDialogSteps(trigger)
+    if (steps.length > 0) {
+      this.broadcast(Transfer.TUTORIAL_DIALOG, { trigger, steps })
+    }
+  }
+
   spawnOnBench(player: Player, pkm: Pkm, anim: "fishing" | "spawn" = "spawn") {
     const pokemon = PokemonFactory.createPokemonFromName(pkm, player)
     const x = getFirstAvailablePositionInBench(player.board)
@@ -1690,6 +2068,25 @@ export default class GameRoom extends Room<{ state: GameState }> {
     return numberOfPlayersAlive
   }
 
+  // Central relic-grant: pushes the relic (unique per run) and applies any
+  // on-acquire side effects. Returns true if the relic was newly added.
+  grantRelic(player: Player, relic: string, client?: Client): boolean {
+    if (player.relics.includes(relic)) return false // relics are unique per run
+    player.relics.push(relic)
+
+    // Old Coin: gain 40 gold the moment the relic is acquired.
+    if (relic === Relic.OldCoin) {
+      player.addMoney(40, true, null)
+      client?.send(Transfer.PLAYER_INCOME, 40)
+    }
+    // Matryoshka changes synergy counting — recompute now so the effect shows
+    // immediately instead of waiting for the next board change.
+    if (relic === Relic.Matryoshka) {
+      player.updateSynergies()
+    }
+    return true
+  }
+
   getTeamSize(board: MapSchema<Pokemon>) {
     let size = 0
 
@@ -1711,12 +2108,52 @@ export default class GameRoom extends Room<{ state: GameState }> {
     const player = this.state.players.get(playerId)
     if (!player) return
     const choice = player.choices.find((c) => c.id === choiceId)
+    if (!choice) return
+
+    // STS-style instant reward rows (gold / heal / XP) carry no pokemons or
+    // items — just a numeric value. Claim and remove them up front, before the
+    // index validation below (which assumes a pokemons/items slot exists).
+    if (choice.type === "gold" || choice.type === "heal" || choice.type === "xp" || choice.type === "itemGrant") {
+      if (choice.type === "gold") {
+        player.addMoney(choice.value, true, null)
+        const client = this.clients.find((cli) => cli.auth?.uid === player.id)
+        client?.send(Transfer.PLAYER_INCOME, choice.value)
+      } else if (choice.type === "heal") {
+        player.addRunHP(choice.value)
+      } else if (choice.type === "xp") {
+        player.experienceManager.addExperience(choice.value)
+      } else if (choice.type === "itemGrant") {
+        const item = choice.items[0]
+        if (item) player.items.push(item)
+      }
+      removeInArray(player.choices, choice)
+      if (this.state.phase === GamePhaseState.REWARD && player.choices.length === 0) {
+        this.state.updatePhaseNeeded = true
+        this.state.time = 0
+      }
+      return
+    }
+
     if (
-      !choice ||
       choiceIndex < 0 ||
       choiceIndex >= (choice.pokemons?.length || choice.items?.length)
     )
       return
+
+    // Relic reward option (Spire): granting a relic consumes the whole choice.
+    const relicReward = choice.relics?.[choiceIndex]
+    if (relicReward) {
+      this.grantRelic(player, relicReward)
+      const idx = player.choices.indexOf(choice)
+      if (idx >= 0) player.choices.splice(idx, 1)
+      // Advance REWARD -> MAP when the last choice is resolved (this branch
+      // returns early and would otherwise leave the player stuck in REWARD).
+      if (this.state.phase === GamePhaseState.REWARD && player.choices.length === 0) {
+        this.state.updatePhaseNeeded = true
+        this.state.time = 0
+      }
+      return
+    }
 
     if (choice.type === "unlockReward") {
       const pkm = choice.pokemons[choiceIndex]
@@ -1744,6 +2181,12 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
       const idx = player.choices.indexOf(choice)
       if (idx >= 0) player.choices.splice(idx, 1)
+      // Advance REWARD -> MAP when the last choice is resolved (this branch
+      // returns early and would otherwise leave the player stuck in REWARD).
+      if (this.state.phase === GamePhaseState.REWARD && player.choices.length === 0) {
+        this.state.updatePhaseNeeded = true
+        this.state.time = 0
+      }
       return
     }
 
@@ -1753,6 +2196,19 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const freeSpace = getFreeSpaceOnBench(player.board)
         if (freeSpace < 1 && !bypassLackOfSpace) return false
         this.spawnOnBench(player, pkm as Pkm)
+        // Spire design elites: a reward option is a Pokémon PLUS an optional
+        // paired item (classic-mode elite/gym picks grant only the Pokémon).
+        if (this.state.isSpire && choice.type === "eliteReward") {
+          const pairedItem = choice.items[choiceIndex]
+          if (pairedItem) {
+            player.items.push(pairedItem)
+            const pairedSynType = SynergyGivenByGem[pairedItem as SynergyGem]
+            if (pairedSynType) {
+              player.bonusSynergies.set(pairedSynType, (player.bonusSynergies.get(pairedSynType) ?? 0) + 1)
+              player.updateSynergies()
+            }
+          }
+        }
       } else {
         const item = choice.items[choiceIndex]
         if (item) {
@@ -1766,6 +2222,12 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
       const idx = player.choices.indexOf(choice)
       if (idx >= 0) player.choices.splice(idx, 1)
+      // Advance REWARD -> MAP when the last choice is resolved (this branch
+      // returns early and would otherwise leave the player stuck in REWARD).
+      if (this.state.phase === GamePhaseState.REWARD && player.choices.length === 0) {
+        this.state.updatePhaseNeeded = true
+        this.state.time = 0
+      }
       return
     }
 
