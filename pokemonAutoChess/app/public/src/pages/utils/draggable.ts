@@ -3,6 +3,13 @@ import { clamp } from "../../../../utils/number"
 
 const SIDEBAR_WIDTH = 60
 
+// The 60px sidebar rail only exists on wide screens — at <=960px it collapses
+// to a floating corner button (see main-sidebar.css), so windows may use the
+// full viewport width. Keep the breakpoint in sync with that media query.
+function getLeftBound(): number {
+  return window.innerWidth > 960 ? SIDEBAR_WIDTH : 0
+}
+
 interface Position {
   x: number
   y: number
@@ -55,7 +62,7 @@ export function useDraggable(
         const maxTop = window.innerHeight - margin - dragRef.current.height
         const clampedLeft = clamp(
           proposedLeft,
-          SIDEBAR_WIDTH + margin,
+          getLeftBound() + margin,
           Math.max(margin, maxLeft)
         )
         const clampedTop = clamp(proposedTop, margin, Math.max(margin, maxTop))
@@ -104,7 +111,7 @@ export function useDraggable(
       const currentTop = rect?.top ?? 0
       const clampedLeft = clamp(
         currentLeft,
-        SIDEBAR_WIDTH + margin,
+        getLeftBound() + margin,
         Math.max(margin, maxLeft)
       )
       const clampedTop = clamp(currentTop, margin, Math.max(margin, maxTop))
