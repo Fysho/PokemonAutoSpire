@@ -53,6 +53,9 @@ export const BoosterRarityProbability: { [key in Rarity]: number } = {
   [Rarity.SPECIAL]: 0.05
 }
 
+// Levels 10-13 are reachable in Endless mode only (ENDLESS_MAX_LEVEL) — the
+// table must cover them or every consumer (encounter-rate HUD chips, shop
+// rolls, Meltan magnet pull) crashes on an undefined row at level 10+.
 export const RarityProbabilityPerLevel: { [key: number]: number[] } = {
   1: [1, 0, 0, 0, 0],
   2: [1, 0, 0, 0, 0],
@@ -62,7 +65,23 @@ export const RarityProbabilityPerLevel: { [key: number]: number[] } = {
   6: [0.25, 0.4, 0.3, 0.05, 0],
   7: [0.16, 0.33, 0.35, 0.15, 0.01],
   8: [0.11, 0.27, 0.35, 0.22, 0.05],
-  9: [0.05, 0.2, 0.35, 0.3, 0.1]
+  9: [0.05, 0.2, 0.35, 0.3, 0.1],
+  10: [0.03, 0.15, 0.32, 0.34, 0.16],
+  11: [0.02, 0.1, 0.28, 0.37, 0.23],
+  12: [0.01, 0.07, 0.24, 0.38, 0.3],
+  13: [0.01, 0.05, 0.2, 0.38, 0.36]
+}
+
+// Safe accessor: any level beyond the table reuses its last row instead of
+// returning undefined (which crashed the client HUD and would crash the
+// server's random-pool rolls). Use this instead of indexing the table raw.
+export function getRarityProbabilities(level: number): number[] {
+  return (
+    RarityProbabilityPerLevel[level] ??
+    RarityProbabilityPerLevel[
+      Math.max(...Object.keys(RarityProbabilityPerLevel).map(Number))
+    ]
+  )
 }
 
 /* Special Pokemon rates */

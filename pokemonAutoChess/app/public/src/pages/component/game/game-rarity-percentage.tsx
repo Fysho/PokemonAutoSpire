@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
 import {
-  MAX_LEVEL,
   RarityColor,
   RarityProbabilityPerLevel
 } from "../../../../../config"
@@ -11,6 +10,14 @@ import { useAppSelector } from "../../../hooks"
 export default function GameRarityPercentage() {
   const { t } = useTranslation()
   const level = useAppSelector((state) => state.game.experienceManager.level)
+  // Never index the table with a raw level: endless levels used to overrun it
+  // (rows stopped at 9 while ENDLESS_MAX_LEVEL is 13), crashing the whole
+  // game page on resume. Clamp to the rows that actually exist.
+  const knownLevels = Object.keys(RarityProbabilityPerLevel).map(Number)
+  const maxKnownLevel = Math.max(...knownLevels)
+  const levelKey = Math.min(Math.max(level, 1), maxKnownLevel)
+  const current = RarityProbabilityPerLevel[levelKey]
+  const next = RarityProbabilityPerLevel[levelKey + 1]
   const RarityTiers = [
     Rarity.COMMON,
     Rarity.UNCOMMON,
@@ -31,7 +38,7 @@ export default function GameRarityPercentage() {
             <tr>
               <th>{t("rarity_label")}</th>
               <th>{t("rate")}</th>
-              {level < MAX_LEVEL && <th>{t("next_level")}</th>}
+              {next && <th>{t("next_level")}</th>}
             </tr>
           </thead>
           <tbody>
@@ -40,23 +47,16 @@ export default function GameRarityPercentage() {
                 <td style={{ color: RarityColor[rarity] }}>
                   {t(`rarity.${rarity}`)}
                 </td>
-                <td>
-                  {Math.round(RarityProbabilityPerLevel[level][index] * 100)}%
-                </td>
-                {level < MAX_LEVEL && (
+                <td>{Math.round(current[index] * 100)}%</td>
+                {next && (
                   <td
                     style={{
-                      color:
-                        RarityProbabilityPerLevel[level + 1][index] <
-                        RarityProbabilityPerLevel[level][index]
-                          ? "#e76e55"
-                          : "#92cc41"
+                      color: next[index] < current[index]
+                        ? "#e76e55"
+                        : "#92cc41"
                     }}
                   >
-                    {Math.round(
-                      RarityProbabilityPerLevel[level + 1][index] * 100
-                    )}
-                    %
+                    {Math.round(next[index] * 100)}%
                   </td>
                 )}
               </tr>
@@ -72,7 +72,7 @@ export default function GameRarityPercentage() {
         {RarityTiers.map((rarity, index) => {
           return (
             <div key={rarity} style={{ backgroundColor: RarityColor[rarity] }}>
-              {Math.ceil(RarityProbabilityPerLevel[level][index] * 100)}%
+              {Math.ceil(current[index] * 100)}%
             </div>
           )
         })}

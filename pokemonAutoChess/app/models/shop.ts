@@ -23,8 +23,8 @@ import {
   PkmsWithAltForms,
   PoolSize,
   PortalCarouselStages,
+  getRarityProbabilities,
   RarityCost,
-  RarityProbabilityPerLevel,
   REMORAID_RATE,
   REPEAT_BALL_LEGENDARY_CAP,
   REPEAT_BALL_UNIQUE_CAP,
@@ -615,7 +615,7 @@ export default class Shop {
       specificTypesWanted = [Synergy.GROUND]
     }
 
-    const probas = RarityProbabilityPerLevel[player.experienceManager.level]
+    const probas = getRarityProbabilities(player.experienceManager.level)
     const rarity_seed = Math.random()
     let i = 0,
       threshold = 0
@@ -748,8 +748,9 @@ export default class Shop {
   magnetPull(meltan: IPokemonEntity, player: Player): Pkm {
     const finals = player.getFinalizedLines()
 
-    const rarityProbabilies =
-      RarityProbabilityPerLevel[player.experienceManager.level]
+    const rarityProbabilies = getRarityProbabilities(
+      player.experienceManager.level
+    )
     const magnetPullRatePerRarity = {
       [Rarity.COMMON]: rarityProbabilies[0],
       [Rarity.UNCOMMON]: rarityProbabilies[1],
