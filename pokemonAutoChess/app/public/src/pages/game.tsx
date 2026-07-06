@@ -1555,7 +1555,7 @@ export default function Game() {
           )}
           {isRewardPhase && <GameRewardsScreen />}
           {!spectate && !runComplete && !runFailed && isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
-            <div style={{
+            <div className="game-action-float" style={{
               position: "absolute",
               bottom: "170px",
               left: "50%",
@@ -1580,7 +1580,7 @@ export default function Game() {
             </div>
           )}
           {!spectate && phase === GamePhaseState.PICK && !isEliteTestActive() && (
-            <div style={{
+            <div className="game-action-float" style={{
               position: "absolute",
               bottom: "170px",
               left: "50%",
@@ -1605,7 +1605,7 @@ export default function Game() {
             </div>
           )}
           {!spectate && phase === GamePhaseState.PICK && isEliteTestActive() && !eliteTestAwaitingBegin && (
-            <div style={{
+            <div className="game-action-float" style={{
               position: "absolute",
               bottom: "170px",
               left: "50%",
@@ -1632,7 +1632,7 @@ export default function Game() {
             </div>
           )}
           {!spectate && phase === GamePhaseState.PICK && isEliteTestActive() && eliteTestAwaitingBegin && (
-            <div style={{
+            <div className="game-action-float" style={{
               position: "absolute",
               bottom: "170px",
               left: "50%",
@@ -1675,7 +1675,7 @@ export default function Game() {
             </div>
           )}
           {!spectate && isShopPhase && (
-            <div style={{
+            <div className="game-action-float" style={{
               position: "absolute", bottom: "200px", left: "50%", transform: "translateX(-50%)", zIndex: 50
             }}>
               <button

@@ -50,6 +50,17 @@ canvas,
   textarea {
     font-size: max(16px, 1em) !important;
   }
+
+  /* Floating action buttons (Start Fight / Continue to Map / Leave Shop…)
+     are bottom-centered on desktop, where they cover the board on phones.
+     Pin them bottom-right instead, just above the 3em bottom HUD bar.
+     !important because the containers position via inline styles. */
+  .game-action-float {
+    left: auto !important;
+    right: max(12px, env(safe-area-inset-right)) !important;
+    bottom: calc(3em + 12px) !important;
+    transform: none !important;
+  }
 }
 
 body {

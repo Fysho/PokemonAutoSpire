@@ -751,7 +751,7 @@ function SpireLobbyContent({
             className={cc({ active: activeSection === "rooms" })}
           >
             <img width={32} height={32} src={`assets/ui/room.svg`} />
-            {t("rooms")}
+            Play
           </li>
           <li
             onClick={() => setActive("events")}
