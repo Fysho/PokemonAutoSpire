@@ -1486,8 +1486,12 @@ function SpireLobbyContent({
               <span><PacTag type="nerfed" /> <strong>Grookey / Thwackey / Rillaboom</strong> — Max PP increased from 60 to 80, so the Drummer line takes longer to cast its own ability while it feeds PP to adjacent allies.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0282")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="nerfed" /> <strong>Ralts / Kirlia / Gardevoir (Future Sight)</strong> — Hits up to 5 selected enemies after 2 seconds, with no damage to adjacent enemies.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0911")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="changed" /> <strong>Skeledirge (Torch Song)</strong> — Flame count capped at 20 (prevents a runaway AP feedback loop). The per-flame AP buff is otherwise unchanged from upstream.</span>
+              <span><PacTag type="changed" /> <strong>Fuecoco / Crocalor / Skeledirge (Torch Song)</strong> — Flame count is capped at 20, and each flame's 50% ATK damage is capped at 70. The per-flame AP buff is unchanged from upstream.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0479-0008")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />

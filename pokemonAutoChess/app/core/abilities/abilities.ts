@@ -1758,17 +1758,6 @@ export class FutureSightStrategy extends AbilityStrategy {
               crit
             )
           }
-          board.getAdjacentCells(tg.positionX, tg.positionY).forEach((cell) => {
-            if (cell.value && cell.value.team !== pokemon.team) {
-              cell.value.handleSpecialDamage(
-                Math.round(damage * 0.2),
-                board,
-                AttackType.SPECIAL,
-                pokemon,
-                crit
-              )
-            }
-          })
         }
       }, 2000)
     )
@@ -9573,8 +9562,8 @@ export class TorchSongStrategy extends AbilityStrategy {
   requiresTarget = false
   process(pokemon: PokemonEntity, board: Board, target: null, crit: boolean) {
     super.process(pokemon, board, target, crit, true)
-    // Blow out [4,SP] raging flames to random opponents. Each flame deals 50% of ATK as SPECIAL, with [30,LK]% chance to BURN for 2 seconds, and buff the user AP by [1,2,3].
-    const damagePerFlame = 0.5 * pokemon.atk
+    // Blow out [4,SP] raging flames to random opponents. Each flame deals 50% of ATK as SPECIAL (capped at 70), with [30,LK]% chance to BURN for 2 seconds, and buff the user AP by [1,2,3].
+    const damagePerFlame = Math.min(70, 0.5 * pokemon.atk)
     const apGainPerFlame = [1, 2, 3][pokemon.stars - 1] ?? 3
 
     const enemies: PokemonEntity[] = []

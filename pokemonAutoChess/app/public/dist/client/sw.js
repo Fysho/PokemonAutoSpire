@@ -1,7 +1,7 @@
 /* Change this cache name every time you want to force players 
   to invalidate their cache and download all assets again */
 
-const CACHE_NAME = "CACHE v1.8.4.2026-06-12.0"
+const CACHE_NAME = "CACHE v1.9.2.2026-07-14.2"
 
 // Cache-first strategy
 const cacheFirst = (event) => {

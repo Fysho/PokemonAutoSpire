@@ -45,6 +45,7 @@ export default {
       },
       resolutionOptions: {
         resolutions: { default: 1 },
+        maximumTextureSize: 2048,
         template: ``
       }
     }),
@@ -127,6 +128,35 @@ function texturePackAtlas() {
         }
       }
       walk(tree)
+
+      // Free Texture Packer emits one JSON file per page when an atlas is
+      // split. Phaser's multiatlas loader expects a single manifest containing
+      // every texture page, so generate that stable entry point here.
+      for (const [packPath, pack] of Object.entries(atlas.packs)) {
+        const packOutputPath = upath.joinSafe(processor.config.output, packPath)
+        if (!fs.existsSync(packOutputPath)) continue
+
+        const pagePattern = new RegExp(`^${pack.name}-(\\d+)\\.json$`)
+        const splitPages = fs
+          .readdirSync(packOutputPath)
+          .map((file) => {
+            const match = file.match(pagePattern)
+            return match ? { file, index: Number(match[1]) } : null
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.index - b.index)
+
+        if (splitPages.length > 0) {
+          const textures = splitPages.flatMap(
+            ({ file }) =>
+              fs.readJSONSync(upath.joinSafe(packOutputPath, file)).textures
+          )
+          fs.writeJSONSync(
+            upath.joinSafe(packOutputPath, `${pack.name}.json`),
+            { textures }
+          )
+        }
+      }
 
       //fs.writeJSONSync("tree.json", tree)
       fs.writeJSONSync(atlasPath, atlas)
