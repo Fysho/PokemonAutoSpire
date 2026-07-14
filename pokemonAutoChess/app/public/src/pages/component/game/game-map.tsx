@@ -98,6 +98,13 @@ export default function GameMap({
   isAdmin = false
 }: GameMapProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Touch devices get a fullscreen map laid out horizontally (floors run
+  // left → right, boss at the far right) — the underlying map data is
+  // identical, only the projection changes. Same detection convention as
+  // the rest of the mobile support ((pointer: coarse), not width).
+  const [isMobile] = useState(
+    () => window.matchMedia("(pointer: coarse)").matches
+  )
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [warningText, setWarningText] = useState<string | null>(null)
   const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -161,11 +168,15 @@ export default function GameMap({
 
   const nodes = Array.from(mapNodes.values())
   const maxFloor = Math.max(...nodes.map((n) => n.floor), 1)
-  const svgWidth = 1000
-  const floorHeight = 100
-  const svgHeight = maxFloor * floorHeight + 200
-  const nodeSpread = svgWidth * 0.6
-  const nodeOffset = svgWidth * 0.2
+  const floorStep = 100
+  // Desktop: vertical map (floors bottom → top) in a centered panel.
+  // Mobile: horizontal map (floors left → right), so the main axis is the
+  // width and the cross axis (where same-floor nodes spread out) is the height.
+  const svgWidth = isMobile ? maxFloor * floorStep + 260 : 1000
+  const svgHeight = isMobile ? 500 : maxFloor * floorStep + 200
+  const crossSize = isMobile ? svgHeight : svgWidth
+  const nodeSpread = isMobile ? crossSize * 0.7 : crossSize * 0.6
+  const nodeOffset = isMobile ? crossSize * 0.15 : crossSize * 0.2
 
   const hashId = (id: string) => {
     let h = 0
@@ -182,21 +193,39 @@ export default function GameMap({
     const pullToCenter = count <= 2 ? 0.3 : count <= 3 ? 0.15 : 0
     const baseX = node.x / 4
     const centeredX = baseX + (0.5 - baseX) * pullToCenter
-    const ox = ((h % 61) - 30) * 1.2
-    const oy = (((h >> 8) % 41) - 20) * 0.6
+    // Cross-axis position (across the floor) + deterministic jitter along
+    // both axes so same-floor nodes aren't perfectly aligned.
+    const cross = nodeOffset + centeredX * nodeSpread
+    const jCross = ((h % 61) - 30) * (isMobile ? 0.8 : 1.2)
+    const jMain = (((h >> 8) % 41) - 20) * 0.6
+    if (isMobile) {
+      return {
+        cx: node.floor * floorStep + 60 + jMain,
+        cy: cross + jCross
+      }
+    }
     return {
-      cx: nodeOffset + centeredX * nodeSpread + ox,
-      cy: svgHeight - (node.floor * floorHeight + 40) + oy
+      cx: cross + jCross,
+      cy: svgHeight - (node.floor * floorStep + 40) + jMain
     }
   }
 
   useLayoutEffect(() => {
-    if (scrollRef.current) {
-      const currentFloorY = svgHeight - (currentFloor * floorHeight + 40)
-      const containerHeight = scrollRef.current.clientHeight
-      scrollRef.current.scrollTop = currentFloorY - containerHeight / 2
+    const el = scrollRef.current
+    if (!el) return
+    if (isMobile) {
+      // The svg is scaled to the container height, so convert viewBox
+      // units to rendered pixels before centering the current floor.
+      const scale = el.clientHeight > 0 ? el.clientHeight / svgHeight : 1
+      const currentFloorX = (currentFloor * floorStep + 60) * scale
+      el.scrollLeft = currentFloorX - el.clientWidth / 2
+    } else {
+      const currentFloorY = svgHeight - (currentFloor * floorStep + 40)
+      el.scrollTop = currentFloorY - el.clientHeight / 2
     }
-  }, [currentFloor, currentAct, svgHeight])
+  }, [currentFloor, currentAct, svgHeight, svgWidth, isMobile])
+
+  const title = `${currentAct === 4 ? "Elite Four" : `Act ${currentAct}`} - Floor ${currentFloor} (${isEndless ? "Endless" : DIFFICULTY_MODE_LABELS[difficultyMode] ?? "Normal"})`
 
   return (
     <div
@@ -208,19 +237,78 @@ export default function GameMap({
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.85)",
+        alignItems: isMobile ? "stretch" : "center",
+        justifyContent: isMobile ? "flex-start" : "center",
+        background: isMobile ? "#1a1a2e" : "rgba(0,0,0,0.85)",
         zIndex: 100,
         color: "white"
       }}
     >
-      <h2 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>
-        {currentAct === 4 ? "Elite Four" : `Act ${currentAct}`} - Floor {currentFloor} ({isEndless ? "Endless" : DIFFICULTY_MODE_LABELS[difficultyMode] ?? "Normal"})
-      </h2>
-      <div style={{ display: "flex", gap: "20px", marginBottom: "12px", fontSize: "16px" }}>
-        <span>HP: {runHP}/100</span>
-      </div>
+      {/* Mobile: the map is fullscreen, so the poster backdrop is a fixed
+          layer behind everything instead of scrolling with the svg. */}
+      {isMobile && (
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          backgroundImage: "url('assets/posters/hd/6.6.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          opacity: 0.2,
+          pointerEvents: "none"
+        }} />
+      )}
+
+      {isMobile ? (
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "6px 12px", position: "relative", zIndex: 1 }}>
+          <h2 style={{ margin: 0, fontSize: "16px" }}>{title}</h2>
+          <span style={{ fontSize: "13px" }}>HP: {runHP}/100</span>
+          {showRerollMap && (
+            <button
+              onClick={() => rooms.game?.send(Transfer.REROLL_MAP)}
+              style={{
+                padding: "4px 12px",
+                fontSize: "13px",
+                borderRadius: "6px",
+                border: "1px solid #666",
+                background: "#333",
+                color: "#ccc",
+                cursor: "pointer"
+              }}
+            >
+              Reroll Map
+            </button>
+          )}
+          <span style={{ flex: 1 }} />
+          <button
+            onClick={onHide}
+            aria-label="Hide Map"
+            style={{
+              width: "40px",
+              height: "40px",
+              fontSize: "20px",
+              lineHeight: 1,
+              borderRadius: "8px",
+              border: "1px solid #666",
+              background: "#333",
+              color: "#ccc",
+              cursor: "pointer",
+              flex: "0 0 auto"
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <>
+          <h2 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>{title}</h2>
+          <div style={{ display: "flex", gap: "20px", marginBottom: "12px", fontSize: "16px" }}>
+            <span>HP: {runHP}/100</span>
+          </div>
+        </>
+      )}
 
       <div
         ref={scrollRef}
@@ -228,7 +316,17 @@ export default function GameMap({
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseUp}
-        style={{
+        style={isMobile ? {
+          flex: 1,
+          minHeight: 0,
+          width: "100%",
+          overflowX: "auto",
+          overflowY: "hidden",
+          background: "transparent",
+          userSelect: "none",
+          position: "relative",
+          WebkitOverflowScrolling: "touch"
+        } : {
           overflowY: "auto",
           overflowX: "hidden",
           maxHeight: "80vh",
@@ -242,19 +340,27 @@ export default function GameMap({
           position: "relative"
         }}
       >
-        <div style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: svgHeight + 20,
-          backgroundImage: "url('assets/posters/hd/6.6.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          opacity: 0.2,
-          pointerEvents: "none"
-        }} />
-        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} width="100%" height={svgHeight} style={{ position: "relative" }}>
+        {!isMobile && (
+          <div style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: svgHeight + 20,
+            backgroundImage: "url('assets/posters/hd/6.6.png')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            opacity: 0.2,
+            pointerEvents: "none"
+          }} />
+        )}
+        <svg
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          {...(isMobile ? {} : { width: "100%", height: svgHeight })}
+          style={isMobile
+            ? { position: "relative", display: "block", height: "100%", width: "auto", aspectRatio: `${svgWidth} / ${svgHeight}` }
+            : { position: "relative" }}
+        >
           <defs>
             <filter id="white-outline" x="-10%" y="-10%" width="120%" height="120%">
               <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded" />
@@ -552,25 +658,34 @@ export default function GameMap({
         </svg>
       </div>
 
-      <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            onClick={onHide}
-            style={{
-              padding: "8px 24px",
-              fontSize: "14px",
-              borderRadius: "6px",
-              border: "1px solid #666",
-              background: "#333",
-              color: "#ccc",
-              cursor: "pointer"
-            }}
-          >
-            Hide Map
-          </button>
-          {showRerollMap && (
+      {isMobile ? (
+        (warningText || !readOnly) && (
+          <div style={{
+            position: "absolute",
+            bottom: "6px",
+            left: 0,
+            right: 0,
+            textAlign: "center",
+            pointerEvents: "none",
+            zIndex: 1,
+            textShadow: "0 1px 3px black"
+          }}>
+            {warningText ? (
+              <span style={{ fontSize: "14px", color: "#e74c3c", fontWeight: "bold" }}>
+                {warningText}
+              </span>
+            ) : (
+              <span style={{ fontSize: "12px", color: "#bbb" }}>
+                Tap an available node to proceed
+              </span>
+            )}
+          </div>
+        )
+      ) : (
+        <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px" }}>
             <button
-              onClick={() => rooms.game?.send(Transfer.REROLL_MAP)}
+              onClick={onHide}
               style={{
                 padding: "8px 24px",
                 fontSize: "14px",
@@ -581,21 +696,37 @@ export default function GameMap({
                 cursor: "pointer"
               }}
             >
-              Reroll Map
+              Hide Map
             </button>
+            {showRerollMap && (
+              <button
+                onClick={() => rooms.game?.send(Transfer.REROLL_MAP)}
+                style={{
+                  padding: "8px 24px",
+                  fontSize: "14px",
+                  borderRadius: "6px",
+                  border: "1px solid #666",
+                  background: "#333",
+                  color: "#ccc",
+                  cursor: "pointer"
+                }}
+              >
+                Reroll Map
+              </button>
+            )}
+          </div>
+          {warningText && (
+            <span style={{ fontSize: "14px", color: "#e74c3c", fontWeight: "bold" }}>
+              {warningText}
+            </span>
+          )}
+          {!readOnly && !warningText && (
+            <span style={{ fontSize: "12px", color: "#888" }}>
+              Click an available node to proceed
+            </span>
           )}
         </div>
-        {warningText && (
-          <span style={{ fontSize: "14px", color: "#e74c3c", fontWeight: "bold" }}>
-            {warningText}
-          </span>
-        )}
-        {!readOnly && !warningText && (
-          <span style={{ fontSize: "12px", color: "#888" }}>
-            Click an available node to proceed
-          </span>
-        )}
-      </div>
+      )}
     </div>
   )
 }

@@ -20,6 +20,10 @@ import Player from "../../models/colyseus-models/player"
 import { PokemonAvatarModel } from "../../models/colyseus-models/pokemon-avatar"
 import { Portal, SynergySymbol } from "../../models/colyseus-models/portal"
 import Shop from "../../models/shop"
+import type { SpireEncounter } from "../../models/spire-encounters"
+import type { ShopItem } from "../../models/spire-shops"
+import type { SpireEliteDesignData } from "../../services/elite-design"
+import type { TeamSnapshot } from "../../services/team-snapshot"
 import type { EloRank } from "../../types/enum/EloRank"
 import { GameMode, GamePhaseState } from "../../types/enum/Game"
 import type { Item } from "../../types/enum/Item"
@@ -27,8 +31,23 @@ import type { Pkm } from "../../types/enum/Pokemon"
 import { SpecialGameRule } from "../../types/enum/SpecialGameRule"
 import type { TownEncounter } from "../../types/enum/TownEncounter"
 import { Weather } from "../../types/enum/Weather"
-import { TeamSnapshot } from "../../services/team-snapshot"
-import { pickRandomIn } from "../../utils/random"
+import {
+  counterRandom,
+  hashStringToUint32,
+  pickRandomIn,
+  withRandomSource
+} from "../../utils/random"
+export interface PendingRunEncounter {
+  nodeId: string
+  encounter: SpireEncounter
+  snapshot: TeamSnapshot | null
+  crownedAt: string | null
+  eliteDesign: SpireEliteDesignData | null
+}
+
+export interface PersistedShopItem extends ShopItem {
+  claimed?: boolean
+}
 
 export default class GameState extends Schema {
   @type("string") afterGameId = ""
@@ -108,6 +127,17 @@ export default class GameState extends Schema {
   // belongs to the SAME run; a different run (e.g. a freshly started one) may take
   // over the save slot. Plain field — not synced to clients.
   runId: string = ""
+  // Counter-based RNG state for deterministic run progression. Combat never
+  // enters withRunRng(), so its randomness remains independent and unchanged.
+  runRngSeed = 0
+  runRngCounter = 0
+  // Exact materializations that must survive room reconstruction.
+  pendingEncounter: PendingRunEncounter | null = null
+  eliteDesignAssignments = new Map<string, SpireEliteDesignData>()
+  spireShopItems: PersistedShopItem[] = []
+  // Exactly-once guard for the post-battle transaction.
+  postBattleEffectsNodeId = ""
+  spireEventResolved = false
   encounterSnapshot: TeamSnapshot | null = null
   encounterCrownedAt: string | null = null
   // The combat node the player is currently picking/fighting, set on node select
@@ -146,6 +176,21 @@ export default class GameState extends Schema {
   maxRank: EloRank | null = null
   outlawStage: number | null = null
   treasureBoxRewardGiven: TreasureBoxReward = getTreasureBoxReward()
+
+  initializeRunRng(runId = this.runId) {
+    this.runRngSeed = hashStringToUint32(runId)
+    this.runRngCounter = 0
+  }
+
+  nextRunRandom(): number {
+    const value = counterRandom(this.runRngSeed, this.runRngCounter)
+    this.runRngCounter = (this.runRngCounter + 1) >>> 0
+    return value
+  }
+
+  withRunRng<T>(operation: () => T): T {
+    return withRandomSource(() => this.nextRunRandom(), operation)
+  }
 
   constructor(
     preparationId: string,

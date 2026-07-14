@@ -1,23 +1,35 @@
-import { ArraySchema, MapSchema } from "@colyseus/schema"
-import Player from "../models/colyseus-models/player"
-import { PlayerChoice, PlayerChoiceType } from "../models/colyseus-models/player-choice"
-import { Pokemon } from "../models/colyseus-models/pokemon"
-import { MapNode, MapEdge } from "../models/colyseus-models/map-node"
-import { SavedRun, ISavedRun } from "../models/mongo-models/saved-run"
+import type { ArraySchema, MapSchema } from "@colyseus/schema"
+import { MapEdge, MapNode } from "../models/colyseus-models/map-node"
+import type Player from "../models/colyseus-models/player"
+import {
+  PlayerChoice,
+  type PlayerChoiceType
+} from "../models/colyseus-models/player-choice"
+import type { Pokemon } from "../models/colyseus-models/pokemon"
+import { computeSynergies } from "../models/colyseus-models/synergies"
 import { RunHistory } from "../models/mongo-models/run-history"
+import { type ISavedRun, SavedRun } from "../models/mongo-models/saved-run"
 import UserMetadata from "../models/mongo-models/user-metadata"
 import PokemonFactory from "../models/pokemon-factory"
-import GameState from "../rooms/states/game-state"
-import { snapshotPlayerTeam, SnapshotPokemon, TeamSnapshot, PokemonStatBoosts } from "./team-snapshot"
+import GameState, {
+  type PendingRunEncounter,
+  type PersistedShopItem
+} from "../rooms/states/game-state"
 import { Emotion } from "../types"
-import { Ability } from "../types/enum/Ability"
+import type { Ability } from "../types/enum/Ability"
 import { GamePhaseState } from "../types/enum/Game"
-import { Item } from "../types/enum/Item"
-import { Pkm, PkmIndex } from "../types/enum/Pokemon"
-import { Synergy } from "../types/enum/Synergy"
-import { computeSynergies } from "../models/colyseus-models/synergies"
+import type { Item } from "../types/enum/Item"
+import { type Pkm, PkmIndex } from "../types/enum/Pokemon"
+import type { Synergy } from "../types/enum/Synergy"
 import { getAvatarString } from "../utils/avatar"
 import { logger } from "../utils/logger"
+import type { SpireEliteDesignData } from "./elite-design"
+import {
+  type PokemonStatBoosts,
+  SnapshotPokemon,
+  snapshotPlayerTeam,
+  type TeamSnapshot
+} from "./team-snapshot"
 
 interface SerializedMapNode {
   id: string
@@ -77,6 +89,19 @@ export interface SavedRunData {
   mapEdges: { from: string; to: string }[]
   currentNodeId: string
   pendingFightNodeId: string
+  // Deterministic run progression and exact pending materializations.
+  runRngSeed?: number
+  runRngCounter?: number
+  pendingEncounter?: PendingRunEncounter | null
+  eliteDesignAssignments?: [string, SpireEliteDesignData][]
+  spireShopItems?: PersistedShopItem[]
+  postBattleEffectsNodeId?: string
+  spireEventResolved?: boolean
+  spireEventName?: string
+  spireEventDescription?: string
+  spireEventPortrait?: string
+  spireEventChoiceLabels?: string[]
+  spireEventChoiceDescs?: string[]
 
   // Player team (full snapshot with bench)
   team: TeamSnapshot
@@ -117,7 +142,12 @@ export interface SavedRunData {
   fairyWands: string[]
   regions: string[]
   shopsSinceLastUnownShop: number
-  choices?: { type: string; pokemons: string[]; items: string[]; value?: number }[]
+  choices?: {
+    type: string
+    pokemons: string[]
+    items: string[]
+    value?: number
+  }[]
   phase?: number
 }
 
@@ -147,7 +177,9 @@ function serializeMapNodes(nodes: MapSchema<MapNode>): SerializedMapNode[] {
   return result
 }
 
-function serializeMapEdges(edges: ArraySchema<MapEdge>): { from: string; to: string }[] {
+function serializeMapEdges(
+  edges: ArraySchema<MapEdge>
+): { from: string; to: string }[] {
   return Array.from(edges).map((e) => ({ from: e.from, to: e.to }))
 }
 
@@ -166,7 +198,13 @@ function serializeFlowerPots(pots: Pokemon[]): SerializedFlowerPot[] {
         luck: p.luck - baseline.luck
       }
       const hasBoosts =
-        boosts.hp || boosts.atk || boosts.def || boosts.speDef || boosts.ap || boosts.speed || boosts.luck
+        boosts.hp ||
+        boosts.atk ||
+        boosts.def ||
+        boosts.speDef ||
+        boosts.ap ||
+        boosts.speed ||
+        boosts.luck
       const serialized: SerializedFlowerPot = {
         name: p.name,
         positionX: p.positionX,
@@ -207,7 +245,11 @@ export async function flushSaves(odToken: string): Promise<void> {
   }
 }
 
-export function saveRun(odToken: string, state: GameState, player: Player): Promise<void> {
+export function saveRun(
+  odToken: string,
+  state: GameState,
+  player: Player
+): Promise<void> {
   // Guests can't save/resume, and they ALL share odToken "local-player" — saving
   // them collides every guest's run onto one shared document (the "saves swapped"
   // / SAVE WENT BACKWARD reports). Skip them entirely. (Mirrors saveRunHistory.)
@@ -246,6 +288,20 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
       mapEdges: serializeMapEdges(state.mapEdges),
       currentNodeId: state.currentNodeId,
       pendingFightNodeId: state.pendingFightNodeId,
+      runRngSeed: state.runRngSeed,
+      runRngCounter: state.runRngCounter,
+      pendingEncounter: state.pendingEncounter,
+      eliteDesignAssignments: Array.from(
+        state.eliteDesignAssignments.entries()
+      ),
+      spireShopItems: state.spireShopItems,
+      postBattleEffectsNodeId: state.postBattleEffectsNodeId,
+      spireEventResolved: state.spireEventResolved,
+      spireEventName: state.spireEventName,
+      spireEventDescription: state.spireEventDescription,
+      spireEventPortrait: state.spireEventPortrait,
+      spireEventChoiceLabels: [...state.spireEventChoiceLabels],
+      spireEventChoiceDescs: [...state.spireEventChoiceDescs],
 
       team,
 
@@ -262,7 +318,10 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
       buriedItems: player.buriedItems.map((i) => (i as string) ?? null),
       tms: [...player.tms] as string[],
       weatherRocks: [...player.weatherRocks] as string[],
-      bonusSynergies: Array.from(player.bonusSynergies.entries()) as [string, number][],
+      bonusSynergies: Array.from(player.bonusSynergies.entries()) as [
+        string,
+        number
+      ][],
       eggChance: player.eggChance,
       goldenEggChance: player.goldenEggChance,
       cellBattery: player.cellBattery,
@@ -283,20 +342,19 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
       fairyWands: [...player.fairyWands] as string[],
       regions: [...player.regions] as string[],
       shopsSinceLastUnownShop: player.shopsSinceLastUnownShop,
-      choices: player.choices.length > 0
-        ? Array.from(player.choices).map((c) => ({
-            type: c.type,
-            pokemons: [...c.pokemons] as string[],
-            items: [...c.items] as string[],
-            value: c.value
-          }))
-        : undefined,
+      choices:
+        player.choices.length > 0
+          ? Array.from(player.choices).map((c) => ({
+              type: c.type,
+              pokemons: [...c.pokemons] as string[],
+              items: [...c.items] as string[],
+              value: c.value
+            }))
+          : undefined,
       phase: state.phase
     }
 
-    const teamPreview = team.pokemon
-      .filter((p) => p.y > 0)
-      .map((p) => p.name)
+    const teamPreview = team.pokemon.filter((p) => p.y > 0).map((p) => p.name)
 
     update = {
       odToken,
@@ -332,7 +390,9 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
       try {
         // Read the run we're about to overwrite first (queue serializes saves for
         // this player, so no other save races between this read and the write).
-        const before = (await SavedRun.findOne({ odToken }).lean()) as ISavedRun | null
+        const before = (await SavedRun.findOne({
+          odToken
+        }).lean()) as ISavedRun | null
 
         // 3) Run-fenced monotonic guard. A run's (act, floor) only ever moves
         //    forward, so a backward write is a regression. But only block it when it
@@ -340,11 +400,17 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
         //    room saving late, and rewinding the live run would lose progress. A
         //    DIFFERENT run writing backward is a legitimate takeover (e.g. the player
         //    started a new run, or the newest session won) and must overwrite.
-        const sameRun = !!(before && before.runId && state.runId && before.runId === state.runId)
+        const sameRun = !!(
+          before &&
+          before.runId &&
+          state.runId &&
+          before.runId === state.runId
+        )
         const regressing = !!(
           before &&
           (before.currentAct > expectedAct ||
-            (before.currentAct === expectedAct && before.currentFloor > expectedFloor))
+            (before.currentAct === expectedAct &&
+              before.currentFloor > expectedFloor))
         )
         if (regressing && sameRun) {
           logger.error(
@@ -384,11 +450,21 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
         // Endless/guests are no-ops inside updateVictoryRecord; recordLoss just zeroes the
         // streak, so a benign race with a normal run-end delete is idempotent/harmless.
         const overwritingDifferentRun = !!(
-          before && before.runId && state.runId && before.runId !== state.runId
+          before &&
+          before.runId &&
+          state.runId &&
+          before.runId !== state.runId
         )
-        if (overwritingDifferentRun && before!.data && !isRunVictory(before!.data as SavedRunData)) {
+        if (
+          overwritingDifferentRun &&
+          before!.data &&
+          !isRunVictory(before!.data as SavedRunData)
+        ) {
           try {
-            await saveRunHistoryFromSavedRun(odToken, before!.data as SavedRunData)
+            await saveRunHistoryFromSavedRun(
+              odToken,
+              before!.data as SavedRunData
+            )
             await updateVictoryRecord(
               odToken,
               player.name,
@@ -397,9 +473,14 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
               false,
               before!.isEndless ?? false
             )
-            logger.info(`↪️ ABANDON LOSS — ${player.name} [${odToken}]: recorded a loss for run ${before!.runId} discarded by a new run (streak reset).`)
+            logger.info(
+              `↪️ ABANDON LOSS — ${player.name} [${odToken}]: recorded a loss for run ${before!.runId} discarded by a new run (streak reset).`
+            )
           } catch (lossErr) {
-            logger.error(`Failed to record loss for overwritten run — ${player.name} [${odToken}]`, lossErr)
+            logger.error(
+              `Failed to record loss for overwritten run — ${player.name} [${odToken}]`,
+              lossErr
+            )
           }
         }
       } catch (e) {
@@ -414,7 +495,8 @@ export function saveRun(odToken: string, state: GameState, player: Player): Prom
       // Drop the queue entry once this is the tail, to bound memory growth.
       if (saveQueues.get(odToken) === task) {
         saveQueues.delete(odToken)
-        if ((saveFailureStreak.get(odToken) ?? 0) === 0) saveFailureStreak.delete(odToken)
+        if ((saveFailureStreak.get(odToken) ?? 0) === 0)
+          saveFailureStreak.delete(odToken)
       }
     })
   saveQueues.set(odToken, task)
@@ -443,7 +525,9 @@ export async function deleteSavedRun(odToken: string): Promise<boolean> {
 export async function getSavedRunSummary(odToken: string) {
   try {
     return await SavedRun.findOne({ odToken })
-      .select("odToken savedAt currentAct currentFloor difficultyMode isEndless runHP teamPreview")
+      .select(
+        "odToken savedAt currentAct currentFloor difficultyMode isEndless runHP teamPreview"
+      )
       .lean()
   } catch (e) {
     logger.error("Failed to get saved run summary:", e)
@@ -477,6 +561,28 @@ export function restoreRunToState(
   state.lightY = savedData.gameLightY
   state.currentNodeId = savedData.currentNodeId
   state.pendingFightNodeId = savedData.pendingFightNodeId ?? ""
+  if (savedData.runRngSeed === undefined) {
+    // Legacy saves begin a deterministic stream from their existing run id.
+    state.initializeRunRng()
+  } else {
+    state.runRngSeed = savedData.runRngSeed >>> 0
+    state.runRngCounter = (savedData.runRngCounter ?? 0) >>> 0
+  }
+  state.pendingEncounter = savedData.pendingEncounter ?? null
+  state.eliteDesignAssignments.clear()
+  for (const [nodeId, design] of savedData.eliteDesignAssignments ?? []) {
+    state.eliteDesignAssignments.set(nodeId, design)
+  }
+  state.spireShopItems = savedData.spireShopItems ?? []
+  state.postBattleEffectsNodeId = savedData.postBattleEffectsNodeId ?? ""
+  state.spireEventResolved = savedData.spireEventResolved ?? false
+  state.spireEventName = savedData.spireEventName ?? ""
+  state.spireEventDescription = savedData.spireEventDescription ?? ""
+  state.spireEventPortrait = savedData.spireEventPortrait ?? ""
+  state.spireEventChoiceLabels.clear()
+  state.spireEventChoiceLabels.push(...(savedData.spireEventChoiceLabels ?? []))
+  state.spireEventChoiceDescs.clear()
+  state.spireEventChoiceDescs.push(...(savedData.spireEventChoiceDescs ?? []))
 
   // Restore map
   state.mapNodes.clear()
@@ -559,7 +665,8 @@ export function restoreRunToState(
     if (snap.stacks) pkm.stacks = snap.stacks
     if (snap.stacksRequired) pkm.stacksRequired = snap.stacksRequired
     if (snap.deathCount) pkm.deathCount = snap.deathCount
-    if (snap.originalMap) (pkm as { originalMap?: string }).originalMap = snap.originalMap
+    if (snap.originalMap)
+      (pkm as { originalMap?: string }).originalMap = snap.originalMap
 
     player.board.set(pkm.id, pkm)
   }
@@ -571,7 +678,11 @@ export function restoreRunToState(
   }
 
   // Restore ground holes and light
-  for (let i = 0; i < team.groundHoles.length && i < player.groundHoles.length; i++) {
+  for (
+    let i = 0;
+    i < team.groundHoles.length && i < player.groundHoles.length;
+    i++
+  ) {
     player.groundHoles[i] = team.groundHoles[i]
   }
   player.lightX = team.lightX
@@ -610,7 +721,11 @@ export function restoreRunToState(
 
   // Restore flower pots
   if (savedData.flowerPots?.length) {
-    for (let i = 0; i < savedData.flowerPots.length && i < player.flowerPots.length; i++) {
+    for (
+      let i = 0;
+      i < savedData.flowerPots.length && i < player.flowerPots.length;
+      i++
+    ) {
       const fp = savedData.flowerPots[i]
       if (fp?.name) {
         const pot = PokemonFactory.createPokemonFromName(fp.name as Pkm, {
@@ -639,7 +754,9 @@ export function restoreRunToState(
 
   // Restore miscellaneous player state
   player.artificialItems = (savedData.artificialItems ?? []) as Item[]
-  player.buriedItems = (savedData.buriedItems ?? []).map((i) => (i as Item) ?? null)
+  player.buriedItems = (savedData.buriedItems ?? []).map(
+    (i) => (i as Item) ?? null
+  )
   player.tms = (savedData.tms ?? []) as Item[]
   player.weatherRocks = (savedData.weatherRocks ?? []) as Item[]
   player.eggChance = savedData.eggChance ?? 0
@@ -666,7 +783,8 @@ export function restoreRunToState(
   }
 
   // Restore array schemas
-  player.randomComponentsGiven = (savedData.randomComponentsGiven ?? []) as Item[]
+  player.randomComponentsGiven = (savedData.randomComponentsGiven ??
+    []) as Item[]
   player.randomEggsGiven = (savedData.randomEggsGiven ?? []) as Pkm[]
   player.flowerPotsSpawnOrder = (savedData.flowerPotsSpawnOrder ?? []) as any[]
 
@@ -730,7 +848,11 @@ export async function saveRunHistory(
       if (pokemon.positionY !== 0) {
         pokemons.push({
           name: pokemon.name,
-          avatar: getAvatarString(PkmIndex[pokemon.name], pokemon.shiny, pokemon.emotion),
+          avatar: getAvatarString(
+            PkmIndex[pokemon.name],
+            pokemon.shiny,
+            pokemon.emotion
+          ),
           items: Array.from(pokemon.items.values())
         })
       }
@@ -761,25 +883,41 @@ export async function saveRunHistory(
     // higher act/floor + final arceus damage) instead of appending duplicates. Falls
     // back to create() for the (impossible in practice) case of a run without an id.
     if (state.runId) {
-      await RunHistory.updateOne({ runId: state.runId }, { $set: doc }, { upsert: true })
+      await RunHistory.updateOne(
+        { runId: state.runId },
+        { $set: doc },
+        { upsert: true }
+      )
     } else {
       await RunHistory.create(doc)
     }
     const result = victory ? "victory" : "defeat"
-    const arceus = state.arceusDamageDealt > 0 ? ` | arceus dmg: ${state.arceusDamageDealt}` : ""
-    logger.info(`Run saved | ${player.name} | ${result} | act ${historyAct} floor ${historyFloor}${arceus}`)
+    const arceus =
+      state.arceusDamageDealt > 0
+        ? ` | arceus dmg: ${state.arceusDamageDealt}`
+        : ""
+    logger.info(
+      `Run saved | ${player.name} | ${result} | act ${historyAct} floor ${historyFloor}${arceus}`
+    )
   } catch (e) {
     logger.error("Failed to save run history:", e)
   }
 }
 
-export async function saveRunHistoryFromSavedRun(odToken: string, savedData: SavedRunData): Promise<void> {
+export async function saveRunHistoryFromSavedRun(
+  odToken: string,
+  savedData: SavedRunData
+): Promise<void> {
   if (odToken === "local-player") return
   try {
     const boardPokemon = savedData.team.pokemon.filter((p) => p.y > 0)
     const pokemons = boardPokemon.map((p) => ({
       name: p.name as string,
-      avatar: getAvatarString(PkmIndex[p.name] ?? "", !!p.shiny, (p.emotion as Emotion) ?? Emotion.NORMAL),
+      avatar: getAvatarString(
+        PkmIndex[p.name] ?? "",
+        !!p.shiny,
+        (p.emotion as Emotion) ?? Emotion.NORMAL
+      ),
       items: (p.items ?? []) as string[]
     }))
     // Reconstruct synergy counts from the saved board + bonus synergies (gems)
@@ -820,17 +958,27 @@ export async function saveRunHistoryFromSavedRun(odToken: string, savedData: Sav
     // runId of any earlier milestone record for that run, so abandoning never
     // creates a second row.
     if (savedData.runId) {
-      await RunHistory.updateOne({ runId: savedData.runId }, { $set: doc }, { upsert: true })
+      await RunHistory.updateOne(
+        { runId: savedData.runId },
+        { $set: doc },
+        { upsert: true }
+      )
     } else {
       await RunHistory.create(doc)
     }
-    logger.info(`Abandoned run history saved | ${savedData.team.name} | act ${historyAct} floor ${historyFloor}`)
+    logger.info(
+      `Abandoned run history saved | ${savedData.team.name} | act ${historyAct} floor ${historyFloor}`
+    )
   } catch (e) {
     logger.error("Failed to save abandoned run history:", e)
   }
 }
 
-export async function getRunHistory(odToken: string, page: number = 1, pageSize: number = 10) {
+export async function getRunHistory(
+  odToken: string,
+  page: number = 1,
+  pageSize: number = 10
+) {
   return RunHistory.find({ odToken })
     .sort({ time: -1 })
     .skip((page - 1) * pageSize)
@@ -838,9 +986,17 @@ export async function getRunHistory(odToken: string, page: number = 1, pageSize:
     .lean()
 }
 
-const DIFF_KEY: Record<number, string> = { 0: "easy", 1: "normal", 2: "hard", 3: "impossible" }
+const DIFF_KEY: Record<number, string> = {
+  0: "easy",
+  1: "normal",
+  2: "hard",
+  3: "impossible"
+}
 
-export async function incrementRunStarted(uid: string, difficultyMode: number): Promise<void> {
+export async function incrementRunStarted(
+  uid: string,
+  difficultyMode: number
+): Promise<void> {
   if (uid === "local-player") return
   const key = DIFF_KEY[difficultyMode] ?? "normal"
   try {

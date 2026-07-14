@@ -1,11 +1,35 @@
-import { ArraySchema, MapSchema } from "@colyseus/schema"
-import { MapEdge, MapNode, MapNodeType } from "../models/colyseus-models/map-node"
-import { getEliteEncounterAvatar, getEliteEncounterCount, getEliteEncounterName, getEliteFourDisplayName, getEliteFourSynergies, getGymLeaderDisplayName, getGymSynergies, getUnlockEncounterAvatar, getUnlockEncounterCount, getUnlockEncounterName, pickLegendaryBoss } from "../models/spire-encounters"
-import { loadChampionData, type DifficultyMode } from "../services/champion-data"
-import { PkmIndex } from "../types/enum/Pokemon"
+import type { ArraySchema, MapSchema } from "@colyseus/schema"
+import {
+  MapEdge,
+  MapNode,
+  MapNodeType
+} from "../models/colyseus-models/map-node"
+import {
+  getEliteEncounterAvatar,
+  getEliteEncounterCount,
+  getEliteEncounterName,
+  getEliteFourDisplayName,
+  getEliteFourSynergies,
+  getGymLeaderDisplayName,
+  getGymSynergies,
+  getUnlockEncounterAvatar,
+  getUnlockEncounterCount,
+  getUnlockEncounterName,
+  pickLegendaryBoss
+} from "../models/spire-encounters"
+import {
+  type DifficultyMode,
+  loadChampionData
+} from "../services/champion-data"
 import { DungeonPMDO } from "../types/enum/Dungeon"
+import { PkmIndex } from "../types/enum/Pokemon"
 import { getPokemonCustomFromAvatar } from "../utils/avatar"
-import { pickRandomIn, randomBetween, shuffleArray } from "../utils/random"
+import {
+  pickRandomIn,
+  randomBetween,
+  randomFloat,
+  shuffleArray
+} from "../utils/random"
 
 const ALL_DUNGEONS = Object.values(DungeonPMDO)
 
@@ -22,31 +46,35 @@ const ENDLESS_ASYNC_FLOORS = new Set([5, 10, 15, 20])
 const ENDLESS_GYM_FLOORS = new Set([7, 17])
 const ENDLESS_CENTER_FLOORS = new Set([9, 19])
 
-function assignEndlessNodeType(floor: number, totalFloors: number): MapNodeType {
+function assignEndlessNodeType(
+  floor: number,
+  totalFloors: number
+): MapNodeType {
   if (ENDLESS_ASYNC_FLOORS.has(floor)) return MapNodeType.ASYNC_FIGHT
   if (floor === 1) return MapNodeType.WILD_BATTLE
   if (ENDLESS_GYM_FLOORS.has(floor)) return MapNodeType.GYM_LEADER
   if (ENDLESS_CENTER_FLOORS.has(floor)) return MapNodeType.POKEMON_CENTER
 
-  const roll = Math.random()
-  if (floor === 16) return roll < 0.5 ? MapNodeType.POKEMART : MapNodeType.WILD_BATTLE
+  const roll = randomFloat()
+  if (floor === 16)
+    return roll < 0.5 ? MapNodeType.POKEMART : MapNodeType.WILD_BATTLE
 
   if (floor === 8 || floor === 13 || floor === 18) {
     const eliteChance = 0.5
     if (roll < eliteChance) {
-      return Math.random() < 0.5 ? MapNodeType.ELITE : MapNodeType.UNLOCK
+      return randomFloat() < 0.5 ? MapNodeType.ELITE : MapNodeType.UNLOCK
     }
     return MapNodeType.WILD_BATTLE
   }
 
   if (floor === 4 || floor === 11) {
     if (roll < 0.3) {
-      return Math.random() < 0.5 ? MapNodeType.ELITE : MapNodeType.UNLOCK
+      return randomFloat() < 0.5 ? MapNodeType.ELITE : MapNodeType.UNLOCK
     }
     return MapNodeType.WILD_BATTLE
   }
 
-  if (roll < 0.50) return MapNodeType.WILD_BATTLE
+  if (roll < 0.5) return MapNodeType.WILD_BATTLE
   if (roll < 0.62) return MapNodeType.MYSTERY_ENCOUNTER
   if (floor >= 6 && roll < 0.78) return MapNodeType.POKEMART
   if (floor >= 4 && roll < 0.82) return MapNodeType.POKEMON_CENTER
@@ -59,15 +87,20 @@ function assignEndlessNodeType(floor: number, totalFloors: number): MapNodeType 
 // wilds/mystery fill. Spire elites are approved library designs (see
 // populateEliteDesignNodes), so they roll generously — a 45% elite / 25% unlock
 // split per node on elite floors.
-function assignSpireNodeType(act: number, floor: number, totalFloors: number): MapNodeType {
+function assignSpireNodeType(
+  act: number,
+  floor: number,
+  totalFloors: number
+): MapNodeType {
   if (floor === totalFloors) return MapNodeType.LEGENDARY_BOSS
   if (floor === 1) return MapNodeType.WILD_BATTLE
   if (floor === totalFloors - 1) return MapNodeType.POKEMON_CENTER
 
-  const roll = Math.random()
+  const roll = randomFloat()
 
   if (floor === 5 || floor === 11) return MapNodeType.GYM_LEADER
-  if (floor === 8) return roll < 0.4 ? MapNodeType.GYM_LEADER : MapNodeType.WILD_BATTLE
+  if (floor === 8)
+    return roll < 0.4 ? MapNodeType.GYM_LEADER : MapNodeType.WILD_BATTLE
 
   if ((floor === 3 && act > 1) || floor === 7 || floor === 10 || floor === 13) {
     if (roll < 0.45) return MapNodeType.ELITE
@@ -75,8 +108,10 @@ function assignSpireNodeType(act: number, floor: number, totalFloors: number): M
     return MapNodeType.WILD_BATTLE
   }
 
-  if (floor === 9) return roll < 0.5 ? MapNodeType.POKEMON_CENTER : MapNodeType.POKEMART
-  if (floor === 12) return roll < 0.5 ? MapNodeType.POKEMART : MapNodeType.WILD_BATTLE
+  if (floor === 9)
+    return roll < 0.5 ? MapNodeType.POKEMON_CENTER : MapNodeType.POKEMART
+  if (floor === 12)
+    return roll < 0.5 ? MapNodeType.POKEMART : MapNodeType.WILD_BATTLE
 
   if (roll < 0.5) return MapNodeType.WILD_BATTLE
   if (roll < 0.62) return MapNodeType.MYSTERY_ENCOUNTER
@@ -85,7 +120,11 @@ function assignSpireNodeType(act: number, floor: number, totalFloors: number): M
   return MapNodeType.WILD_BATTLE
 }
 
-function assignNodeType(act: number, floor: number, totalFloors: number): MapNodeType {
+function assignNodeType(
+  act: number,
+  floor: number,
+  totalFloors: number
+): MapNodeType {
   if (floor === totalFloors) {
     return MapNodeType.LEGENDARY_BOSS
   }
@@ -97,7 +136,7 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
     return MapNodeType.POKEMON_CENTER
   }
 
-  const roll = Math.random()
+  const roll = randomFloat()
 
   if (floor === 5) {
     return MapNodeType.WILD_BATTLE
@@ -114,7 +153,9 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
     const eliteChance = act === 1 ? 0.7 : 0.5
     if (roll < eliteChance) {
       const eliteWeight = act === 1 ? 0.5 : 0.1
-      return Math.random() < eliteWeight ? MapNodeType.ELITE : MapNodeType.UNLOCK
+      return randomFloat() < eliteWeight
+        ? MapNodeType.ELITE
+        : MapNodeType.UNLOCK
     }
     return MapNodeType.WILD_BATTLE
   }
@@ -123,7 +164,9 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
     const eliteChance = act === 1 ? 0.4 : 0.3
     if (roll < eliteChance) {
       const eliteWeight = act === 1 ? 0.5 : 0.1
-      return Math.random() < eliteWeight ? MapNodeType.ELITE : MapNodeType.UNLOCK
+      return randomFloat() < eliteWeight
+        ? MapNodeType.ELITE
+        : MapNodeType.UNLOCK
     }
     return MapNodeType.WILD_BATTLE
   }
@@ -136,7 +179,7 @@ function assignNodeType(act: number, floor: number, totalFloors: number): MapNod
     return roll < 0.5 ? MapNodeType.POKEMON_CENTER : MapNodeType.POKEMART
   }
 
-  if (roll < 0.50) return MapNodeType.WILD_BATTLE
+  if (roll < 0.5) return MapNodeType.WILD_BATTLE
   if (roll < 0.62) return MapNodeType.MYSTERY_ENCOUNTER
   if (floor >= 6 && roll < 0.78) return MapNodeType.POKEMART
   if (floor >= 4 && roll < 0.82) return MapNodeType.POKEMON_CENTER
@@ -158,25 +201,47 @@ function generateEliteFourMap(
 
     if (floor === 5) {
       const id = nodeId(act, floor, 0)
-      const node = new MapNode(id, MapNodeType.CHAMPION, 2, floor, act, floor, `act4_champion`, "")
+      const node = new MapNode(
+        id,
+        MapNodeType.CHAMPION,
+        2,
+        floor,
+        act,
+        floor,
+        `act4_champion`,
+        ""
+      )
       node.displayName = `Champion ${championData.champion.name}`
-      const champCustom = getPokemonCustomFromAvatar(championData.champion.avatar)
+      const champCustom = getPokemonCustomFromAvatar(
+        championData.champion.avatar
+      )
       node.eliteAvatar = PkmIndex[champCustom.name] ?? ""
       mapNodes.set(id, node)
       ids.push(id)
     } else {
       const e4Index = floor - 1 // 0,1,2,3
       const id = nodeId(act, floor, 0)
-      const node = new MapNode(id, MapNodeType.ELITE_FOUR, 2, floor, act, floor, `act4_e4_${e4Index}`, "")
+      const node = new MapNode(
+        id,
+        MapNodeType.ELITE_FOUR,
+        2,
+        floor,
+        act,
+        floor,
+        `act4_e4_${e4Index}`,
+        ""
+      )
       node.displayName = `E4 ${championData.eliteFour[e4Index].name}`
-      const e4Custom = getPokemonCustomFromAvatar(championData.eliteFour[e4Index].avatar)
+      const e4Custom = getPokemonCustomFromAvatar(
+        championData.eliteFour[e4Index].avatar
+      )
       node.eliteAvatar = PkmIndex[e4Custom.name] ?? ""
       mapNodes.set(id, node)
       ids.push(id)
     }
 
     if (floor === 1) {
-      ids.forEach(id => {
+      ids.forEach((id) => {
         const node = mapNodes.get(id)
         if (node) node.available = true
       })
@@ -216,7 +281,8 @@ export function generateTutorialMap(
     for (let col = 0; col < defs.length; col++) {
       const def = defs[col]
       const id = nodeId(act, floor, col)
-      const x = defs.length === 1 ? 2 : Math.round((col / (defs.length - 1)) * 4)
+      const x =
+        defs.length === 1 ? 2 : Math.round((col / (defs.length - 1)) * 4)
       const node = new MapNode(
         id,
         def.nodeType,
@@ -231,19 +297,23 @@ export function generateTutorialMap(
         node.gymLeaderIndex = 0
         node.gymLeaderIsEarly = false
         node.gymLeaderSynergy = def.gymSynergy ?? ""
-        node.displayName = def.displayName || getGymLeaderDisplayName(def.gymSynergy)
+        node.displayName =
+          def.displayName || getGymLeaderDisplayName(def.gymSynergy)
       } else if (def.nodeType === MapNodeType.ELITE) {
         // eliteEncounterIndex must be >= 0 for the elite reward path to fire; the
         // encounter itself is overridden in onSelectMapNode for tutorial nodes.
         const encounter = getTutorialEncounter(floor)
         node.eliteEncounterIndex = 0
         node.displayName = def.displayName || encounter.name
-        node.eliteAvatar = PkmIndex[encounter.avatar as keyof typeof PkmIndex] ?? ""
+        node.eliteAvatar =
+          PkmIndex[encounter.avatar as keyof typeof PkmIndex] ?? ""
       } else if (def.nodeType === MapNodeType.LEGENDARY_BOSS) {
         const encounter = getTutorialEncounter(floor)
         node.displayName = def.displayName || encounter.name
         node.bossSprites = encounter.board
-          .map(([pkm]: [string]) => PkmIndex[pkm as keyof typeof PkmIndex] ?? "")
+          .map(
+            ([pkm]: [string]) => PkmIndex[pkm as keyof typeof PkmIndex] ?? ""
+          )
           .join(",")
       } else if (def.displayName) {
         node.displayName = def.displayName
@@ -270,7 +340,16 @@ function generateAct5Map(
   const act = 5
 
   const arceusId = nodeId(act, 1, 0)
-  const arceusNode = new MapNode(arceusId, MapNodeType.ARCEUS_BOSS, 2, 1, act, 1, `act5_arceus`, "")
+  const arceusNode = new MapNode(
+    arceusId,
+    MapNodeType.ARCEUS_BOSS,
+    2,
+    1,
+    act,
+    1,
+    `act5_arceus`,
+    ""
+  )
   arceusNode.displayName = "Arceus"
   arceusNode.bossSprites = "0493"
   arceusNode.available = true
@@ -340,7 +419,16 @@ export function generateActMap(
         region = pickRandomIn(available.length > 0 ? available : ALL_DUNGEONS)
         usedRegions.push(region)
       }
-      const node = new MapNode(id, nodeType, x, floor, act, floor, `act${act}_floor${floor}_${col}`, region)
+      const node = new MapNode(
+        id,
+        nodeType,
+        x,
+        floor,
+        act,
+        floor,
+        `act${act}_floor${floor}_${col}`,
+        region
+      )
 
       if (nodeType === MapNodeType.GYM_LEADER) {
         const synergy = gymSynergies[gymPick % gymSynergies.length]
@@ -360,17 +448,26 @@ export function generateActMap(
       }
 
       if (nodeType === MapNodeType.UNLOCK) {
-        node.eliteEncounterIndex = unlockIndices[unlockPick % unlockIndices.length]
+        node.eliteEncounterIndex =
+          unlockIndices[unlockPick % unlockIndices.length]
         unlockPick++
-        node.displayName = getUnlockEncounterName(node.eliteEncounterIndex, act, isEndless)
-        const avatar = getUnlockEncounterAvatar(node.eliteEncounterIndex, act, isEndless)
+        node.displayName = getUnlockEncounterName(
+          node.eliteEncounterIndex,
+          act,
+          isEndless
+        )
+        const avatar = getUnlockEncounterAvatar(
+          node.eliteEncounterIndex,
+          act,
+          isEndless
+        )
         node.eliteAvatar = PkmIndex[avatar] ?? ""
       }
 
       if (nodeType === MapNodeType.LEGENDARY_BOSS) {
         const boss = pickLegendaryBoss(act)
         node.displayName = boss.name
-        node.bossSprites = boss.sprites.map(p => PkmIndex[p] ?? "").join(",")
+        node.bossSprites = boss.sprites.map((p) => PkmIndex[p] ?? "").join(",")
       }
 
       if (floor === 1) {
@@ -414,8 +511,12 @@ export function generateActMap(
 
     // Prioritize straight/nearby connections by sorting closer edges first
     allPossible.sort((a, b) => {
-      const distA = Math.abs(a.from / (current.length - 1 || 1) - a.to / (next.length - 1 || 1))
-      const distB = Math.abs(b.from / (current.length - 1 || 1) - b.to / (next.length - 1 || 1))
+      const distA = Math.abs(
+        a.from / (current.length - 1 || 1) - a.to / (next.length - 1 || 1)
+      )
+      const distB = Math.abs(
+        b.from / (current.length - 1 || 1) - b.to / (next.length - 1 || 1)
+      )
       return distA - distB
     })
 
@@ -463,7 +564,7 @@ export function generateActMap(
       if (i < baseCount) return true
       if ((outgoingCount.get(edge.from) ?? 0) <= 1) return true
       if ((incomingCount.get(edge.to) ?? 0) <= 1) return true
-      if (Math.random() < 0.7) return true
+      if (randomFloat() < 0.7) return true
       outgoingCount.set(edge.from, (outgoingCount.get(edge.from) ?? 1) - 1)
       incomingCount.set(edge.to, (incomingCount.get(edge.to) ?? 1) - 1)
       return false

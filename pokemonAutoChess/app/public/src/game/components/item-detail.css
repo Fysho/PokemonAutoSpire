@@ -111,3 +111,16 @@
   width: 20px;
   height: 20px;
 }
+
+/* Touch devices: items show only their icon and name — no stat lines,
+   no description prose, no combination list, anywhere. The
+   .item-description-text class marks inline item-description paragraphs
+   rendered outside this component (reward cards, pokemon detail dish). */
+@media (pointer: coarse) {
+  .game-item-detail-stats,
+  .game-item-detail-description,
+  .game-item-detail-combinations,
+  .item-description-text {
+    display: none !important;
+  }
+}

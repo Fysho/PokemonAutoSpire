@@ -9,6 +9,7 @@ import {
   FishRarityProbability,
   GRASS_CORNET_CHANCE,
   getAltFormForPlayer,
+  getRarityProbabilities,
   getUnownsPoolPerStage,
   HIGH_ROLLER_CHANCE,
   HONEY_CHANCE,
@@ -23,7 +24,6 @@ import {
   PkmsWithAltForms,
   PoolSize,
   PortalCarouselStages,
-  getRarityProbabilities,
   RarityCost,
   REMORAID_RATE,
   REPEAT_BALL_LEGENDARY_CAP,
@@ -68,6 +68,7 @@ import {
   chance,
   pickNRandomIn,
   pickRandomIn,
+  randomFloat,
   randomWeighted,
   shuffleArray
 } from "../utils/random"
@@ -616,7 +617,7 @@ export default class Shop {
     }
 
     const probas = getRarityProbabilities(player.experienceManager.level)
-    const rarity_seed = Math.random()
+    const rarity_seed = randomFloat()
     let i = 0,
       threshold = 0
     while (rarity_seed > threshold) {
@@ -713,7 +714,7 @@ export default class Shop {
     )
 
     const rarityProbability = FishRarityProbability[rod]
-    const rarity_seed = Math.random()
+    const rarity_seed = randomFloat()
     let threshold = 0
     const finals = player.getFinalizedLines()
     const wildChance = getWildChance(player, state.stageLevel)

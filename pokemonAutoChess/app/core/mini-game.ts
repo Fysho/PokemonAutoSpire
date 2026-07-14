@@ -43,6 +43,7 @@ import {
   SynergyStones,
   Tools
 } from "../types/enum/Item"
+import { Pkm } from "../types/enum/Pokemon"
 import { SpecialGameRule } from "../types/enum/SpecialGameRule"
 import { Synergy, SynergyArray } from "../types/enum/Synergy"
 import { type TownEncounter, TownEncounters } from "../types/enum/TownEncounter"
@@ -184,16 +185,29 @@ export class MiniGame {
 
             player.money -= price
 
-            if (item.pokemonName && item.pokemonName === "EGG") {
-              giveRandomEgg(player)
-            } else if (item.pokemonName && item.pokemonName !== "") {
-              room.spawnOnBench(player, item.pokemonName as any)
-            } else {
-              player.items.push(item.name)
-            }
+            room.state.withRunRng(() => {
+              if (item.pokemonName === Pkm.EGG) {
+                giveRandomEgg(player)
+              } else if (item.pokemonName) {
+                room.spawnOnBench(player, item.pokemonName as Pkm)
+              } else {
+                player.items.push(item.name)
+              }
+            })
+            const purchasedOffer = room.state.spireShopItems.find(
+              (offer) =>
+                !offer.claimed &&
+                offer.price === price &&
+                (item.pokemonName
+                  ? offer.type === "pokemon" &&
+                    offer.pokemon === item.pokemonName
+                  : offer.type === "item" && offer.item === item.name)
+            )
+            if (purchasedOffer) purchasedOffer.claimed = true
 
             item.avatarId = avatar!.id
             itemBody.collisionFilter.mask = 0
+            room.autoSaveRun()
 
             // Remove item from world after short delay (visual feedback)
             setTimeout(() => {
@@ -204,7 +218,11 @@ export class MiniGame {
               }
               this.items?.delete(item!.id)
             }, 300)
-          } else if (!this.shopMode && avatar?.itemId === "" && item?.avatarId === "") {
+          } else if (
+            !this.shopMode &&
+            avatar?.itemId === "" &&
+            item?.avatarId === ""
+          ) {
             if (encounter && encounter in TownEncounterSellPrice) {
               const player = room.state.players.get(avatar.id)
               const client = room.clients.find(
@@ -292,7 +310,11 @@ export class MiniGame {
     this.symbols = symbols
   }
 
-  initialize(state: GameState, room: GameRoom, skipEncounters: boolean = false) {
+  initialize(
+    state: GameState,
+    room: GameRoom,
+    skipEncounters: boolean = false
+  ) {
     const { players, stageLevel } = state
     this.timeElapsed = 0
     this.rotationDirection = 1
@@ -472,7 +494,14 @@ export class MiniGame {
     }
   }
 
-  initializeShopCarousel(shopItems: { type: string; item?: string; pokemon?: string; price: number }[]) {
+  initializeShopCarousel(
+    shopItems: {
+      type: string
+      item?: string
+      pokemon?: string
+      price: number
+    }[]
+  ) {
     this.shopMode = true
 
     // Immediately enable all avatars (no retention delay)
@@ -489,11 +518,17 @@ export class MiniGame {
       const x = this.centerX + Math.cos(angle) * 200
       const y = this.centerY + Math.sin(angle) * 160
       const shopItem = shopItems[j]
-      const itemName = shopItem.type === "pokemon" ? Item.EGG_FOR_SELL : (shopItem.item as Item || Item.FOSSIL_STONE)
+      const itemName =
+        shopItem.type === "pokemon"
+          ? Item.EGG_FOR_SELL
+          : (shopItem.item as Item) || Item.FOSSIL_STONE
       const floatingItem = new FloatingItem(
-        itemName, x, y, j,
+        itemName,
+        x,
+        y,
+        j,
         shopItem.price,
-        shopItem.type === "pokemon" ? (shopItem.pokemon || "") : ""
+        shopItem.type === "pokemon" ? shopItem.pokemon || "" : ""
       )
       this.items?.set(floatingItem.id, floatingItem)
       const body = Bodies.circle(x, y, 20)

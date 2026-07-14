@@ -1,3 +1,4 @@
+import { Rarity } from "../types/enum/Game"
 import {
   CraftableItems,
   Item,
@@ -5,10 +6,14 @@ import {
   NonSpecialBerries
 } from "../types/enum/Item"
 import { Pkm } from "../types/enum/Pokemon"
-import { Rarity } from "../types/enum/Game"
+import {
+  pickNRandomIn,
+  pickRandomIn,
+  randomBetween,
+  randomFloat
+} from "../utils/random"
 import { getPokemonData } from "./precomputed/precomputed-pokemon-data"
 import { PRECOMPUTED_POKEMONS_PER_RARITY } from "./precomputed/precomputed-rarity"
-import { pickNRandomIn, pickRandomIn, randomBetween } from "../utils/random"
 
 export interface ShopItem {
   type: "item" | "pokemon"
@@ -48,7 +53,8 @@ function getPokemonPrice(pkm: Pkm): number {
 function getItemPrice(item: Item): number {
   if (item === Item.RECYCLE_TICKET || item === Item.EXCHANGE_TICKET) return 2
   if ((NonSpecialBerries as readonly Item[]).includes(item)) return 4
-  if ((ItemComponentsNoFossilOrScarf as readonly Item[]).includes(item)) return 6
+  if ((ItemComponentsNoFossilOrScarf as readonly Item[]).includes(item))
+    return 6
   if ((CraftableItems as readonly Item[]).includes(item)) return 10
   return 6
 }
@@ -62,8 +68,16 @@ function pickShopPokemon(act: number, hasMysteryBox = false): Pkm[] {
 
   if (act === 1) {
     const maxStars = 2
-    pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON.filter(p => getPokemonData(p).stars <= maxStars))
-    pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON.filter(p => getPokemonData(p).stars <= maxStars))
+    pool.push(
+      ...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON.filter(
+        (p) => getPokemonData(p).stars <= maxStars
+      )
+    )
+    pool.push(
+      ...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON.filter(
+        (p) => getPokemonData(p).stars <= maxStars
+      )
+    )
   } else if (act === 2) {
     pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.COMMON)
     pool.push(...PRECOMPUTED_POKEMONS_PER_RARITY.UNCOMMON)
@@ -82,7 +96,7 @@ function pickShopItems(): Item[] {
 
   // Always include 1-2 recycle/exchange tickets
   items.push(pickRandomIn([Item.RECYCLE_TICKET, Item.EXCHANGE_TICKET]))
-  if (Math.random() < 0.5) {
+  if (randomFloat() < 0.5) {
     items.push(pickRandomIn([Item.RECYCLE_TICKET, Item.EXCHANGE_TICKET]))
   }
 
@@ -95,7 +109,7 @@ function pickShopItems(): Item[] {
 
   // Fill remaining with berries or extra components
   while (items.length < 6) {
-    if (Math.random() < 0.4) {
+    if (randomFloat() < 0.4) {
       items.push(pickRandomIn(NonSpecialBerries))
     } else {
       items.push(pickRandomIn(ItemComponentsNoFossilOrScarf))
@@ -105,7 +119,10 @@ function pickShopItems(): Item[] {
   return items.slice(0, 6)
 }
 
-export function generateShopItems(act: number, hasMysteryBox = false): ShopItem[] {
+export function generateShopItems(
+  act: number,
+  hasMysteryBox = false
+): ShopItem[] {
   const result: ShopItem[] = []
 
   const pokemons = pickShopPokemon(act, hasMysteryBox)

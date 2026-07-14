@@ -17,6 +17,34 @@ Covers: damage values, effect durations, scaling, targeting, cooldowns, and new/
 
 ## Changes
 
+
+### 2026-07-13 — Reduce Soft-Boiled AP scaling
+
+**Ability**: SOFT_BOILED
+**Type**: scaling change
+**Before**: The team-wide shield used full AP scaling (`apBoost = 1`).
+**After**: The shield uses half AP scaling (`apBoost = 0.5`). Flat shield values remain 20/40/80 by star level.
+**Affected Pokemon**: Happiny, Chansey, Blissey
+**Rationale**: Reduces high-AP shield amplification without changing the ability's base shield or status cleanse.
+**Files changed**:
+- `app/core/abilities/abilities.ts` — `SoftBoiledStrategy` shield scaling 1→0.5.
+- `app/public/dist/client/locales/en/translation.json` — Added `SP=0.5` to the English ability tooltip.
+- `app/public/src/pages/spire-lobby.tsx` — Added the change to PAC Diversions.
+
+### 2026-07-13 — Reduce Glutton dish and Chef HP gains
+
+**Ability**: GLUTTON (passive)
+**Type**: scaling change
+**Before**: +5 max HP per berry, +10 per dish, and +15 when cooking as a Chef.
+**After**: +5 max HP per berry, +5 per dish, and +10 when cooking as a Chef.
+**Affected Pokemon**: Munchlax, Snorlax
+**Rationale**: Further reduces permanent HP stacking from repeatable Gourmet triggers while leaving the berry gain unchanged.
+**Files changed**:
+- `app/core/simulation.ts` — Dish consumption: 10→5.
+- `app/core/effects/items.ts` — Chef cooking: 15→10.
+- `app/public/dist/client/locales/en/translation.json` — Updated the English Glutton tooltip.
+- `app/public/src/pages/spire-lobby.tsx` — Updated the PAC Diversions values.
+
 ### 2026-06-03 — Plasma Flash flash-count cap (runaway-command fix)
 
 **Ability**: PLASMA_FLASH

@@ -556,8 +556,8 @@ export default class Simulation extends Schema implements ISimulation {
     })
 
     if (pokemon.passive === Passive.GLUTTON) {
-      pokemon.addMaxHP(10)
-      entity?.addMaxHP(10, entity, 0, false)
+      pokemon.addMaxHP(5)
+      entity?.addMaxHP(5, entity, 0, false)
       if (pokemon.maxHP > 750 && player) {
         player.titles.add(Title.GLUTTON)
       }

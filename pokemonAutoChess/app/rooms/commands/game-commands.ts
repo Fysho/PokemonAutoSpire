@@ -1,5 +1,5 @@
 import { Command } from "@colyseus/command"
-import { MapSchema, SetSchema, StateView } from "@colyseus/schema"
+import { type MapSchema, SetSchema, StateView } from "@colyseus/schema"
 import { type Client, updateLobby } from "colyseus"
 import {
   AdditionalPicksStages,
@@ -26,6 +26,7 @@ import {
 } from "../../config"
 import { AbilityStrategies } from "../../core/abilities/abilities"
 import { castAbility } from "../../core/abilities/cast"
+import { DishByPkm } from "../../core/dishes"
 import {
   OnChangePositionEffect,
   OnGroundDiggingEffect,
@@ -33,7 +34,6 @@ import {
   OnSpotlightChangeEffect,
   OnStageStartEffect
 } from "../../core/effects/effect"
-import { DishByPkm } from "../../core/dishes"
 import { ItemEffects } from "../../core/effects/items"
 import { PassiveEffects } from "../../core/effects/passives"
 import { giveRandomEgg } from "../../core/eggs"
@@ -42,19 +42,47 @@ import { getFlowerPotsUnlocked } from "../../core/flower-pots"
 import { generateActMap, markAvailableNodes } from "../../core/map-generator"
 import { selectMatchups } from "../../core/matchmaking"
 import { canSell, PokemonEntity } from "../../core/pokemon-entity"
+import {
+  ALL_RELICS,
+  getRelicBonusGold,
+  getRelicDamageReduction,
+  getRelicPostBattleHeal,
+  isRelicImplemented,
+  Relic
+} from "../../core/relics"
 import Simulation from "../../core/simulation"
+import { CLASS_EXCLUSIVE_RELICS } from "../../core/spire-classes"
 import { getUnitScore } from "../../core/unit-score"
+import { getLevelUpCost } from "../../models/colyseus-models/experience-manager"
 import { MapNodeType } from "../../models/colyseus-models/map-node"
+import type Player from "../../models/colyseus-models/player"
+import { PlayerChoice } from "../../models/colyseus-models/player-choice"
+import {
+  type Pokemon,
+  PokemonClasses
+} from "../../models/colyseus-models/pokemon"
+import Synergies, {
+  computeSynergies,
+  getSynergyStep
+} from "../../models/colyseus-models/synergies"
+import { Effects } from "../../models/effects"
+import UserMetadata from "../../models/mongo-models/user-metadata"
+import PokemonFactory, {
+  getPokemonBaseline
+} from "../../models/pokemon-factory"
+import { getPokemonData } from "../../models/precomputed/precomputed-pokemon-data"
+import { PVEStages } from "../../models/pve-stages"
+import { getBuyPrice, getSellPrice } from "../../models/shop"
 import {
   addHardModeItems,
   adjustEncounterItems,
   calculateEncounterStats,
+  generateGymEncounter,
   generateWildRewardPokemon,
   getArceusEncounter,
   getEliteEncounter,
   getEliteMainPokemon,
   getGoldReward,
-  generateGymEncounter,
   getGymLeaderBaseFormPokemon,
   getGymLeaderGem,
   getLegendaryBossEncounter,
@@ -64,38 +92,39 @@ import {
   getUnlockEncounterPokemon,
   getUnlockEncounterType,
   getWildEncounter,
-  SpireEncounter
+  type SpireEncounter
 } from "../../models/spire-encounters"
-import { loadChampionData, saveChampionData, promoteNewChampion, getChampionSlotForEncounter, getEliteFourSlotForEncounter, incrementChampionVictory, incrementE4Victory, incrementChampionTie, incrementE4Tie, type DifficultyMode } from "../../services/champion-data"
-import { discordService } from "../../services/discord"
-import { snapshotPlayerTeam, reconstructTeamAsPlayer, encodeSnapshotForClient } from "../../services/team-snapshot"
-import { applyEliteDesignToPlayer, ParsedEliteDesign } from "../../services/elite-test"
-import { AsyncFightOpponent } from "../../services/async-fight-pool"
-import { getEventBerries, getEventItems, getRandomEvent, SPIRE_EVENTS } from "../../models/spire-events"
-import { generateShopItems } from "../../models/spire-shops"
 import {
-  ALL_RELICS,
-  getRelicBonusGold,
-  getRelicDamageReduction,
-  getRelicPostBattleHeal,
-  isRelicImplemented,
-  Relic
-} from "../../core/relics"
-import { CLASS_EXCLUSIVE_RELICS } from "../../core/spire-classes"
-import { getLevelUpCost } from "../../models/colyseus-models/experience-manager"
-import Player from "../../models/colyseus-models/player"
-import { PlayerChoice } from "../../models/colyseus-models/player-choice"
-import { Pokemon, PokemonClasses } from "../../models/colyseus-models/pokemon"
-import Synergies, { computeSynergies, getSynergyStep } from "../../models/colyseus-models/synergies"
-import { Effects } from "../../models/effects"
-import UserMetadata from "../../models/mongo-models/user-metadata"
-import PokemonFactory, {
-  getPokemonBaseline
-} from "../../models/pokemon-factory"
-import { getPokemonData } from "../../models/precomputed/precomputed-pokemon-data"
-import { PVEStages } from "../../models/pve-stages"
-import { getBuyPrice, getSellPrice } from "../../models/shop"
+  getEventBerries,
+  getEventItems,
+  getRandomEvent,
+  SPIRE_EVENTS
+} from "../../models/spire-events"
+import { generateShopItems } from "../../models/spire-shops"
 import { updatePlayerTitlesAfterFight } from "../../models/titles"
+import type { AsyncFightOpponent } from "../../services/async-fight-pool"
+import {
+  type DifficultyMode,
+  getChampionSlotForEncounter,
+  getEliteFourSlotForEncounter,
+  incrementChampionTie,
+  incrementChampionVictory,
+  incrementE4Tie,
+  incrementE4Victory,
+  loadChampionData,
+  promoteNewChampion,
+  saveChampionData
+} from "../../services/champion-data"
+import { discordService } from "../../services/discord"
+import {
+  applyEliteDesignToPlayer,
+  type ParsedEliteDesign
+} from "../../services/elite-test"
+import {
+  encodeSnapshotForClient,
+  reconstructTeamAsPlayer,
+  snapshotPlayerTeam
+} from "../../services/team-snapshot"
 import {
   Emotion,
   type IClient,
@@ -110,7 +139,7 @@ import {
 } from "../../types"
 import { EvolutionRuleType } from "../../types/EvolutionRules"
 import { Ability } from "../../types/enum/Ability"
-import { DungeonPMDO } from "../../types/enum/Dungeon"
+import type { DungeonPMDO } from "../../types/enum/Dungeon"
 import { EffectEnum } from "../../types/enum/Effect"
 import {
   BattleResult,
@@ -119,6 +148,7 @@ import {
   Team
 } from "../../types/enum/Game"
 import {
+  Berries,
   ConsumableItems,
   CraftableItemsNoScarves,
   CraftableNoStonesOrScarves,
@@ -130,17 +160,16 @@ import {
   ItemComponentsNoFossilOrScarf,
   ItemComponentsNoScarf,
   ItemRecipe,
-  Berries,
   ItemsSoldAtTown,
   Mulches,
   NonSpecialBerries,
   Scarves,
+  ShinyItems,
   Sweets,
-  SynergyGem,
+  type SynergyGem,
   SynergyGems,
   SynergyGivenByGem,
   SynergyGivenByItem,
-  ShinyItems,
   SynergyStones,
   Tools,
   UnholdableItems
@@ -178,12 +207,13 @@ import {
   pickNRandomIn,
   pickRandomIn,
   randomBetween,
+  randomFloat,
   randomWeighted
 } from "../../utils/random"
 import { resetArraySchema, schemaValues } from "../../utils/schemas"
 import { getWeather } from "../../utils/weather"
-import GameRoom from "../game-room"
-import GameState from "../states/game-state"
+import type GameRoom from "../game-room"
+import type GameState from "../states/game-state"
 
 // Manual phases (PICK/MAP/SHOP/REST/EVENT/REWARD) never auto-advance. If a
 // player stays in one without advancing the run for this long, they are
@@ -403,7 +433,11 @@ export class OnDragDropPokemonCommand extends Command<
           // Drag and drop pokemons through bench has no limitation
           this.swapPokemonPositions(player, pokemon, x, y)
           success = true
-        } else if (this.state.phase == GamePhaseState.PICK || this.state.phase == GamePhaseState.MAP || this.state.phase == GamePhaseState.REWARD) {
+        } else if (
+          this.state.phase == GamePhaseState.PICK ||
+          this.state.phase == GamePhaseState.MAP ||
+          this.state.phase == GamePhaseState.REWARD
+        ) {
           // On pick, map, or reward, allow to drop on / from board
           const teamSize = this.room.getTeamSize(player.board)
           const isBoardFull =
@@ -1046,8 +1080,7 @@ export class OnLevelUpCommand extends Command<
 
     if (player.experienceManager.canLevelUp()) {
       const xpNeeded =
-        player.experienceManager.expNeeded -
-        player.experienceManager.experience
+        player.experienceManager.expNeeded - player.experienceManager.experience
       if (player.money >= xpNeeded) {
         player.addExperience(xpNeeded)
         player.money -= xpNeeded
@@ -1133,7 +1166,11 @@ export class OnUpdateCommand extends Command<
         this.room.idleTimeMs = 0
         this.room.idleDisconnected = false
       }
-      if (this.state.phase !== GamePhaseState.FIGHT && !this.room.idleDisconnected && !this.room.isEliteTest) {
+      if (
+        this.state.phase !== GamePhaseState.FIGHT &&
+        !this.room.idleDisconnected &&
+        !this.room.isEliteTest
+      ) {
         this.room.idleTimeMs += realDeltaTime
         if (this.room.idleTimeMs >= IDLE_DISCONNECT_MS) {
           this.room.disconnectIdlePlayers()
@@ -1144,7 +1181,10 @@ export class OnUpdateCommand extends Command<
       // Minigame physics (shop carousel / town movement) tick independently of
       // the timer — these phases use a large "fake infinite" timer and never
       // auto-advance, so this must run regardless of whether time has expired.
-      if (this.state.phase === GamePhaseState.TOWN || this.state.phase === GamePhaseState.SHOP) {
+      if (
+        this.state.phase === GamePhaseState.TOWN ||
+        this.state.phase === GamePhaseState.SHOP
+      ) {
         this.room.miniGame.update(deltaTime)
       }
 
@@ -1225,10 +1265,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       } else {
         this.stopSpireFightingPhase()
 
-        if (fightNode && (fightNode.nodeType === MapNodeType.ELITE_FOUR || fightNode.nodeType === MapNodeType.CHAMPION)) {
-          const humanResult = schemaValues(this.state.players).find(
-            (p) => !p.isBot
-          )?.history.at(-1)?.result
+        if (
+          fightNode &&
+          (fightNode.nodeType === MapNodeType.ELITE_FOUR ||
+            fightNode.nodeType === MapNodeType.CHAMPION)
+        ) {
+          const humanResult = schemaValues(this.state.players)
+            .find((p) => !p.isBot)
+            ?.history.at(-1)?.result
           const isChampion = fightNode.nodeType === MapNodeType.CHAMPION
           const e4Index = fightNode.floor - 1
           const mode = this.state.difficultyMode as DifficultyMode
@@ -1299,11 +1343,24 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.room.updateSpectateMetadata()
   }
 
-  generateWildRewardChoice(player: Player, node: any, won: boolean, rerolled = false, pokemonPoolOverride?: Pkm[], componentsOnlyCount?: number) {
+  generateWildRewardChoice(
+    player: Player,
+    node: any,
+    won: boolean,
+    rerolled = false,
+    pokemonPoolOverride?: Pkm[],
+    componentsOnlyCount?: number
+  ) {
     const REWARD_COMPONENTS: Item[] = [
-      Item.MIRACLE_SEED, Item.MYSTIC_WATER, Item.HEART_SCALE,
-      Item.NEVER_MELT_ICE, Item.CHARCOAL, Item.MAGNET,
-      Item.BLACK_GLASSES, Item.TWISTED_SPOON, Item.FOSSIL_STONE
+      Item.MIRACLE_SEED,
+      Item.MYSTIC_WATER,
+      Item.HEART_SCALE,
+      Item.NEVER_MELT_ICE,
+      Item.CHARCOAL,
+      Item.MAGNET,
+      Item.BLACK_GLASSES,
+      Item.TWISTED_SPOON,
+      Item.FOSSIL_STONE
     ]
 
     // Item Reroll Ticket: replace the whole offer with item components only —
@@ -1342,8 +1399,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     // Dolly's Mirror relic raises this to 100%. Melmetal's Mystery Box turns
     // every Ditto into a Meltan.
     const dittoChance = player.relics.includes(Relic.DollysMirror) ? 1 : 0.33
-    if (!usingOverride && won && !rerolled && Math.random() < dittoChance && pokemonPool.length > 0) {
-      const idx = Math.floor(Math.random() * pokemonPool.length)
+    if (
+      !usingOverride &&
+      won &&
+      !rerolled &&
+      randomFloat() < dittoChance &&
+      pokemonPool.length > 0
+    ) {
+      const idx = Math.floor(randomFloat() * pokemonPool.length)
       pokemonPool[idx] = player.items.includes(Item.MYSTERY_BOX)
         ? Pkm.MELTAN
         : Pkm.DITTO
@@ -1357,7 +1420,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     const rerollComponents = usingOverride || rerolled
     for (const pkm of pokemonPool) {
       pokemons.push(pkm)
-      items.push(rerollComponents ? pickRandomIn(REWARD_COMPONENTS) : Item.ORAN_BERRY)
+      items.push(
+        rerollComponents ? pickRandomIn(REWARD_COMPONENTS) : Item.ORAN_BERRY
+      )
     }
 
     // Win: 4th slot is a random item component
@@ -1381,13 +1446,20 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   resolveDesignRewardItem(token?: string): Item | "" {
     if (!token) return ""
     switch (token) {
-      case "RANDOM_COMPONENT": return pickRandomIn(ItemComponentsNoFossilOrScarf)
-      case "RANDOM_CRAFTED": return pickRandomIn(CraftableItemsNoScarves)
-      case "RANDOM_BERRY": return pickRandomIn(Berries)
-      case "RANDOM_TOOL": return pickRandomIn(Tools)
-      case "RANDOM_SYNERGY_STONE": return pickRandomIn(SynergyStones)
-      case "RANDOM_SHINY": return pickRandomIn(ShinyItems)
-      default: return token as Item
+      case "RANDOM_COMPONENT":
+        return pickRandomIn(ItemComponentsNoFossilOrScarf)
+      case "RANDOM_CRAFTED":
+        return pickRandomIn(CraftableItemsNoScarves)
+      case "RANDOM_BERRY":
+        return pickRandomIn(Berries)
+      case "RANDOM_TOOL":
+        return pickRandomIn(Tools)
+      case "RANDOM_SYNERGY_STONE":
+        return pickRandomIn(SynergyStones)
+      case "RANDOM_SHINY":
+        return pickRandomIn(ShinyItems)
+      default:
+        return token as Item
     }
   }
 
@@ -1415,19 +1487,29 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
   generateEliteRewardChoice(player: Player) {
     const src = this.room.spireEliteRewardSource
-    if (src && this.generateDesignRewardChoice(player, src.winRewards, src.winRewardsShown)) {
+    if (
+      src &&
+      this.generateDesignRewardChoice(
+        player,
+        src.winRewards,
+        src.winRewardsShown
+      )
+    ) {
       return
     }
     const fightPokemon = this.room.eliteFightPokemon ?? []
     const mainPkm = this.room.eliteMainPokemon ?? (fightPokemon[0] || Pkm.DITTO)
-    const others = fightPokemon.filter(p => p !== mainPkm)
-    const picked = others.length >= 2
-      ? pickNRandomIn(others, 2)
-      : others.length === 1
-        ? [others[0], pickRandomIn(fightPokemon)]
-        : [mainPkm, mainPkm]
+    const others = fightPokemon.filter((p) => p !== mainPkm)
+    const picked =
+      others.length >= 2
+        ? pickNRandomIn(others, 2)
+        : others.length === 1
+          ? [others[0], pickRandomIn(fightPokemon)]
+          : [mainPkm, mainPkm]
     const pokemons: Pkm[] = [mainPkm, picked[0], picked[1]]
-    const items: Item[] = pokemons.map(() => pickRandomIn(ItemComponentsNoFossilOrScarf))
+    const items: Item[] = pokemons.map(() =>
+      pickRandomIn(ItemComponentsNoFossilOrScarf)
+    )
     player.choices.push(
       new PlayerChoice({ type: "eliteReward", pokemons, items })
     )
@@ -1435,15 +1517,23 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
   generateEliteLossChoice(player: Player) {
     const src = this.room.spireEliteRewardSource
-    if (src && this.generateDesignRewardChoice(player, src.lossRewards, src.lossRewardsShown)) {
+    if (
+      src &&
+      this.generateDesignRewardChoice(
+        player,
+        src.lossRewards,
+        src.lossRewardsShown
+      )
+    ) {
       return
     }
     const fightPokemon = this.room.eliteFightPokemon ?? []
-    const picks = fightPokemon.length >= 2
-      ? pickNRandomIn(fightPokemon, 2)
-      : fightPokemon.length === 1
-        ? [fightPokemon[0]]
-        : [Pkm.DITTO]
+    const picks =
+      fightPokemon.length >= 2
+        ? pickNRandomIn(fightPokemon, 2)
+        : fightPokemon.length === 1
+          ? [fightPokemon[0]]
+          : [Pkm.DITTO]
     player.choices.push(
       new PlayerChoice({ type: "eliteReward", pokemons: picks, items: [] })
     )
@@ -1455,18 +1545,36 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       (p) => !p.isBot && p.name === "Fisho2"
     )
     if (!isFisho2) return
-    const { getEliteEncounterCount, getEliteEncounterName, getEliteEncounterAvatar } = require("../../models/spire-encounters")
+    const {
+      getEliteEncounterCount,
+      getEliteEncounterName,
+      getEliteEncounterAvatar
+    } = require("../../models/spire-encounters")
     const { PkmIndex } = require("../../types/enum/Pokemon")
     const eliteTotal = getEliteEncounterCount(this.state.currentAct)
     let converted = 0
     let eliteIdx = 0
     this.state.mapNodes.forEach((node: any) => {
       if (converted >= 10) return
-      if (node.nodeType === MapNodeType.WILD_BATTLE || node.nodeType === MapNodeType.GYM_LEADER || node.nodeType === MapNodeType.MYSTERY_ENCOUNTER || node.nodeType === MapNodeType.POKEMART) {
+      if (
+        node.nodeType === MapNodeType.WILD_BATTLE ||
+        node.nodeType === MapNodeType.GYM_LEADER ||
+        node.nodeType === MapNodeType.MYSTERY_ENCOUNTER ||
+        node.nodeType === MapNodeType.POKEMART
+      ) {
         node.nodeType = MapNodeType.ELITE
         node.eliteEncounterIndex = eliteIdx % eliteTotal
-        node.displayName = getEliteEncounterName(eliteIdx % eliteTotal, this.state.currentAct)
-        node.eliteAvatar = PkmIndex[getEliteEncounterAvatar(eliteIdx % eliteTotal, this.state.currentAct)] ?? ""
+        node.displayName = getEliteEncounterName(
+          eliteIdx % eliteTotal,
+          this.state.currentAct
+        )
+        node.eliteAvatar =
+          PkmIndex[
+            getEliteEncounterAvatar(
+              eliteIdx % eliteTotal,
+              this.state.currentAct
+            )
+          ] ?? ""
         eliteIdx++
         converted++
       }
@@ -1494,7 +1602,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     const { saveRun } = require("../../services/run-save")
     const saves: Promise<void>[] = []
     this.state.players.forEach((player: Player) => {
-      if (!player.isBot && player.alive && !this.state.gameFinished && !this.state.runFailed) {
+      if (
+        !player.isBot &&
+        player.alive &&
+        !this.state.gameFinished &&
+        !this.state.runFailed
+      ) {
         // saveRun never rejects (errors are logged inside) and serializes writes
         // per player internally, so un-awaited callers are still safely ordered.
         saves.push(saveRun(player.id, this.state, player))
@@ -1512,11 +1625,22 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   recordActThreeVictoryOnce() {
     if (this.room.actThreeVictoryCounted) return
     this.room.actThreeVictoryCounted = true
-    const { incrementRunEnd, updateVictoryRecord, saveRunHistory } = require("../../services/run-save")
+    const {
+      incrementRunEnd,
+      updateVictoryRecord,
+      saveRunHistory
+    } = require("../../services/run-save")
     schemaValues(this.state.players).forEach((p) => {
       if (!p.isBot) {
         incrementRunEnd(p.id, this.state.difficultyMode, true, false, 0)
-        updateVictoryRecord(p.id, p.name, p.avatar, this.state.difficultyMode, true, this.state.isEndless)
+        updateVictoryRecord(
+          p.id,
+          p.name,
+          p.avatar,
+          this.state.difficultyMode,
+          true,
+          this.state.isEndless
+        )
         // Create the run-history record the moment Act 3 falls (keyed by runId).
         // Every later milestone (Elite Four / Champion / Arceus) upserts this SAME
         // record, so a completed run shows exactly once — not once before and once
@@ -1534,13 +1658,32 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   recordRunEndOnce(player: Player, opts?: { arceusDamage?: number }) {
     if (this.room.runHistoryRecorded) return
     this.room.runHistoryRecorded = true
-    const { deleteSavedRun, saveRunHistory, incrementRunEnd, updateVictoryRecord, isRunVictory } = require("../../services/run-save")
+    const {
+      deleteSavedRun,
+      saveRunHistory,
+      incrementRunEnd,
+      updateVictoryRecord,
+      isRunVictory
+    } = require("../../services/run-save")
     const won = isRunVictory(this.state)
     deleteSavedRun(player.id)
     saveRunHistory(player.id, this.state, player, won)
-    incrementRunEnd(player.id, this.state.difficultyMode, false, this.room.becameChampion, opts?.arceusDamage ?? 0)
+    incrementRunEnd(
+      player.id,
+      this.state.difficultyMode,
+      false,
+      this.room.becameChampion,
+      opts?.arceusDamage ?? 0
+    )
     if (!won) {
-      updateVictoryRecord(player.id, player.name, player.avatar, this.state.difficultyMode, false, this.state.isEndless)
+      updateVictoryRecord(
+        player.id,
+        player.name,
+        player.avatar,
+        this.state.difficultyMode,
+        false,
+        this.state.isEndless
+      )
     }
   }
 
@@ -1553,12 +1696,23 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.currentNodeId = ""
     this.state.mapNodes.clear()
     this.state.mapEdges.clear()
-    generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode, true)
+    this.room.clearEliteDesignAssignments()
+    this.state.withRunRng(() => {
+      generateActMap(
+        this.state.currentAct,
+        this.state.mapNodes,
+        this.state.mapEdges,
+        this.state.difficultyMode as DifficultyMode,
+        true
+      )
+    })
     this.room.populateAsyncFightNodes()
     // Endless acts 2-3 draw elites from approved designs like every other mode;
     // the call self-gates to a no-op for acts 4+ (hardcoded pool keeps the tail).
     this.room.populateEliteDesignNodes()
-    this.state.players.forEach((p) => { p.dojoFamilies.clear() })
+    this.state.players.forEach((p) => {
+      p.dojoFamilies.clear()
+    })
   }
 
   // Safety net so an endless run can never get hard-stuck on a fully-completed
@@ -1568,13 +1722,20 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   // their own runComplete/eliteFourAvailable victory screens. Returns true if it
   // recovered. Cannot loop: a fresh act map always has floor-1 available.
   recoverIfEndlessStranded(): boolean {
-    if (!this.state.isEndless || this.state.gameFinished || this.state.runFailed) return false
+    if (
+      !this.state.isEndless ||
+      this.state.gameFinished ||
+      this.state.runFailed
+    )
+      return false
     if (this.state.mapNodes.size === 0) return false
     const canProgress = schemaValues(this.state.mapNodes).some(
       (n) => n.available && !n.visited
     )
     if (canProgress) return false
-    logger.info(`Endless run stranded on act ${this.state.currentAct} (no selectable node); rolling over to act ${this.state.currentAct + 1}`)
+    logger.info(
+      `Endless run stranded on act ${this.state.currentAct} (no selectable node); rolling over to act ${this.state.currentAct + 1}`
+    )
     this.advanceEndlessAct()
     return true
   }
@@ -1585,6 +1746,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.roundTime = 999
     // Back on the map (post-reward or act transition) — no fight in progress.
     this.state.pendingFightNodeId = ""
+    this.state.pendingEncounter = null
+    this.state.spireShopItems = []
+    this.state.spireEventResolved = false
+    this.state.spireEventName = ""
+    this.state.spireEventDescription = ""
+    this.state.spireEventPortrait = ""
+    resetArraySchema(this.state.spireEventChoiceLabels, [])
+    resetArraySchema(this.state.spireEventChoiceDescs, [])
     this.syncRunHPToPlayers()
     resetArraySchema(this.state.spireEncounterBoard, [])
     resetArraySchema(this.state.encounterInventory, [])
@@ -1601,7 +1770,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     // Clean up any lingering minigame state
     this.state.avatars.forEach((a, key) => this.state.avatars.delete(key))
-    this.state.floatingItems.forEach((i, key) => this.state.floatingItems.delete(key))
+    this.state.floatingItems.forEach((i, key) =>
+      this.state.floatingItems.delete(key)
+    )
     this.state.portals.forEach((p, key) => this.state.portals.delete(key))
     this.state.symbols.forEach((s, key) => this.state.symbols.delete(key))
     this.state.players.forEach((player: Player) => {
@@ -1611,7 +1782,17 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     })
 
     if (this.state.mapNodes.size === 0) {
-      generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode, this.state.isEndless, this.state.isSpire)
+      this.room.clearEliteDesignAssignments()
+      this.state.withRunRng(() => {
+        generateActMap(
+          this.state.currentAct,
+          this.state.mapNodes,
+          this.state.mapEdges,
+          this.state.difficultyMode as DifficultyMode,
+          this.state.isEndless,
+          this.state.isSpire
+        )
+      })
       if (this.state.isEndless) this.room.populateAsyncFightNodes()
       this.room.populateEliteDesignNodes()
     }
@@ -1653,6 +1834,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     // inventory items get re-displayed (e.g. champion items during Arceus).
     this.state.encounterSnapshot = null
     this.state.encounterCrownedAt = null
+    this.room.spireEliteRewardSource = null
 
     markAvailableNodes(nodeId, this.state.mapNodes, this.state.mapEdges)
 
@@ -1674,14 +1856,17 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       MapNodeType.ARCEUS_BOSS,
       MapNodeType.ASYNC_FIGHT
     ]
-    this.state.pendingFightNodeId = COMBAT_NODE_TYPES.includes(node.nodeType) ? nodeId : ""
+    this.state.pendingFightNodeId = COMBAT_NODE_TYPES.includes(node.nodeType)
+      ? nodeId
+      : ""
 
     // One-shot finale guard, committed at SELECTION (not fight start): selecting the
     // Champion node autosaves below, and leaving during the ensuing PICK phase would
     // otherwise persist a championChallenged=false run that resume() lets back into
     // the fight (the same save-scum the fight-start flag prevents, one step too late).
     // Arceus is covered separately by the act-5 resume forfeit in resumeGame().
-    if (node.nodeType === MapNodeType.CHAMPION) this.state.championChallenged = true
+    if (node.nodeType === MapNodeType.CHAMPION)
+      this.state.championChallenged = true
 
     // Persist the node advance immediately. Previously a combat node only became
     // durable once its fight was WON (REWARD save), so a restart mid-fight rewound
@@ -1711,7 +1896,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       const { submitAsyncFight } = require("../../services/async-fight-pool")
       schemaValues(this.state.players).forEach((p) => {
         if (!p.isBot) {
-          submitAsyncFight(stage, p.name, p.avatar, this.state.playerSpireRegion || "town", snapshotPlayerTeam(p))
+          submitAsyncFight(
+            stage,
+            p.name,
+            p.avatar,
+            this.state.playerSpireRegion || "town",
+            snapshotPlayerTeam(p)
+          )
         }
       })
     }
@@ -1747,94 +1938,203 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         let encounter: SpireEncounter | null = null
         const mode = this.state.difficultyMode as 0 | 1 | 2 | 3
         const endless = this.state.isEndless
-        if (node.nodeType === MapNodeType.ASYNC_FIGHT) {
-          const asyncData = this.room.asyncFightSnapshots.get(nodeId)
-          if (asyncData) {
-            this.state.encounterSnapshot = asyncData.snapshot
-            if (asyncData.region && asyncData.region !== "town") {
-              this.state.players.forEach((p: Player) => { if (!p.isBot) p.map = asyncData.region as any })
-            }
-            encounter = { name: asyncData.name, avatar: (asyncData.snapshot?.pokemon?.[0]?.name ?? "MAGIKARP") as Pkm, board: [], items: [] }
-          } else {
-            encounter = { name: "Fish", avatar: Pkm.MAGIKARP, board: [[Pkm.MAGIKARP, 4, 1]], items: [[]] }
+        const pendingMaterialization =
+          this.state.pendingEncounter?.nodeId === nodeId
+            ? this.state.pendingEncounter
+            : null
+        if (pendingMaterialization) {
+          encounter = pendingMaterialization.encounter
+          this.state.encounterSnapshot = pendingMaterialization.snapshot
+          this.state.encounterCrownedAt = pendingMaterialization.crownedAt
+          this.room.spireEliteRewardSource = pendingMaterialization.eliteDesign
+          const snapshotRegion = pendingMaterialization.snapshot?.region
+          if (snapshotRegion && snapshotRegion !== "town") {
+            this.state.players.forEach((player) => {
+              if (!player.isBot) player.map = snapshotRegion as DungeonPMDO
+            })
           }
-        } else if (node.nodeType === MapNodeType.ARCEUS_BOSS) {
-          encounter = getArceusEncounter(mode)
-        } else if (node.nodeType === MapNodeType.WILD_BATTLE) {
-          encounter = node.region
-            ? getRegionalWildEncounter(this.state.currentAct, node.floor, node.region, mode, endless, this.state.isSpire)
-            : getWildEncounter(this.state.currentAct, node.floor, node.x + node.floor * 7)
-        } else if (node.nodeType === MapNodeType.GYM_LEADER) {
-          encounter = generateGymEncounter(
-            node.gymLeaderSynergy as Synergy,
-            this.state.currentAct,
-            node.floor,
-            mode,
-            node.displayName || undefined,
-            endless,
-            this.state.isSpire
-          )
-        } else if (node.nodeType === MapNodeType.ELITE) {
-          // Acts 1-3 in EVERY mode: elites are approved library designs
-          // assigned to the map by populateEliteDesignNodes (the hardcoded pool
-          // remains for Endless acts 4+ and as the fallback if a node somehow
-          // has no design, e.g. selected mid-population or Fisho2-converted).
-          const eliteDesign = this.room.spireEliteDesigns.get(nodeId)
-          if (eliteDesign) {
-            encounter = eliteDesign.encounter
-            if (!this.state.isSpire) {
-              // Designs are budgeted against Normal; keep classic difficulty
-              // differentiation by running them through the same item adjusters
-              // hardcoded elites get (easy trims one, hard/impossible add —
-              // both no-ops on Normal/Spire/Endless since those are mode 1).
-              // Both helpers return copies, so the stored design isn't mutated.
-              encounter = addHardModeItems(
-                adjustEncounterItems(encounter, mode, this.state.currentAct),
-                this.state.currentAct,
-                node.floor,
-                mode
-              )
-            }
+          if (node.nodeType === MapNodeType.ELITE) {
             this.room.eliteFightPokemon = encounter.board.map(([pkm]) => pkm)
             this.room.eliteMainPokemon = encounter.avatar
             this.room.eliteMainBonusHP = encounter.mainBonusHP ?? 0
             this.room.eliteMainBonusAtk = encounter.mainBonusAtk ?? 0
             this.room.eliteMainBonusAP = encounter.mainBonusAP ?? 0
-            this.room.spireEliteRewardSource = eliteDesign
-          } else {
-            encounter = getEliteEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode, endless, this.state.isSpire)
-            this.room.eliteFightPokemon = encounter.board.map(([pkm]) => pkm)
-            this.room.eliteMainPokemon = getEliteMainPokemon(node.eliteEncounterIndex, this.state.currentAct)
-            this.room.eliteMainBonusHP = encounter.mainBonusHP ?? 0
-            this.room.eliteMainBonusAtk = encounter.mainBonusAtk ?? 0
-            this.room.eliteMainBonusAP = encounter.mainBonusAP ?? 0
-            this.room.spireEliteRewardSource = null
           }
-        } else if (node.nodeType === MapNodeType.UNLOCK) {
-          encounter = getUnlockEncounter(node.eliteEncounterIndex, this.state.currentAct, node.floor, mode, endless, this.state.isSpire)
-        } else if (node.nodeType === MapNodeType.ELITE_FOUR) {
-          const e4Index = node.floor - 1
-          const champData = loadChampionData(this.state.difficultyMode as DifficultyMode)
-          const slotData = getEliteFourSlotForEncounter(champData.eliteFour[e4Index], e4Index)
-          this.state.encounterSnapshot = slotData.snapshot
-          this.state.encounterCrownedAt = champData.eliteFourCrownedAt?.[e4Index] ?? champData.championSince ?? null
-          if (slotData.snapshot.region && slotData.snapshot.region !== "town") {
-            this.state.players.forEach((p: Player) => { if (!p.isBot) p.map = slotData.snapshot.region as any })
-          }
-          encounter = { name: slotData.name, avatar: slotData.avatar, board: [], items: [] }
-        } else if (node.nodeType === MapNodeType.CHAMPION) {
-          const champData = loadChampionData(this.state.difficultyMode as DifficultyMode)
-          const slotData = getChampionSlotForEncounter(champData.champion)
-          this.state.encounterSnapshot = slotData.snapshot
-          this.state.encounterCrownedAt = champData.championSince ?? null
-          if (slotData.snapshot.region && slotData.snapshot.region !== "town") {
-            this.state.players.forEach((p: Player) => { if (!p.isBot) p.map = slotData.snapshot.region as any })
-          }
-          encounter = { name: slotData.name, avatar: slotData.avatar, board: [], items: [] }
         } else {
-          encounter = node.displayName
-            ? getLegendaryBossEncounterByName(this.state.currentAct, node.displayName, mode)
-            : getLegendaryBossEncounter(this.state.currentAct, mode)
+          this.state.withRunRng(() => {
+            if (node.nodeType === MapNodeType.ASYNC_FIGHT) {
+              const asyncData = this.room.asyncFightSnapshots.get(nodeId)
+              if (asyncData) {
+                this.state.encounterSnapshot = asyncData.snapshot
+                if (asyncData.region && asyncData.region !== "town") {
+                  this.state.players.forEach((p: Player) => {
+                    if (!p.isBot) p.map = asyncData.region as any
+                  })
+                }
+                encounter = {
+                  name: asyncData.name,
+                  avatar: (asyncData.snapshot?.pokemon?.[0]?.name ??
+                    "MAGIKARP") as Pkm,
+                  board: [],
+                  items: []
+                }
+              } else {
+                encounter = {
+                  name: "Fish",
+                  avatar: Pkm.MAGIKARP,
+                  board: [[Pkm.MAGIKARP, 4, 1]],
+                  items: [[]]
+                }
+              }
+            } else if (node.nodeType === MapNodeType.ARCEUS_BOSS) {
+              encounter = getArceusEncounter(mode)
+            } else if (node.nodeType === MapNodeType.WILD_BATTLE) {
+              encounter = node.region
+                ? getRegionalWildEncounter(
+                    this.state.currentAct,
+                    node.floor,
+                    node.region,
+                    mode,
+                    endless,
+                    this.state.isSpire
+                  )
+                : getWildEncounter(
+                    this.state.currentAct,
+                    node.floor,
+                    node.x + node.floor * 7
+                  )
+            } else if (node.nodeType === MapNodeType.GYM_LEADER) {
+              encounter = generateGymEncounter(
+                node.gymLeaderSynergy as Synergy,
+                this.state.currentAct,
+                node.floor,
+                mode,
+                node.displayName || undefined,
+                endless,
+                this.state.isSpire
+              )
+            } else if (node.nodeType === MapNodeType.ELITE) {
+              // Acts 1-3 in EVERY mode: elites are approved library designs
+              // assigned to the map by populateEliteDesignNodes (the hardcoded pool
+              // remains for Endless acts 4+ and as the fallback if a node somehow
+              // has no design, e.g. selected mid-population or Fisho2-converted).
+              const eliteDesign = this.room.spireEliteDesigns.get(nodeId)
+              if (eliteDesign) {
+                encounter = eliteDesign.encounter
+                if (!this.state.isSpire) {
+                  // Designs are budgeted against Normal; keep classic difficulty
+                  // differentiation by running them through the same item adjusters
+                  // hardcoded elites get (easy trims one, hard/impossible add —
+                  // both no-ops on Normal/Spire/Endless since those are mode 1).
+                  // Both helpers return copies, so the stored design isn't mutated.
+                  encounter = addHardModeItems(
+                    adjustEncounterItems(
+                      encounter,
+                      mode,
+                      this.state.currentAct
+                    ),
+                    this.state.currentAct,
+                    node.floor,
+                    mode
+                  )
+                }
+                this.room.eliteFightPokemon = encounter.board.map(
+                  ([pkm]) => pkm
+                )
+                this.room.eliteMainPokemon = encounter.avatar
+                this.room.eliteMainBonusHP = encounter.mainBonusHP ?? 0
+                this.room.eliteMainBonusAtk = encounter.mainBonusAtk ?? 0
+                this.room.eliteMainBonusAP = encounter.mainBonusAP ?? 0
+                this.room.spireEliteRewardSource = eliteDesign
+              } else {
+                encounter = getEliteEncounter(
+                  node.eliteEncounterIndex,
+                  this.state.currentAct,
+                  node.floor,
+                  mode,
+                  endless,
+                  this.state.isSpire
+                )
+                this.room.eliteFightPokemon = encounter.board.map(
+                  ([pkm]) => pkm
+                )
+                this.room.eliteMainPokemon = getEliteMainPokemon(
+                  node.eliteEncounterIndex,
+                  this.state.currentAct
+                )
+                this.room.eliteMainBonusHP = encounter.mainBonusHP ?? 0
+                this.room.eliteMainBonusAtk = encounter.mainBonusAtk ?? 0
+                this.room.eliteMainBonusAP = encounter.mainBonusAP ?? 0
+                this.room.spireEliteRewardSource = null
+              }
+            } else if (node.nodeType === MapNodeType.UNLOCK) {
+              encounter = getUnlockEncounter(
+                node.eliteEncounterIndex,
+                this.state.currentAct,
+                node.floor,
+                mode,
+                endless,
+                this.state.isSpire
+              )
+            } else if (node.nodeType === MapNodeType.ELITE_FOUR) {
+              const e4Index = node.floor - 1
+              const champData = loadChampionData(
+                this.state.difficultyMode as DifficultyMode
+              )
+              const slotData = getEliteFourSlotForEncounter(
+                champData.eliteFour[e4Index],
+                e4Index
+              )
+              this.state.encounterSnapshot = slotData.snapshot
+              this.state.encounterCrownedAt =
+                champData.eliteFourCrownedAt?.[e4Index] ??
+                champData.championSince ??
+                null
+              if (
+                slotData.snapshot.region &&
+                slotData.snapshot.region !== "town"
+              ) {
+                this.state.players.forEach((p: Player) => {
+                  if (!p.isBot) p.map = slotData.snapshot.region as any
+                })
+              }
+              encounter = {
+                name: slotData.name,
+                avatar: slotData.avatar,
+                board: [],
+                items: []
+              }
+            } else if (node.nodeType === MapNodeType.CHAMPION) {
+              const champData = loadChampionData(
+                this.state.difficultyMode as DifficultyMode
+              )
+              const slotData = getChampionSlotForEncounter(champData.champion)
+              this.state.encounterSnapshot = slotData.snapshot
+              this.state.encounterCrownedAt = champData.championSince ?? null
+              if (
+                slotData.snapshot.region &&
+                slotData.snapshot.region !== "town"
+              ) {
+                this.state.players.forEach((p: Player) => {
+                  if (!p.isBot) p.map = slotData.snapshot.region as any
+                })
+              }
+              encounter = {
+                name: slotData.name,
+                avatar: slotData.avatar,
+                board: [],
+                items: []
+              }
+            } else {
+              encounter = node.displayName
+                ? getLegendaryBossEncounterByName(
+                    this.state.currentAct,
+                    node.displayName,
+                    mode
+                  )
+                : getLegendaryBossEncounter(this.state.currentAct, mode)
+            }
+          })
         }
 
         // Tutorial: replace the generated team with a fixed, deliberately weak
@@ -1854,6 +2154,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             this.room.spireEliteRewardSource = null
           }
         }
+        if (!encounter) return
+        if (!pendingMaterialization) {
+          this.state.pendingEncounter = {
+            nodeId,
+            encounter,
+            snapshot: this.state.encounterSnapshot,
+            crownedAt: this.state.encounterCrownedAt,
+            eliteDesign:
+              node.nodeType === MapNodeType.ELITE
+                ? this.room.spireEliteRewardSource
+                : null
+          }
+        }
 
         resetArraySchema(this.state.encounterInventory, [])
         this.state.encounterMoney = 0
@@ -1862,7 +2175,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           const snap = this.state.encounterSnapshot
           let displaySnap = snap
           if (this.state.encounterCrownedAt && this.state.difficultyMode < 2) {
-            const elapsedMs = Date.now() - new Date(this.state.encounterCrownedAt).getTime()
+            const elapsedMs =
+              Date.now() - new Date(this.state.encounterCrownedAt).getTime()
             const hoursElapsed = elapsedMs / (1000 * 60 * 60)
             const ratePerHour = this.state.difficultyMode === 0 ? 0.12 : 0.06
             const decayMultiplier = Math.pow(1 - ratePerHour, hoursElapsed)
@@ -1871,20 +2185,36 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                 ...snap,
                 pokemon: snap.pokemon.map((p) => {
                   if (p.y <= 0) return p
-                  const baseHp = PokemonFactory.createPokemonFromName(p.name as Pkm).hp
+                  const baseHp = PokemonFactory.createPokemonFromName(
+                    p.name as Pkm
+                  ).hp
                   const effectiveHp = baseHp + (p.statBoosts?.hp ?? 0)
                   const floor = Math.round(effectiveHp * 0.3)
-                  const decayedHp = Math.max(floor, Math.round(effectiveHp * decayMultiplier))
+                  const decayedHp = Math.max(
+                    floor,
+                    Math.round(effectiveHp * decayMultiplier)
+                  )
                   const reduction = effectiveHp - decayedHp
                   if (reduction <= 0) return p
                   const newHpBoost = (p.statBoosts?.hp ?? 0) - reduction
-                  const boosts = p.statBoosts ?? { hp: 0, atk: 0, def: 0, speDef: 0, ap: 0, speed: 0, luck: 0 }
+                  const boosts = p.statBoosts ?? {
+                    hp: 0,
+                    atk: 0,
+                    def: 0,
+                    speDef: 0,
+                    ap: 0,
+                    speed: 0,
+                    luck: 0
+                  }
                   return { ...p, statBoosts: { ...boosts, hp: newHpBoost } }
                 })
               }
             }
           }
-          resetArraySchema(this.state.spireEncounterBoard, encodeSnapshotForClient(displaySnap))
+          resetArraySchema(
+            this.state.spireEncounterBoard,
+            encodeSnapshotForClient(displaySnap)
+          )
           this.state.encounterMoney = snap.money ?? 0
           if (snap.inventory?.length) {
             resetArraySchema(this.state.encounterInventory, snap.inventory)
@@ -1897,24 +2227,38 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           const tempPokemon = snapBoard.map((p) => {
             const pkm = PokemonFactory.createPokemonFromName(p.name as Pkm)
             pkm.positionY = p.y
-            if (p.items) p.items.forEach((item) => { if (!pkm.items.has(item as Item)) pkm.items.add(item as Item) })
+            if (p.items)
+              p.items.forEach((item) => {
+                if (!pkm.items.has(item as Item)) pkm.items.add(item as Item)
+              })
             return pkm
           })
           const snapBonusSynergies = new Map<Synergy, number>()
           for (const item of snap.inventory ?? []) {
             const synType = SynergyGivenByGem[item as SynergyGem]
-            if (synType) snapBonusSynergies.set(synType, (snapBonusSynergies.get(synType) ?? 0) + 1)
+            if (synType)
+              snapBonusSynergies.set(
+                synType,
+                (snapBonusSynergies.get(synType) ?? 0) + 1
+              )
           }
-          const snapSynergies = computeSynergies(tempPokemon, snapBonusSynergies.size > 0 ? snapBonusSynergies : undefined)
+          const snapSynergies = computeSynergies(
+            tempPokemon,
+            snapBonusSynergies.size > 0 ? snapBonusSynergies : undefined
+          )
           resetArraySchema(
             this.state.encounterSynergies,
-            Array.from(snapSynergies.entries()).filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v}`)
+            Array.from(snapSynergies.entries())
+              .filter(([, v]) => v > 0)
+              .map(([k, v]) => `${k}:${v}`)
           )
           // Build a SpireEncounter from snapshot for stats calculation
           const snapEncounter: SpireEncounter = {
             name: encounter.name,
             avatar: (snap.pokemon[0]?.name ?? "MAGIKARP") as Pkm,
-            board: snap.pokemon.filter((p) => p.y > 0).map((p) => [p.name, p.x, p.y]),
+            board: snap.pokemon
+              .filter((p) => p.y > 0)
+              .map((p) => [p.name, p.x, p.y]),
             items: snap.pokemon.filter((p) => p.y > 0).map((p) => p.items)
           }
           const stats = calculateEncounterStats(snapEncounter)
@@ -1923,33 +2267,44 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           this.state.encounterTotalStars = stats.totalStars
           this.state.encounterTotalItems = stats.totalItems
         } else {
+          const pveEncounter = encounter
           resetArraySchema(
             this.state.spireEncounterBoard,
-            encounter.board.map(([pkm, x, y], i) => {
-              const itemStr = encounter.items?.[i]?.length ? `,${encounter.items[i].join(",")}` : ""
-              const boostStr = i === 0 && (encounter.mainBonusHP || encounter.mainBonusAtk || encounter.mainBonusAP)
-                ? `|${encounter.mainBonusHP ?? 0},${encounter.mainBonusAtk ?? 0},0,0,${encounter.mainBonusAP ?? 0},0`
+            pveEncounter.board.map(([pkm, x, y], i) => {
+              const itemStr = pveEncounter.items?.[i]?.length
+                ? `,${pveEncounter.items[i].join(",")}`
                 : ""
+              const boostStr =
+                i === 0 &&
+                (pveEncounter.mainBonusHP ||
+                  pveEncounter.mainBonusAtk ||
+                  pveEncounter.mainBonusAP)
+                  ? `|${pveEncounter.mainBonusHP ?? 0},${pveEncounter.mainBonusAtk ?? 0},0,0,${pveEncounter.mainBonusAP ?? 0},0`
+                  : ""
               return `${pkm},${x},${y}${itemStr}${boostStr}`
             })
           )
-          const stats = calculateEncounterStats(encounter)
+          const stats = calculateEncounterStats(pveEncounter)
           this.state.encounterDifficulty = stats.difficulty
           this.state.encounterPokemonCount = stats.pokemonCount
           this.state.encounterTotalStars = stats.totalStars
           this.state.encounterTotalItems = stats.totalItems
-          const tempPokemon = encounter.board.map(([pkm, , ], i) => {
+          const tempPokemon = pveEncounter.board.map(([pkm, ,], i) => {
             const p = PokemonFactory.createPokemonFromName(pkm)
             p.positionY = 1
-            if (encounter.items?.[i]) {
-              encounter.items[i].forEach((item) => { if (!p.items.has(item)) p.items.add(item) })
+            if (pveEncounter.items?.[i]) {
+              pveEncounter.items[i].forEach((item) => {
+                if (!p.items.has(item)) p.items.add(item)
+              })
             }
             return p
           })
           const pveSynergies = computeSynergies(tempPokemon)
           resetArraySchema(
             this.state.encounterSynergies,
-            Array.from(pveSynergies.entries()).filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v}`)
+            Array.from(pveSynergies.entries())
+              .filter(([, v]) => v > 0)
+              .map(([k, v]) => `${k}:${v}`)
           )
         }
         this.state.encounterName = encounter.name
@@ -1966,6 +2321,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         this.state.encounterBonusAP = encounter.bonusAP ?? 0
         this.state.encounterBonusPP = encounter.bonusPP ?? 0
         this.initializePickingPhase()
+        this.autoSaveRun()
         // Tutorial: guide the player into each scripted fight.
         if (this.state.isTutorial) {
           if (node.floor === 1) this.room.sendTutorialDialog("wild1_pick")
@@ -1979,8 +2335,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               }
             })
             this.room.sendTutorialDialog("evolution")
-          }
-          else if (node.floor === 3) {
+          } else if (node.floor === 3) {
             // Item lesson: give one of every basic component to drag together.
             // (A floor-3 node is only ever selected once — nodes can't be revisited.)
             this.state.players.forEach((p: Player) => {
@@ -1989,8 +2344,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               }
             })
             this.room.sendTutorialDialog("item_craft")
-          }
-          else if (node.floor === 5) this.room.sendTutorialDialog("synergies")
+          } else if (node.floor === 5) this.room.sendTutorialDialog("synergies")
           else if (node.floor === 7) this.room.sendTutorialDialog("elite_pick")
           else if (node.floor === 9) this.room.sendTutorialDialog("gym_pick")
           else if (node.floor === 10) this.room.sendTutorialDialog("boss_pick")
@@ -2054,7 +2408,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     const hasMysteryBox = Array.from(this.state.players.values()).some(
       (p) => !p.isBot && p.items.includes(Item.MYSTERY_BOX)
     )
-    const shopItems = generateShopItems(this.state.currentAct, hasMysteryBox)
+    if (this.state.spireShopItems.length === 0) {
+      this.state.spireShopItems = this.state.withRunRng(() =>
+        generateShopItems(this.state.currentAct, hasMysteryBox)
+      )
+    }
+    const shopItems = this.state.spireShopItems.filter(
+      (shopItem) => !shopItem.claimed
+    )
 
     this.room.miniGame.initialize(this.state, this.room, true)
     this.room.miniGame.initializeShopCarousel(
@@ -2065,6 +2426,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         price: si.price
       }))
     )
+    // Persist the materialized offer and advanced RNG counter, not just the
+    // pre-generation SHOP phase written above.
+    this.autoSaveRun()
   }
 
   initializeRestPhase() {
@@ -2073,10 +2437,12 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.roundTime = 999
     this.autoSellTownItems()
     this.autoSaveRun()
-
+    if (this.state.spireEventResolved) {
+      this.initializeMapPhase()
+      return
+    }
+    if (this.state.spireEventChoiceLabels.length > 0) return
     const dojoTicket = this.getDojoTicket()
-
-    const randomComponent = pickRandomIn(ItemComponentsNoFossilOrScarf)
 
     // Melmetal's Mystery Box turns the Ditto choice into a Meltan.
     const hasMysteryBox = Array.from(this.state.players.values()).some(
@@ -2095,6 +2461,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       "",
       dojoTicket
     ])
+    this.autoSaveRun()
   }
 
   handleRestChoice(playerId: string, choiceIndex: number) {
@@ -2118,6 +2485,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     } else if (choiceIndex === 2) {
       player.items.push(this.getDojoTicket())
     }
+    this.state.spireEventResolved = true
+    this.autoSaveRun()
   }
 
   getDojoTicket(): Item {
@@ -2140,25 +2509,42 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.time = 999 * 1000
     this.state.roundTime = 999
     this.autoSaveRun()
+    if (this.state.spireEventResolved) {
+      this.initializeMapPhase()
+      return
+    }
+    if (this.state.spireEventChoiceLabels.length > 0) return
 
     // Tutorial: force a fixed, gold-free encounter (Pokemon Day Care — egg /
     // dojo ticket / skip, all free) instead of a random one that might cost gold.
-    const event = this.state.isTutorial
-      ? (SPIRE_EVENTS.find((e) => e.name === "Pokemon Day Care") ?? getRandomEvent())
-      : getRandomEvent()
+    const event = this.state.withRunRng(() =>
+      this.state.isTutorial
+        ? (SPIRE_EVENTS.find(
+            (candidate) => candidate.name === "Pokemon Day Care"
+          ) ?? getRandomEvent())
+        : getRandomEvent()
+    )
     this.state.spireEventName = event.name
     this.state.spireEventDescription = event.description
     this.state.spireEventPortrait = event.portrait
-    resetArraySchema(this.state.spireEventChoiceLabels, event.choices.map(c => c.label))
-    resetArraySchema(this.state.spireEventChoiceDescs, event.choices.map(c => c.description))
-
+    resetArraySchema(
+      this.state.spireEventChoiceLabels,
+      event.choices.map((c) => c.label)
+    )
+    resetArraySchema(
+      this.state.spireEventChoiceDescs,
+      event.choices.map((c) => c.description)
+    )
+    this.autoSaveRun()
   }
 
   handleEventChoice(playerId: string, choiceIndex: number) {
     const player = this.state.players.get(playerId)
     if (!player) return
 
-    const label = (this.state.spireEventChoiceLabels[choiceIndex] ?? "").toLowerCase()
+    const label = (
+      this.state.spireEventChoiceLabels[choiceIndex] ?? ""
+    ).toLowerCase()
     if (!label) return
 
     // Idempotency guard: consume the choices so spam-clicking can't trigger the
@@ -2167,112 +2553,117 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     resetArraySchema(this.state.spireEventChoiceLabels, [])
     resetArraySchema(this.state.spireEventChoiceDescs, [])
 
-    if (label.includes("egg")) {
-      giveRandomEgg(player)
-    } else if (label.includes("dojo ticket")) {
-      player.items.push(this.getDojoTicket())
-    } else if (label.includes("pick all berries")) {
-      if (player.money >= 6) {
-        player.addMoney(-6, false, null)
-        const berries = getEventBerries(7)
-        berries.forEach(item => player.items.push(item))
-      }
-    } else if (label.includes("pick more berries")) {
-      if (player.money >= 3) {
-        player.addMoney(-3, false, null)
-        const berries = getEventBerries(5)
-        berries.forEach(item => player.items.push(item))
-      }
-    } else if (label.includes("pick berries")) {
-      const berries = getEventBerries(3)
-      berries.forEach(item => player.items.push(item))
-    } else if (label.includes("trade 10 gold")) {
-      if (player.money >= 10) {
-        player.addMoney(-10, false, null)
-        player.items.push(pickRandomIn(Tools))
-      }
-    } else if (label.includes("buy supplies")) {
-      if (player.money >= 8) {
-        player.addMoney(-8, false, null)
-        const items = getEventItems(2)
-        items.forEach(item => player.items.push(item))
-      }
-    } else if (label.includes("sacrifice")) {
-      this.state.runHP = Math.max(0, this.state.runHP - 20)
-      this.syncRunHPToPlayers()
-      const item = pickRandomIn(CraftableNoStonesOrScarves)
-      player.items.push(item)
-    } else if (label.includes("offering")) {
-      this.state.runHP = Math.max(0, this.state.runHP - 10)
-      this.syncRunHPToPlayers()
-      const items = getEventItems(1)
-      items.forEach(item => player.items.push(item))
-    } else if (label.includes("dig for gems")) {
-      player.items.push(pickRandomIn(SynergyStones))
-    } else if (label.includes("search for fossils")) {
-      player.items.push(Item.FOSSIL_STONE)
-    } else if (label.includes("rob")) {
-      this.state.runHP = Math.max(0, this.state.runHP - 40)
-      this.syncRunHPToPlayers()
-      const items = getEventItems(2)
-      items.forEach(item => player.items.push(item))
-    } else if (label.includes("rocky helmet challenge")) {
-      this.state.challengeItem = Item.ROCKY_HELMET
-    } else if (label.includes("assault vest challenge")) {
-      this.state.challengeItem = Item.ASSAULT_VEST
-    } else if (label.includes("kings rock challenge")) {
-      this.state.challengeItem = Item.KINGS_ROCK
-    } else if (label.includes("red orb challenge")) {
-      this.state.challengeItem = Item.RED_ORB
-    } else if (label.includes("blue orb challenge")) {
-      this.state.challengeItem = Item.BLUE_ORB
-    } else if (label.includes("green orb challenge")) {
-      this.state.challengeItem = Item.GREEN_ORB
-    } else if (label.includes("2 exchange tickets")) {
-      player.items.push(Item.EXCHANGE_TICKET)
-      player.items.push(Item.EXCHANGE_TICKET)
-    } else if (label.includes("1 exchange + 1 recycle")) {
-      player.items.push(Item.EXCHANGE_TICKET)
-      player.items.push(Item.RECYCLE_TICKET)
-    } else if (label.includes("2 recycle tickets")) {
-      player.items.push(Item.RECYCLE_TICKET)
-      player.items.push(Item.RECYCLE_TICKET)
-    } else if (label.includes("take a carp")) {
-      this.room.spawnOnBench(player, Pkm.MAGIKARP)
-    } else if (label.includes("buy a feebas")) {
-      if (player.money >= 10) {
-        player.addMoney(-10, false, null)
-        this.room.spawnOnBench(player, Pkm.FEEBAS)
-      }
-    } else if (label.includes("buy a wishiwashi")) {
-      if (player.money >= 20) {
-        player.addMoney(-20, false, null)
-        this.room.spawnOnBench(player, Pkm.WISHIWASHI)
-      }
-    } else if (label.includes("potion")) {
-      this.state.runHP = Math.min(100, this.state.runHP + 20)
-      this.syncRunHPToPlayers()
-    } else if (label.includes("rest (10 gold)")) {
-      if (player.money >= 10) {
-        player.addMoney(-10, false, null)
-        this.state.runHP = Math.min(100, this.state.runHP + 50)
+    this.state.withRunRng(() => {
+      if (label.includes("egg")) {
+        giveRandomEgg(player)
+      } else if (label.includes("dojo ticket")) {
+        player.items.push(this.getDojoTicket())
+      } else if (label.includes("pick all berries")) {
+        if (player.money >= 6) {
+          player.addMoney(-6, false, null)
+          const berries = getEventBerries(7)
+          berries.forEach((item) => player.items.push(item))
+        }
+      } else if (label.includes("pick more berries")) {
+        if (player.money >= 3) {
+          player.addMoney(-3, false, null)
+          const berries = getEventBerries(5)
+          berries.forEach((item) => player.items.push(item))
+        }
+      } else if (label.includes("pick berries")) {
+        const berries = getEventBerries(3)
+        berries.forEach((item) => player.items.push(item))
+      } else if (label.includes("trade 10 gold")) {
+        if (player.money >= 10) {
+          player.addMoney(-10, false, null)
+          player.items.push(pickRandomIn(Tools))
+        }
+      } else if (label.includes("buy supplies")) {
+        if (player.money >= 8) {
+          player.addMoney(-8, false, null)
+          const items = getEventItems(2)
+          items.forEach((item) => player.items.push(item))
+        }
+      } else if (label.includes("sacrifice")) {
+        this.state.runHP = Math.max(0, this.state.runHP - 20)
         this.syncRunHPToPlayers()
+        const item = pickRandomIn(CraftableNoStonesOrScarves)
+        player.items.push(item)
+      } else if (label.includes("offering")) {
+        this.state.runHP = Math.max(0, this.state.runHP - 10)
+        this.syncRunHPToPlayers()
+        const items = getEventItems(1)
+        items.forEach((item) => player.items.push(item))
+      } else if (label.includes("dig for gems")) {
+        player.items.push(pickRandomIn(SynergyStones))
+      } else if (label.includes("search for fossils")) {
+        player.items.push(Item.FOSSIL_STONE)
+      } else if (label.includes("rob")) {
+        this.state.runHP = Math.max(0, this.state.runHP - 40)
+        this.syncRunHPToPlayers()
+        const items = getEventItems(2)
+        items.forEach((item) => player.items.push(item))
+      } else if (label.includes("rocky helmet challenge")) {
+        this.state.challengeItem = Item.ROCKY_HELMET
+      } else if (label.includes("assault vest challenge")) {
+        this.state.challengeItem = Item.ASSAULT_VEST
+      } else if (label.includes("kings rock challenge")) {
+        this.state.challengeItem = Item.KINGS_ROCK
+      } else if (label.includes("red orb challenge")) {
+        this.state.challengeItem = Item.RED_ORB
+      } else if (label.includes("blue orb challenge")) {
+        this.state.challengeItem = Item.BLUE_ORB
+      } else if (label.includes("green orb challenge")) {
+        this.state.challengeItem = Item.GREEN_ORB
+      } else if (label.includes("2 exchange tickets")) {
+        player.items.push(Item.EXCHANGE_TICKET)
+        player.items.push(Item.EXCHANGE_TICKET)
+      } else if (label.includes("1 exchange + 1 recycle")) {
+        player.items.push(Item.EXCHANGE_TICKET)
+        player.items.push(Item.RECYCLE_TICKET)
+      } else if (label.includes("2 recycle tickets")) {
+        player.items.push(Item.RECYCLE_TICKET)
+        player.items.push(Item.RECYCLE_TICKET)
+      } else if (label.includes("take a carp")) {
+        this.room.spawnOnBench(player, Pkm.MAGIKARP)
+      } else if (label.includes("buy a feebas")) {
+        if (player.money >= 10) {
+          player.addMoney(-10, false, null)
+          this.room.spawnOnBench(player, Pkm.FEEBAS)
+        }
+      } else if (label.includes("buy a wishiwashi")) {
+        if (player.money >= 20) {
+          player.addMoney(-20, false, null)
+          this.room.spawnOnBench(player, Pkm.WISHIWASHI)
+        }
+      } else if (label.includes("potion")) {
+        this.state.runHP = Math.min(100, this.state.runHP + 20)
+        this.syncRunHPToPlayers()
+      } else if (label.includes("rest (10 gold)")) {
+        if (player.money >= 10) {
+          player.addMoney(-10, false, null)
+          this.state.runHP = Math.min(100, this.state.runHP + 50)
+          this.syncRunHPToPlayers()
+        }
+      } else if (label.includes("berries for the road")) {
+        if (player.money >= 3) {
+          player.addMoney(-3, false, null)
+          for (let i = 0; i < 5; i++) player.items.push(Item.ORAN_BERRY)
+        }
       }
-    } else if (label.includes("berries for the road")) {
-      if (player.money >= 3) {
-        player.addMoney(-3, false, null)
-        for (let i = 0; i < 5; i++) player.items.push(Item.ORAN_BERRY)
-      }
-    }
+    })
 
     this.checkRunDeath(player)
+    this.state.spireEventResolved = true
+    this.autoSaveRun()
   }
 
   endArceusFight() {
     let totalDamageDealt = 0
     this.state.simulations.forEach((simulation) => {
       simulation.blueDpsMeter.forEach((dps) => {
-        totalDamageDealt += dps.physicalDamage + dps.specialDamage + dps.trueDamage
+        totalDamageDealt +=
+          dps.physicalDamage + dps.specialDamage + dps.trueDamage
       })
     })
 
@@ -2302,7 +2693,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     const humanPlayer = schemaValues(this.state.players).find((p) => !p.isBot)
     if (humanPlayer && totalDamageDealt > 0) {
       const snapshot = snapshotPlayerTeam(humanPlayer, { includeBench: true })
-      const { checkAndUpdateArceusRecord } = require("../../services/arceus-record")
+      const {
+        checkAndUpdateArceusRecord
+      } = require("../../services/arceus-record")
       const { isNewRecord, previousRecord } = checkAndUpdateArceusRecord(
         humanPlayer.name,
         totalDamageDealt,
@@ -2400,9 +2793,14 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       snapshot.region = this.state.playerSpireRegion || "town"
       snapshot.runId = this.state.runId
       if (snapshot.pokemon.length > 0) {
-        const previousData = loadChampionData(this.state.difficultyMode as DifficultyMode)
+        const previousData = loadChampionData(
+          this.state.difficultyMode as DifficultyMode
+        )
         const defeatedChampion = previousData.champion.name
-        const result = promoteNewChampion(snapshot, this.state.difficultyMode as DifficultyMode)
+        const result = promoteNewChampion(
+          snapshot,
+          this.state.difficultyMode as DifficultyMode
+        )
         // Swap promotion: E4 #1-3 are unchanged, the dethroned champion takes slot #4
         // (the slot the new champion vacated by climbing there).
         const newE4 = [
@@ -2516,213 +2914,301 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     const node = this.state.mapNodes.get(this.state.currentNodeId)
     if (!node) return
 
-    this.state.players.forEach((player: Player) => {
-      if (player.alive && !player.isBot) {
-        const lastHistory = player.history.at(-1)
-        const won = lastHistory?.result === BattleResult.WIN
-        const modeLabel = ["Easy", "Normal", "Hard"][this.state.difficultyMode] ?? "Normal"
-        const guestTag = player.id === "local-player" ? " - guest" : ""
-        logger.info(`Player: ${player.name.padEnd(20)} stage ${String(this.state.stageLevel).padStart(2)} ${won ? "win " : "loss"}, hp: ${String(this.state.runHP).padStart(3)}, difficulty: ${modeLabel.padEnd(10)}${guestTag}`)
+    this.state.withRunRng(() => {
+      this.state.players.forEach((player: Player) => {
+        if (player.alive && !player.isBot) {
+          const lastHistory = player.history.at(-1)
+          const won = lastHistory?.result === BattleResult.WIN
+          const modeLabel =
+            ["Easy", "Normal", "Hard"][this.state.difficultyMode] ?? "Normal"
+          const guestTag = player.id === "local-player" ? " - guest" : ""
+          logger.info(
+            `Player: ${player.name.padEnd(20)} stage ${String(this.state.stageLevel).padStart(2)} ${won ? "win " : "loss"}, hp: ${String(this.state.runHP).padStart(3)}, difficulty: ${modeLabel.padEnd(10)}${guestTag}`
+          )
 
-        // STS-style rewards screen: gold (and passive heal/XP) are no longer
-        // auto-granted — they are pushed as claimable rows that the player must
-        // click on the rewards screen (Skip forfeits anything unclaimed).
-        const baseGold = getGoldReward(node.nodeType, this.state.currentAct, node.floor)
-        const bonusGold = getRelicBonusGold(player.relics)
-        let totalGold = won ? baseGold + bonusGold : Math.floor(baseGold / 3)
-        // Golden Idol relic: +50% gold from winning fights.
-        if (won && player.relics.includes(Relic.GoldenIdol)) {
-          totalGold = Math.floor(totalGold * 1.5)
-        }
-        if (totalGold > 0) {
-          player.choices.push(new PlayerChoice({ type: "gold", value: totalGold }))
-        }
-
-        // Challenge item reward
-        if (this.state.challengeItem && node.nodeType === MapNodeType.WILD_BATTLE) {
-          if (won) {
-            player.items.push(this.state.challengeItem as Item)
+          // STS-style rewards screen: gold (and passive heal/XP) are no longer
+          // auto-granted — they are pushed as claimable rows that the player must
+          // click on the rewards screen (Skip forfeits anything unclaimed).
+          const baseGold = getGoldReward(
+            node.nodeType,
+            this.state.currentAct,
+            node.floor
+          )
+          const bonusGold = getRelicBonusGold(player.relics)
+          let totalGold = won ? baseGold + bonusGold : Math.floor(baseGold / 3)
+          // Golden Idol relic: +50% gold from winning fights.
+          if (won && player.relics.includes(Relic.GoldenIdol)) {
+            totalGold = Math.floor(totalGold * 1.5)
           }
-          this.state.challengeItem = ""
-        }
-
-        // Reward offers
-        if (node.nodeType === MapNodeType.WILD_BATTLE) {
-          this.generateWildRewardChoice(player, node, won)
-        } else if (node.nodeType === MapNodeType.ELITE && node.eliteEncounterIndex >= 0) {
-          if (won) {
-            this.generateEliteRewardChoice(player)
-          } else {
-            this.generateEliteLossChoice(player)
+          if (totalGold > 0) {
+            player.choices.push(
+              new PlayerChoice({ type: "gold", value: totalGold })
+            )
           }
-        } else if (node.nodeType === MapNodeType.UNLOCK && node.eliteEncounterIndex >= 0) {
-          if (won) {
-            const unlockPokemon = getUnlockEncounterPokemon(node.eliteEncounterIndex, this.state.currentAct, this.state.isEndless)
-            const unlockType = getUnlockEncounterType(node.eliteEncounterIndex, this.state.currentAct, this.state.isEndless)
-            if (unlockType === "hatch") {
-              const component = pickRandomIn(ItemComponentsNoFossilOrScarf)
-              player.choices.push(
-                new PlayerChoice({ type: "unlockReward", pokemons: [...unlockPokemon, Pkm.DEFAULT], items: ["" as Item, component] })
-              )
-            } else {
-              player.choices.push(
-                new PlayerChoice({ type: "unlockReward", pokemons: unlockPokemon, items: [] })
-              )
+
+          // Challenge item reward
+          if (
+            this.state.challengeItem &&
+            node.nodeType === MapNodeType.WILD_BATTLE
+          ) {
+            if (won) {
+              player.items.push(this.state.challengeItem as Item)
             }
-          } else {
-            this.generateWildRewardChoice(player, node, false)
+            this.state.challengeItem = ""
           }
-        } else if (node.nodeType === MapNodeType.GYM_LEADER) {
-          if (won && node.gymLeaderSynergy) {
-            const synergy = node.gymLeaderSynergy as Synergy
-            const gem = getGymLeaderGem(synergy)
-            const tool = pickRandomIn([...Tools])
-            if (this.state.isSpire) {
-              // Spire gym reward: choose gem, a tool, or a random (unheld) relic.
-              // Class-exclusive relics only show for their class.
-              const heldRelics = new Set<string>(player.relics)
-              const eligibleRelics = ALL_RELICS.filter((r) => {
-                if (heldRelics.has(r)) return false
-                const exclusiveTo = CLASS_EXCLUSIVE_RELICS[r]
-                return (
-                  exclusiveTo === undefined ||
-                  exclusiveTo === this.state.spireClass
-                )
-              })
-              // Implemented relics are offered first; flavor-only relics with
-              // no effect only enter the pool once every implemented one has
-              // been collected
-              const implementedRelics = eligibleRelics.filter((r) =>
-                isRelicImplemented(r)
+
+          // Reward offers
+          if (node.nodeType === MapNodeType.WILD_BATTLE) {
+            this.generateWildRewardChoice(player, node, won)
+          } else if (
+            node.nodeType === MapNodeType.ELITE &&
+            node.eliteEncounterIndex >= 0
+          ) {
+            if (won) {
+              this.generateEliteRewardChoice(player)
+            } else {
+              this.generateEliteLossChoice(player)
+            }
+          } else if (
+            node.nodeType === MapNodeType.UNLOCK &&
+            node.eliteEncounterIndex >= 0
+          ) {
+            if (won) {
+              const unlockPokemon = getUnlockEncounterPokemon(
+                node.eliteEncounterIndex,
+                this.state.currentAct,
+                this.state.isEndless
               )
-              const relicPool =
-                implementedRelics.length > 0 ? implementedRelics : eligibleRelics
-              const relic = relicPool.length > 0 ? pickRandomIn(relicPool) : ""
+              const unlockType = getUnlockEncounterType(
+                node.eliteEncounterIndex,
+                this.state.currentAct,
+                this.state.isEndless
+              )
+              if (unlockType === "hatch") {
+                const component = pickRandomIn(ItemComponentsNoFossilOrScarf)
+                player.choices.push(
+                  new PlayerChoice({
+                    type: "unlockReward",
+                    pokemons: [...unlockPokemon, Pkm.DEFAULT],
+                    items: ["" as Item, component]
+                  })
+                )
+              } else {
+                player.choices.push(
+                  new PlayerChoice({
+                    type: "unlockReward",
+                    pokemons: unlockPokemon,
+                    items: []
+                  })
+                )
+              }
+            } else {
+              this.generateWildRewardChoice(player, node, false)
+            }
+          } else if (node.nodeType === MapNodeType.GYM_LEADER) {
+            if (won && node.gymLeaderSynergy) {
+              const synergy = node.gymLeaderSynergy as Synergy
+              const gem = getGymLeaderGem(synergy)
+              const tool = pickRandomIn([...Tools])
+              if (this.state.isSpire) {
+                // Spire gym reward: choose gem, a tool, or a random (unheld) relic.
+                // Class-exclusive relics only show for their class.
+                const heldRelics = new Set<string>(player.relics)
+                const eligibleRelics = ALL_RELICS.filter((r) => {
+                  if (heldRelics.has(r)) return false
+                  const exclusiveTo = CLASS_EXCLUSIVE_RELICS[r]
+                  return (
+                    exclusiveTo === undefined ||
+                    exclusiveTo === this.state.spireClass
+                  )
+                })
+                // Implemented relics are offered first; flavor-only relics with
+                // no effect only enter the pool once every implemented one has
+                // been collected
+                const implementedRelics = eligibleRelics.filter((r) =>
+                  isRelicImplemented(r)
+                )
+                const relicPool =
+                  implementedRelics.length > 0
+                    ? implementedRelics
+                    : eligibleRelics
+                const relic =
+                  relicPool.length > 0 ? pickRandomIn(relicPool) : ""
+                player.choices.push(
+                  new PlayerChoice({
+                    type: "gymReward",
+                    pokemons: [Pkm.DEFAULT, Pkm.DEFAULT, Pkm.DEFAULT],
+                    items: [gem, tool, "" as Item],
+                    relics: ["", "", relic]
+                  })
+                )
+              } else {
+                const baseForms = getGymLeaderBaseFormPokemon(synergy)
+                const gymPokemon =
+                  baseForms.length > 0 ? pickRandomIn(baseForms) : Pkm.DITTO
+                const pokemons: Pkm[] = [Pkm.DEFAULT, Pkm.DEFAULT, gymPokemon]
+                const items: Item[] = [gem, tool, Item.ORAN_BERRY]
+                player.choices.push(
+                  new PlayerChoice({ type: "gymReward", pokemons, items })
+                )
+              }
+            } else {
+              this.generateWildRewardChoice(player, node, false)
+            }
+          } else if (node.nodeType === MapNodeType.ASYNC_FIGHT) {
+            if (node.floor === 20) {
+              if (won) {
+                this.grantBossSignatureItems(player)
+              }
+              const rewardPool = [...ShinyItems, ...Tools]
+              const goldItemChoices = pickNRandomIn(rewardPool, 3)
               player.choices.push(
                 new PlayerChoice({
-                  type: "gymReward",
-                  pokemons: [Pkm.DEFAULT, Pkm.DEFAULT, Pkm.DEFAULT],
-                  items: [gem, tool, "" as Item],
-                  relics: ["", "", relic]
+                  type: "item",
+                  items: goldItemChoices as any[]
                 })
               )
             } else {
-              const baseForms = getGymLeaderBaseFormPokemon(synergy)
-              const gymPokemon = baseForms.length > 0 ? pickRandomIn(baseForms) : Pkm.DITTO
-              const pokemons: Pkm[] = [Pkm.DEFAULT, Pkm.DEFAULT, gymPokemon]
-              const items: Item[] = [gem, tool, Item.ORAN_BERRY]
+              const componentChoices = pickNRandomIn(
+                ItemComponentsNoFossilOrScarf,
+                3
+              )
               player.choices.push(
-                new PlayerChoice({ type: "gymReward", pokemons, items })
+                new PlayerChoice({
+                  type: "item",
+                  items: componentChoices as any[]
+                })
               )
             }
-          } else {
-            this.generateWildRewardChoice(player, node, false)
-          }
-        } else if (node.nodeType === MapNodeType.ASYNC_FIGHT) {
-          if (node.floor === 20) {
+          } else if (node.nodeType === MapNodeType.CHAMPION) {
             if (won) {
-              this.grantBossSignatureItems(player)
+              const goldItemChoices = pickNRandomIn([...ShinyItems], 3)
+              player.choices.push(
+                new PlayerChoice({
+                  type: "item",
+                  items: goldItemChoices as any[]
+                })
+              )
             }
-            const rewardPool = [...ShinyItems, ...Tools]
-            const goldItemChoices = pickNRandomIn(rewardPool, 3)
-            player.choices.push(
-              new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
-            )
-          } else {
-            const componentChoices = pickNRandomIn(ItemComponentsNoFossilOrScarf, 3)
-            player.choices.push(
-              new PlayerChoice({ type: "item", items: componentChoices as any[] })
-            )
+          } else if (node.nodeType !== MapNodeType.LEGENDARY_BOSS) {
+            const offerCount = 3
+            const pokemonOffers: Pkm[] = []
+            while (pokemonOffers.length < offerCount) {
+              const p = this.state.shop.pickPokemon(
+                player,
+                this.state,
+                -1,
+                true
+              )
+              if (p) pokemonOffers.push(p)
+              else break
+            }
+            if (won && pokemonOffers.length > 0) {
+              const pairedItems: Item[] = pokemonOffers.map(() =>
+                pickRandomIn(ItemComponentsNoFossilOrScarf)
+              )
+              player.choices.push(
+                new PlayerChoice({
+                  type: "addPick",
+                  pokemons: pokemonOffers,
+                  items: pairedItems
+                })
+              )
+            } else if (pokemonOffers.length > 0) {
+              player.choices.push(
+                new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
+              )
+            }
           }
-        } else if (node.nodeType === MapNodeType.CHAMPION) {
-          if (won) {
-            const goldItemChoices = pickNRandomIn([...ShinyItems], 3)
-            player.choices.push(
-              new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
-            )
+          if (
+            won &&
+            node.nodeType === MapNodeType.LEGENDARY_BOSS &&
+            !this.state.isTutorial
+          ) {
+            this.grantBossSignatureItems(player)
           }
-        } else if (node.nodeType !== MapNodeType.LEGENDARY_BOSS) {
-          const offerCount = 3
-          const pokemonOffers: Pkm[] = []
-          while (pokemonOffers.length < offerCount) {
-            const p = this.state.shop.pickPokemon(player, this.state, -1, true)
-            if (p) pokemonOffers.push(p)
-            else break
-          }
-          if (won && pokemonOffers.length > 0) {
-            const pairedItems: Item[] = pokemonOffers.map(() =>
-              pickRandomIn(ItemComponentsNoFossilOrScarf)
-            )
+          // Tutorial's boss is the run's final fight (act 1 only), so skip the
+          // between-acts boss-item reward — the run completes straight to victory.
+          if (
+            node.nodeType === MapNodeType.LEGENDARY_BOSS &&
+            this.state.currentAct < 3 &&
+            !this.state.isTutorial
+          ) {
+            const isHardOrAbove = this.state.difficultyMode >= 2
+            const isImpossible = this.state.difficultyMode === 3
+            const rewardPool =
+              (isHardOrAbove && this.state.currentAct === 1) || isImpossible
+                ? [...Tools]
+                : [...ShinyItems]
+            const count = won ? 3 : 1
+            const goldItemChoices = pickNRandomIn(rewardPool, count)
             player.choices.push(
-              new PlayerChoice({ type: "addPick", pokemons: pokemonOffers, items: pairedItems })
+              new PlayerChoice({
+                type: "item",
+                items: goldItemChoices as any[]
+              })
             )
-          } else if (pokemonOffers.length > 0) {
-            player.choices.push(
-              new PlayerChoice({ type: "addPick", pokemons: pokemonOffers })
-            )
-          }
-        }
-        if (won && node.nodeType === MapNodeType.LEGENDARY_BOSS && !this.state.isTutorial) {
-          this.grantBossSignatureItems(player)
-        }
-        // Tutorial's boss is the run's final fight (act 1 only), so skip the
-        // between-acts boss-item reward — the run completes straight to victory.
-        if (node.nodeType === MapNodeType.LEGENDARY_BOSS && this.state.currentAct < 3 && !this.state.isTutorial) {
-          const isHardOrAbove = this.state.difficultyMode >= 2
-          const isImpossible = this.state.difficultyMode === 3
-          const rewardPool = (isHardOrAbove && this.state.currentAct === 1) || isImpossible ? [...Tools] : [...ShinyItems]
-          const count = won ? 3 : 1
-          const goldItemChoices = pickNRandomIn(rewardPool, count)
-          player.choices.push(
-            new PlayerChoice({ type: "item", items: goldItemChoices as any[] })
-          )
-        }
-
-        // Relic post-battle heal is a claimable row on the rewards screen
-        // (pushed last so it sits below the gold + main reward rows).
-        const healAmount = getRelicPostBattleHeal(player.relics, won)
-        if (healAmount > 0) {
-          player.choices.push(new PlayerChoice({ type: "heal", value: healAmount }))
-        }
-        // Spire mode: +1 XP after every fight (win or loss) — a claimable row the
-        // player clicks (the "xp" choice grants it via pickChoice -> addExperience).
-        if (this.state.isSpire) {
-          // Nilry's Codex relic: +4 extra experience on a win (base +1 always).
-          const xpValue =
-            1 + (won && player.relics.includes(Relic.NilrysCodex) ? 4 : 0)
-          player.choices.push(new PlayerChoice({ type: "xp", value: xpValue }))
-
-          // One ticket roll (mutually exclusive): 40% reroll / 25% class reroll /
-          // 15% item reroll / 10% upgrade / 10% nothing. Offered as a claimable
-          // "itemGrant" row.
-          const ticketRoll = Math.random()
-          const ticket =
-            ticketRoll < 0.4 ? Item.REROLL_TICKET
-            : ticketRoll < 0.65 ? Item.CLASS_REROLL_TICKET
-            : ticketRoll < 0.8 ? Item.ITEM_REROLL_TICKET
-            : ticketRoll < 0.9 ? Item.UPGRADE_TICKET
-            : null
-          if (ticket) {
-            player.choices.push(new PlayerChoice({ type: "itemGrant", items: [ticket] }))
           }
 
-          // Independent 30% chance for a random berry (any berry).
-          if (Math.random() < 0.3) {
+          // Relic post-battle heal is a claimable row on the rewards screen
+          // (pushed last so it sits below the gold + main reward rows).
+          const healAmount = getRelicPostBattleHeal(player.relics, won)
+          if (healAmount > 0) {
             player.choices.push(
-              new PlayerChoice({ type: "itemGrant", items: [pickRandomIn([...Berries])] })
+              new PlayerChoice({ type: "heal", value: healAmount })
             )
           }
-        }
+          // Spire mode: +1 XP after every fight (win or loss) — a claimable row the
+          // player clicks (the "xp" choice grants it via pickChoice -> addExperience).
+          if (this.state.isSpire) {
+            // Nilry's Codex relic: +4 extra experience on a win (base +1 always).
+            const xpValue =
+              1 + (won && player.relics.includes(Relic.NilrysCodex) ? 4 : 0)
+            player.choices.push(
+              new PlayerChoice({ type: "xp", value: xpValue })
+            )
 
-        // ─── Tutorial scripting ──────────────────────────────────────────────
-        if (this.state.isTutorial) {
-          if (node.floor === 1 && won) {
-            this.room.sendTutorialDialog("wild1_reward")
-          } else if (node.floor === 9 && won) {
-            this.room.sendTutorialDialog("gym_reward")
+            // One ticket roll (mutually exclusive): 40% reroll / 25% class reroll /
+            // 15% item reroll / 10% upgrade / 10% nothing. Offered as a claimable
+            // "itemGrant" row.
+            const ticketRoll = randomFloat()
+            const ticket =
+              ticketRoll < 0.4
+                ? Item.REROLL_TICKET
+                : ticketRoll < 0.65
+                  ? Item.CLASS_REROLL_TICKET
+                  : ticketRoll < 0.8
+                    ? Item.ITEM_REROLL_TICKET
+                    : ticketRoll < 0.9
+                      ? Item.UPGRADE_TICKET
+                      : null
+            if (ticket) {
+              player.choices.push(
+                new PlayerChoice({ type: "itemGrant", items: [ticket] })
+              )
+            }
+
+            // Independent 30% chance for a random berry (any berry).
+            if (randomFloat() < 0.3) {
+              player.choices.push(
+                new PlayerChoice({
+                  type: "itemGrant",
+                  items: [pickRandomIn([...Berries])]
+                })
+              )
+            }
+          }
+
+          // ─── Tutorial scripting ──────────────────────────────────────────────
+          if (this.state.isTutorial) {
+            if (node.floor === 1 && won) {
+              this.room.sendTutorialDialog("wild1_reward")
+            } else if (node.floor === 9 && won) {
+              this.room.sendTutorialDialog("gym_reward")
+            }
           }
         }
-      }
+      })
     })
 
     // NOTE: a single autoSaveRun() runs at the very end of this method, AFTER
@@ -2746,7 +3232,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         if (anyPlayerWon) {
           schemaValues(this.state.players).forEach((p) => {
             if (!p.isBot && p.id !== "local-player") {
-              const { markTutorialCompleted } = require("../../services/run-save")
+              const {
+                markTutorialCompleted
+              } = require("../../services/run-save")
               markTutorialCompleted(p.id)
             }
           })
@@ -2758,10 +3246,22 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           this.state.currentNodeId = ""
           this.state.mapNodes.clear()
           this.state.mapEdges.clear()
-          generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode, this.state.isEndless, this.state.isSpire)
+          this.room.clearEliteDesignAssignments()
+          this.state.withRunRng(() => {
+            generateActMap(
+              this.state.currentAct,
+              this.state.mapNodes,
+              this.state.mapEdges,
+              this.state.difficultyMode as DifficultyMode,
+              this.state.isEndless,
+              this.state.isSpire
+            )
+          })
           this.applyFisho2EliteOverride()
           this.room.populateEliteDesignNodes()
-          this.state.players.forEach((p) => { p.dojoFamilies.clear() })
+          this.state.players.forEach((p) => {
+            p.dojoFamilies.clear()
+          })
         } else {
           // Act 3 boss beaten: victory. Spire mode ends here (no Elite Four /
           // Arceus); classic mode also unlocks the Elite Four climb.
@@ -2775,10 +3275,22 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         this.state.currentNodeId = ""
         this.state.mapNodes.clear()
         this.state.mapEdges.clear()
-        generateActMap(this.state.currentAct, this.state.mapNodes, this.state.mapEdges, this.state.difficultyMode as DifficultyMode, this.state.isEndless, this.state.isSpire)
+        this.room.clearEliteDesignAssignments()
+        this.state.withRunRng(() => {
+          generateActMap(
+            this.state.currentAct,
+            this.state.mapNodes,
+            this.state.mapEdges,
+            this.state.difficultyMode as DifficultyMode,
+            this.state.isEndless,
+            this.state.isSpire
+          )
+        })
         this.applyFisho2EliteOverride()
         this.room.populateEliteDesignNodes()
-        this.state.players.forEach((p) => { p.dojoFamilies.clear() })
+        this.state.players.forEach((p) => {
+          p.dojoFamilies.clear()
+        })
       } else {
         this.state.runFailed = true
         this.state.gameFinished = true
@@ -2798,8 +3310,16 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       schemaValues(this.state.players).forEach((p) => {
         if (!p.isBot) {
           const stage = `act${this.state.currentAct}-floor${currentNode.floor}`
-          const { submitAsyncFight } = require("../../services/async-fight-pool")
-          submitAsyncFight(stage, p.name, p.avatar, this.state.playerSpireRegion || "town", snapshotPlayerTeam(p))
+          const {
+            submitAsyncFight
+          } = require("../../services/async-fight-pool")
+          submitAsyncFight(
+            stage,
+            p.name,
+            p.avatar,
+            this.state.playerSpireRegion || "town",
+            snapshotPlayerTeam(p)
+          )
         }
       })
 
@@ -2820,11 +3340,17 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     // Calculate damage before stopping simulations (stop() clears redTeam)
     let remainingEnemyStars = 0
-    const humanPlayer = schemaValues(this.state.players).find(p => !p.isBot)
-    const playerSim = humanPlayer ? this.state.simulations.get(humanPlayer.simulationId) : undefined
+    const humanPlayer = schemaValues(this.state.players).find((p) => !p.isBot)
+    const playerSim = humanPlayer
+      ? this.state.simulations.get(humanPlayer.simulationId)
+      : undefined
     if (playerSim) {
       playerSim.redTeam.forEach((pokemon) => {
-        if (pokemon.hp > 0 && !pokemon.isSpawn && pokemon.passive !== Passive.INANIMATE) {
+        if (
+          pokemon.hp > 0 &&
+          !pokemon.isSpawn &&
+          pokemon.passive !== Passive.INANIMATE
+        ) {
           remainingEnemyStars += getPokemonData(pokemon.name).stars
         }
       })
@@ -2856,10 +3382,19 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             player.alive = false
             this.recordRunEndOnce(player)
             if (this.state.isEndless) {
-              const { checkAndUpdateEndlessRecord, loadEndlessLeaderboard } = require("../../services/endless-record")
+              const {
+                checkAndUpdateEndlessRecord,
+                loadEndlessLeaderboard
+              } = require("../../services/endless-record")
               const teamSnap = snapshotPlayerTeam(player)
               const prevLeader = loadEndlessLeaderboard().records[0] ?? null
-              const { isNewRecord } = checkAndUpdateEndlessRecord(player.name, player.avatar, this.state.currentAct, this.state.currentFloor, teamSnap)
+              const { isNewRecord } = checkAndUpdateEndlessRecord(
+                player.name,
+                player.avatar,
+                this.state.currentAct,
+                this.state.currentFloor,
+                teamSnap
+              )
               if (isNewRecord) {
                 discordService.announceEndlessRecord(
                   teamSnap,
@@ -2889,6 +3424,21 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         player.updateSynergies()
       }
     })
+
+    const completedNodeId = this.state.currentNodeId
+    if (
+      completedNodeId &&
+      !this.state.runFailed &&
+      this.state.postBattleEffectsNodeId !== completedNodeId
+    ) {
+      this.state.withRunRng(() => {
+        this.state.players.forEach((player) => {
+          if (player.alive && !player.isBot)
+            this.updatePlayerBetweenStages(player)
+        })
+      })
+      this.state.postBattleEffectsNodeId = completedNodeId
+    }
 
     this.syncRunHPToPlayers()
   }
@@ -2992,7 +3542,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     // Clean up minigame avatars from previous phases
     this.state.avatars.forEach((a, key) => this.state.avatars.delete(key))
-    this.state.floatingItems.forEach((i, key) => this.state.floatingItems.delete(key))
+    this.state.floatingItems.forEach((i, key) =>
+      this.state.floatingItems.delete(key)
+    )
 
     if (
       [2, 4].includes(this.state.stageLevel) &&
@@ -3013,7 +3565,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
 
     const commands = new Array<Command>()
 
-    this.state.players.forEach((p) => this.updatePlayerBetweenStages(p))
+    if (!this.state.postBattleEffectsNodeId) {
+      this.state.withRunRng(() => {
+        this.state.players.forEach((player) =>
+          this.updatePlayerBetweenStages(player)
+        )
+      })
+    }
 
     this.spawnWanderingPokemons()
 
@@ -3033,7 +3591,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   updatePlayerBetweenStages(player: Player) {
     const board = schemaValues(player.board)
 
-    board.forEach((pokemon) => { pokemon._cookedDishes = [] })
+    board.forEach((pokemon) => {
+      pokemon._cookedDishes = []
+    })
 
     if (
       getSynergyStep(player.synergies, Synergy.FIRE) === 4 &&
@@ -3091,18 +3651,16 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
         delay: 3000
       })
 
-      setTimeout(() => {
-        if (rewards[0] === Item.BIG_NUGGET) {
-          const moneyGained = 10
-          player.addMoney(moneyGained, true, null)
-          const client = this.room.clients.find(
-            (cli) => cli.auth.uid === player.id
-          )
-          client?.send(Transfer.PLAYER_INCOME, moneyGained)
-        } else {
-          player.items.push(...rewards)
-        }
-      }, 10000)
+      if (rewards[0] === Item.BIG_NUGGET) {
+        const moneyGained = 10
+        player.addMoney(moneyGained, true, null)
+        const client = this.room.clients.find(
+          (cli) => cli.auth.uid === player.id
+        )
+        client?.send(Transfer.PLAYER_INCOME, moneyGained)
+      } else {
+        player.items.push(...rewards)
+      }
     }
 
     // Mango relic: twice as many berry trees, growing twice as fast
@@ -3153,47 +3711,41 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               pokemonId,
               buriedItem
             })
-            this.room.clock.setTimeout(() => {
-              player.groundHoles[index] = max(5)(player.groundHoles[index] + 1)
-              PassiveEffects[pokemon.passive]?.forEach((effect) => {
-                if (effect instanceof OnGroundDiggingEffect) {
-                  effect.apply({ pokemon, player })
-                }
-              })
-              player.board.forEach((pokemon) => {
-                // Condition based evolutions on ground hole dig
-                if (pokemon.evolutionRule.type === EvolutionRuleType.STATE) {
-                  EvolutionManager.tryEvolve(pokemon, player, this.state)
-                } else if (
-                  pokemon.evolutionRule.type === EvolutionRuleType.STACK
-                ) {
-                  EvolutionManager.tryEvolve(pokemon, player)
-                }
-              })
-            }, 1000)
+            player.groundHoles[index] = max(5)(player.groundHoles[index] + 1)
+            PassiveEffects[pokemon.passive]?.forEach((effect) => {
+              if (effect instanceof OnGroundDiggingEffect) {
+                effect.apply({ pokemon, player })
+              }
+            })
+            player.board.forEach((boardPokemon) => {
+              // Condition based evolutions on ground hole dig
+              if (boardPokemon.evolutionRule.type === EvolutionRuleType.STATE) {
+                EvolutionManager.tryEvolve(boardPokemon, player, this.state)
+              } else if (
+                boardPokemon.evolutionRule.type === EvolutionRuleType.STACK
+              ) {
+                EvolutionManager.tryEvolve(boardPokemon, player)
+              }
+            })
 
-            if (buriedItem) {
-              this.room.clock.setTimeout(() => {
-                if (buriedItem === Item.COIN) {
-                  player.addMoney(1, true, null)
-                } else if (buriedItem === Item.NUGGET) {
-                  player.addMoney(3, true, null)
-                } else if (buriedItem === Item.BIG_NUGGET) {
-                  player.addMoney(10, true, null)
-                } else if (buriedItem === Item.TREASURE_BOX) {
-                  player.items.push(...pickNRandomIn(ItemComponents, 2))
-                } else if (isIn(SynergyGems, buriedItem)) {
-                  const type = SynergyGivenByGem[buriedItem]
-                  player.bonusSynergies.set(
-                    type,
-                    (player.bonusSynergies.get(type) ?? 0) + 1
-                  )
-                  player.items.push(buriedItem)
-                  player.updateSynergies()
-                } else {
-                  player.items.push(buriedItem)
-                }
-              }, 2500)
+            if (buriedItem === Item.COIN) {
+              player.addMoney(1, true, null)
+            } else if (buriedItem === Item.NUGGET) {
+              player.addMoney(3, true, null)
+            } else if (buriedItem === Item.BIG_NUGGET) {
+              player.addMoney(10, true, null)
+            } else if (buriedItem === Item.TREASURE_BOX) {
+              player.items.push(...pickNRandomIn(ItemComponents, 2))
+            } else if (buriedItem && isIn(SynergyGems, buriedItem)) {
+              const type = SynergyGivenByGem[buriedItem]
+              player.bonusSynergies.set(
+                type,
+                (player.bonusSynergies.get(type) ?? 0) + 1
+              )
+              player.items.push(buriedItem)
+              player.updateSynergies()
+            } else if (buriedItem) {
+              player.items.push(buriedItem)
             }
           }
         }
@@ -3576,7 +4128,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   // opponent snapshot into a red Player and runs the simulation (blue = the design
   // already on the human player). Pure AI-vs-AI; the human spectates.
   beginEliteTestFight() {
-    const player = schemaValues(this.state.players).find((p: Player) => !p.isBot)
+    const player = schemaValues(this.state.players).find(
+      (p: Player) => !p.isBot
+    )
     const snap = this.state.encounterSnapshot
     if (!player || !snap || !this.state.eliteTestAwaitingBegin) return
 
@@ -3613,7 +4167,9 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   // it to the client, tear the fight down, and return the room to its idle PICK
   // phase ready for the next test.
   stopEliteTestFight() {
-    const player = schemaValues(this.state.players).find((p: Player) => !p.isBot)
+    const player = schemaValues(this.state.players).find(
+      (p: Player) => !p.isBot
+    )
     const sim = player?.simulationId
       ? this.state.simulations.get(player.simulationId)
       : undefined
@@ -3719,7 +4275,8 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       const opponentPlayer = reconstructTeamAsPlayer(snapshot, this.state)
 
       if (this.state.encounterCrownedAt && this.state.difficultyMode < 2) {
-        const elapsedMs = Date.now() - new Date(this.state.encounterCrownedAt).getTime()
+        const elapsedMs =
+          Date.now() - new Date(this.state.encounterCrownedAt).getTime()
         const hoursElapsed = elapsedMs / (1000 * 60 * 60)
         // HP decays exponentially (Easy 12%/hr, Normal 6%/hr, floored at 30%).
         const ratePerHour = this.state.difficultyMode === 0 ? 0.12 : 0.06
@@ -3732,7 +4289,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           if (pokemon.positionY <= 0) return
           if (decayMultiplier < 1) {
             const floor = Math.round(pokemon.hp * 0.3)
-            const decayedHp = Math.max(floor, Math.round(pokemon.hp * decayMultiplier))
+            const decayedHp = Math.max(
+              floor,
+              Math.round(pokemon.hp * decayMultiplier)
+            )
             const reduction = pokemon.hp - decayedHp
             if (reduction > 0) pokemon.addMaxHP(-reduction)
           }
@@ -3748,12 +4308,20 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           player.opponentId = opponentPlayer.id
           player.opponentName = this.state.encounterName || snapshot.name
           player.opponentAvatar = snapshot.avatar
-          player.opponentTitle = (node?.nodeType === MapNodeType.ELITE_FOUR ? "ELITE FOUR"
-            : node?.nodeType === MapNodeType.CHAMPION ? "CHAMPION"
-            : "TRAINER") as any
+          player.opponentTitle = (
+            node?.nodeType === MapNodeType.ELITE_FOUR
+              ? "ELITE FOUR"
+              : node?.nodeType === MapNodeType.CHAMPION
+                ? "CHAMPION"
+                : "TRAINER"
+          ) as any
           player.team = Team.BLUE_TEAM
 
-          const weather = getWeather(player, opponentPlayer, opponentPlayer.board)
+          const weather = getWeather(
+            player,
+            opponentPlayer,
+            opponentPlayer.board
+          )
           const simulation = new Simulation(
             crypto.randomUUID(),
             this.room,
@@ -3800,15 +4368,25 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             PkmIndex[encounter.avatar],
             false
           )
-          player.opponentTitle = (node?.nodeType === MapNodeType.GYM_LEADER ? "GYM LEADER"
-            : node?.nodeType === MapNodeType.ELITE ? "ELITE"
-            : node?.nodeType === MapNodeType.UNLOCK ? "UNLOCK"
-            : node?.nodeType === MapNodeType.LEGENDARY_BOSS ? "BOSS"
-            : "WILD") as any
+          player.opponentTitle = (
+            node?.nodeType === MapNodeType.GYM_LEADER
+              ? "GYM LEADER"
+              : node?.nodeType === MapNodeType.ELITE
+                ? "ELITE"
+                : node?.nodeType === MapNodeType.UNLOCK
+                  ? "UNLOCK"
+                  : node?.nodeType === MapNodeType.LEGENDARY_BOSS
+                    ? "BOSS"
+                    : "WILD"
+          ) as any
           player.team = Team.BLUE_TEAM
 
           const pveBoard = PokemonFactory.makePveBoard(
-            { board: encounter.board, name: encounter.name as any, avatar: encounter.avatar },
+            {
+              board: encounter.board,
+              name: encounter.name as any,
+              avatar: encounter.avatar
+            },
             false,
             null
           )
@@ -3820,23 +4398,38 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               }
             })
           }
-          if (encounter.bonusHP || encounter.bonusAtk || encounter.bonusDef || encounter.bonusSpeDef || encounter.bonusAP || this.state.encounterBonusPP) {
+          if (
+            encounter.bonusHP ||
+            encounter.bonusAtk ||
+            encounter.bonusDef ||
+            encounter.bonusSpeDef ||
+            encounter.bonusAP ||
+            this.state.encounterBonusPP
+          ) {
             pvePokemons.forEach((pkm) => {
               if (encounter.bonusHP) pkm.addMaxHP(encounter.bonusHP)
               if (encounter.bonusAtk) pkm.addAttack(encounter.bonusAtk)
               if (encounter.bonusDef) pkm.addDefense(encounter.bonusDef)
-              if (encounter.bonusSpeDef) pkm.addSpecialDefense(encounter.bonusSpeDef)
+              if (encounter.bonusSpeDef)
+                pkm.addSpecialDefense(encounter.bonusSpeDef)
               if (encounter.bonusAP) pkm.addAbilityPower(encounter.bonusAP)
-              if (this.state.encounterBonusPP) pkm.maxPP += this.state.encounterBonusPP
+              if (this.state.encounterBonusPP)
+                pkm.maxPP += this.state.encounterBonusPP
             })
           }
           if (node?.nodeType === MapNodeType.ELITE && pvePokemons.length > 0) {
             const main = pvePokemons[0]
-            if (this.room.eliteMainBonusHP) main.addMaxHP(this.room.eliteMainBonusHP)
-            if (this.room.eliteMainBonusAtk) main.addAttack(this.room.eliteMainBonusAtk)
-            if (this.room.eliteMainBonusAP) main.addAbilityPower(this.room.eliteMainBonusAP)
+            if (this.room.eliteMainBonusHP)
+              main.addMaxHP(this.room.eliteMainBonusHP)
+            if (this.room.eliteMainBonusAtk)
+              main.addAttack(this.room.eliteMainBonusAtk)
+            if (this.room.eliteMainBonusAP)
+              main.addAbilityPower(this.room.eliteMainBonusAP)
           }
-          if (this.state.challengeItem && node?.nodeType === MapNodeType.WILD_BATTLE) {
+          if (
+            this.state.challengeItem &&
+            node?.nodeType === MapNodeType.WILD_BATTLE
+          ) {
             pvePokemons.forEach((pkm) => {
               pkm.items.add(this.state.challengeItem as Item)
             })
@@ -3847,12 +4440,18 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             Array.from(this.state.encounterInventory).forEach((item) => {
               const synType = SynergyGivenByGem[item as SynergyGem]
               if (synType) {
-                pveBonusSynergies.set(synType, (pveBonusSynergies.get(synType) ?? 0) + 1)
+                pveBonusSynergies.set(
+                  synType,
+                  (pveBonusSynergies.get(synType) ?? 0) + 1
+                )
               }
             })
           }
           const pveSynergies = new Synergies(
-            computeSynergies(Array.from(pveBoard.values()), pveBonusSynergies.size > 0 ? pveBonusSynergies : undefined)
+            computeSynergies(
+              Array.from(pveBoard.values()),
+              pveBonusSynergies.size > 0 ? pveBonusSynergies : undefined
+            )
           )
           pveEffects.update(pveSynergies, pveBoard)
           const pveEffectsSet = new Set<EffectEnum>()
@@ -3990,7 +4589,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             shiny: chance(SHINY_UNOWN_ENCOUNTER_CHANCE),
             type: WandererType.UNOWN,
             behavior: WandererBehavior.RUN_THROUGH,
-            delay: Math.round((5 + 15 * Math.random()) * 1000)
+            delay: Math.round((5 + 15 * randomFloat()) * 1000)
           })
         }
 
@@ -4001,7 +4600,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               shiny: false,
               type: WandererType.OUTLAW,
               behavior: WandererBehavior.RUN_THROUGH,
-              delay: Math.round((5 + 15 * Math.random()) * 1000)
+              delay: Math.round((5 + 15 * randomFloat()) * 1000)
             })
           } else if (this.state.stageLevel < this.state.outlawStage) {
             const magnezoneChance = chance(this.state.stageLevel * 0.04)
@@ -4011,7 +4610,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                 shiny: false,
                 type: WandererType.DIALOG,
                 behavior: WandererBehavior.RUN_THROUGH,
-                delay: Math.round((5 + 15 * Math.random()) * 1000)
+                delay: Math.round((5 + 15 * randomFloat()) * 1000)
               })
             } else {
               for (let i = 0; i < randomBetween(1, 3); i++) {
@@ -4020,7 +4619,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                   shiny: false,
                   type: WandererType.DIALOG,
                   behavior: WandererBehavior.RUN_THROUGH,
-                  delay: Math.round((5 + 15 * Math.random()) * 1000)
+                  delay: Math.round((5 + 15 * randomFloat()) * 1000)
                 })
               }
             }
@@ -4179,7 +4778,9 @@ function cookDishesForPveBoard(
   const gourmetLevel = getSynergyStep(synergies, Synergy.GOURMET)
   const nbHats = gourmetCount >= 5 ? 2 : 1
   const boardPokemon = Array.from(board.values()).filter((p) => !isOnBench(p))
-  const gourmetPokemon = boardPokemon.filter((p) => p.types.has(Synergy.GOURMET))
+  const gourmetPokemon = boardPokemon.filter((p) =>
+    p.types.has(Synergy.GOURMET)
+  )
   gourmetPokemon.sort((a, b) => getUnitScore(b) - getUnitScore(a))
 
   const chefs = gourmetPokemon.slice(0, nbHats)
@@ -4246,10 +4847,14 @@ function cookDishesForPveBoard(
       if (!target.canEat) continue
       if (dish === Item.HERBA_MYSTICA) {
         const flavors: Item[] = []
-        if (target.types.has(Synergy.FAIRY)) flavors.push(Item.HERBA_MYSTICA_SWEET)
-        if (target.types.has(Synergy.PSYCHIC)) flavors.push(Item.HERBA_MYSTICA_SPICY)
-        if (target.types.has(Synergy.ELECTRIC)) flavors.push(Item.HERBA_MYSTICA_SOUR)
-        if (target.types.has(Synergy.GRASS)) flavors.push(Item.HERBA_MYSTICA_BITTER)
+        if (target.types.has(Synergy.FAIRY))
+          flavors.push(Item.HERBA_MYSTICA_SWEET)
+        if (target.types.has(Synergy.PSYCHIC))
+          flavors.push(Item.HERBA_MYSTICA_SPICY)
+        if (target.types.has(Synergy.ELECTRIC))
+          flavors.push(Item.HERBA_MYSTICA_SOUR)
+        if (target.types.has(Synergy.GRASS))
+          flavors.push(Item.HERBA_MYSTICA_BITTER)
         if (flavors.length === 0) flavors.push(Item.HERBA_MYSTICA_SALTY)
         dish = pickRandomIn(flavors)
       }

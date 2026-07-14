@@ -315,7 +315,7 @@ export function GamePokemonDetail(props: {
             alt={dish}
             title={t(`item.${dish}`)}
           />
-          <p>{addIconsToDescription(t(`item_description.${dish}`))}</p>
+          <p className="item-description-text">{addIconsToDescription(t(`item_description.${dish}`))}</p>
         </div>
       )}
       {pokemon.passive !== Passive.NONE && (

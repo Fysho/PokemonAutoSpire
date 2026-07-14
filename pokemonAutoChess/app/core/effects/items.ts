@@ -385,7 +385,7 @@ const chefCookEffect = new OnStageStartEffect(({ pokemon, player, room }) => {
   }
 
   if (chef.passive === Passive.GLUTTON) {
-    chef.addMaxHP(15)
+    chef.addMaxHP(10)
     if (chef.maxHP > 750) {
       player.titles.add(Title.GLUTTON)
     }
@@ -692,23 +692,11 @@ export const ItemEffects: { [i in Item]?: (Effect | (() => Effect))[] } = {
     new OnItemRemovedEffect((pokemon) => {
       pokemon.addCritPower(-Math.min(pokemon.player?.money ?? 0, 200), pokemon, 0, false)
     }),
-    new OnKillEffect(({ attacker, target, board }) => {
-      if (attacker.player) {
-        const isLastEnemy =
-          target.team !== attacker.team &&
-          board.cells.some(
-            (p) =>
-              p &&
-              p.team !== attacker.team &&
-              (p.hp > 0 || p.status.resurrecting)
-          ) === false
+    new OnKillEffect(({ attacker }) => {
+      if (attacker.player && attacker.count.bottleCapCount < 3) {
         attacker.count.bottleCapCount++
-        const moneyGained = isLastEnemy ? attacker.count.bottleCapCount + 1 : 1
-        attacker.player.addMoney(moneyGained, true, attacker)
-        attacker.count.moneyCount += moneyGained
-        if (isLastEnemy && attacker.count.bottleCapCount >= 10) {
-          attacker.player.titles.add(Title.LUCKY)
-        }
+        attacker.player.addMoney(1, true, attacker)
+        attacker.count.moneyCount++
       }
     })
   ],

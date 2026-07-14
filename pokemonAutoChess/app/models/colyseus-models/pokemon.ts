@@ -2368,7 +2368,7 @@ export class Shinx extends Pokemon {
   speed = 47
   def = 10
   speDef = 10
-  maxPP = 70
+  maxPP = 80
   range = 1
   skill = Ability.VOLT_SWITCH
 }
@@ -2387,7 +2387,7 @@ export class Luxio extends Pokemon {
   speed = 47
   def = 12
   speDef = 12
-  maxPP = 70
+  maxPP = 80
   range = 1
   skill = Ability.VOLT_SWITCH
 }
@@ -2405,7 +2405,7 @@ export class Luxray extends Pokemon {
   speed = 47
   def = 14
   speDef = 14
-  maxPP = 70
+  maxPP = 80
   range = 1
   skill = Ability.VOLT_SWITCH
 }
@@ -14193,7 +14193,7 @@ export class Pawniard extends Pokemon {
   speed = 41
   def = 10
   speDef = 6
-  maxPP = 60
+  maxPP = 80
   range = 1
   skill = Ability.KOWTOW_CLEAVE
 }
@@ -14208,7 +14208,7 @@ export class Bisharp extends Pokemon {
   speed = 41
   def = 16
   speDef = 8
-  maxPP = 60
+  maxPP = 80
   range = 1
   skill = Ability.KOWTOW_CLEAVE
 }
@@ -14222,7 +14222,7 @@ export class Kingambit extends Pokemon {
   speed = 41
   def = 24
   speDef = 12
-  maxPP = 60
+  maxPP = 80
   range = 1
   skill = Ability.KOWTOW_CLEAVE
 }
@@ -18131,7 +18131,7 @@ export class Grookey extends Pokemon {
   speed = 58
   def = 8
   speDef = 6
-  maxPP = 70
+  maxPP = 80
   range = 1
   skill = Ability.DRUM_BEATING
   passive = Passive.DRUMMER
@@ -18147,7 +18147,7 @@ export class Thwackey extends Pokemon {
   speed = 58
   def = 14
   speDef = 11
-  maxPP = 70
+  maxPP = 80
   range = 1
   skill = Ability.DRUM_BEATING
   passive = Passive.DRUMMER
@@ -18162,7 +18162,7 @@ export class Rillaboom extends Pokemon {
   speed = 58
   def = 20
   speDef = 16
-  maxPP = 70
+  maxPP = 80
   range = 1
   skill = Ability.DRUM_BEATING
   passive = Passive.DRUMMER

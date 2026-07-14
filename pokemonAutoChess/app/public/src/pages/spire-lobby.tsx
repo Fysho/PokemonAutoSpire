@@ -1402,7 +1402,7 @@ function SpireLobbyContent({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src="assets/item/GOLD_BOTTLE_CAP.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Gold Bottle Cap</strong> — Crit power bonus now caps at 200 gold.</span>
+              <span><PacTag type="nerfed" /> <strong>Gold Bottle Cap</strong> — Crit power bonus caps at 200 gold. Gold generation is capped at 3 per round, with no last-enemy jackpot.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src="assets/item/TEA.png" style={{ width: "28px", height: "28px", imageRendering: "pixelated", flexShrink: 0 }} />
@@ -1446,7 +1446,7 @@ function SpireLobbyContent({
           <div style={{ display: "flex", flexDirection: "column", gap: "4px", margin: "4px 0" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0143")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Snorlax</strong> — Glutton passive HP gains from berries and Gourmet effects halved.</span>
+              <span><PacTag type="nerfed" /> <strong>Munchlax / Snorlax</strong> — Glutton grants 5 max HP per berry, 5 per dish, and 10 when cooking as a Chef.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0200")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
@@ -1470,8 +1470,20 @@ function SpireLobbyContent({
               <span><PacTag type="nerfed" /> <strong>PP Batteries</strong> — The PP these Pokemon grant to allies no longer scales with AP.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0242")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="nerfed" /> <strong>Happiny / Chansey / Blissey</strong> — Soft-Boiled shield AP scaling reduced from 1× to 0.5×.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0983")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="nerfed" /> <strong>Pawniard / Bisharp / Kingambit</strong> — Max PP increased from 60 to 80.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src={getPortraitSrc("0405")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
+              <span><PacTag type="nerfed" /> <strong>Shinx / Luxio / Luxray</strong> — Max PP increased from 70 to 80.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0810")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />
-              <span><PacTag type="nerfed" /> <strong>Grookey / Thwackey / Rillaboom</strong> — Max PP increased from 60 to 70, so the Drummer line takes longer to cast its own ability while it feeds PP to adjacent allies.</span>
+              <span><PacTag type="nerfed" /> <strong>Grookey / Thwackey / Rillaboom</strong> — Max PP increased from 60 to 80, so the Drummer line takes longer to cast its own ability while it feeds PP to adjacent allies.</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <img src={getPortraitSrc("0911")} style={{ width: "40px", height: "40px", imageRendering: "pixelated", flexShrink: 0 }} />

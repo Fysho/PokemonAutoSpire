@@ -279,7 +279,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
                           src={"assets/item/" + item + ".png"}
                         />
                         <h3 style={{ margin: "0.25em 0" }}>{t(`item.${item}`)}</h3>
-                        <p style={{ marginBottom: "0.5em", fontSize: "80%" }}>
+                        <p className="item-description-text" style={{ marginBottom: "0.5em", fontSize: "80%" }}>
                           {addIconsToDescription(t(`item_description.${item}`))}
                         </p>
                       </>
@@ -351,7 +351,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
                         }}
                         src={"assets/item/" + item + ".png"}
                       />
-                      <p>
+                      <p className="item-description-text">
                         {addIconsToDescription(t(`item_description.${item}`))}
                       </p>
                     </div>
@@ -389,7 +389,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
                   src={"assets/item/" + item + ".png"}
                 />
                 <h3 style={{ margin: "0.25em 0" }}>{t(`item.${item}`)}</h3>
-                <p style={{ marginBottom: "0.5em" }}>
+                <p className="item-description-text" style={{ marginBottom: "0.5em" }}>
                   {addIconsToDescription(t(`item_description.${item}`))}
                 </p>
               </div>

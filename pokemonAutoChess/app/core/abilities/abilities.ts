@@ -394,7 +394,7 @@ export class SoftBoiledStrategy extends AbilityStrategy {
     board.forEach((x: number, y: number, tg: PokemonEntity | undefined) => {
       if (tg && pokemon.team == tg.team) {
         pokemon.broadcastAbility({ positionX: x, positionY: y })
-        tg.addShield(shield, pokemon, 1, crit)
+        tg.addShield(shield, pokemon, 0.5, crit)
         tg.status.clearNegativeStatus(tg, pokemon)
       }
     })

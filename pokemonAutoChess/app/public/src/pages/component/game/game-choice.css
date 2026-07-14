@@ -146,3 +146,47 @@
     overflow-y: auto;
   }
 }
+
+/* Touch devices: never wrap the choice lists onto a second row — all 5
+   starter/reward options stay on one horizontal row (item descriptions
+   are hidden on touch, so they almost always fit), scrolling sideways
+   in the rare case they overflow. Auto margins on the end children
+   re-center the row when it fits; justify-content: center would clip
+   the left edge once the row overflows the scroll container. */
+@media (pointer: coarse) {
+  .game-choice-pokemons-list,
+  .game-choice-items-list {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+  }
+
+  .game-choice-pokemons-list > :first-child,
+  .game-choice-items-list > :first-child {
+    margin-left: auto;
+  }
+
+  .game-choice-pokemons-list > :last-child,
+  .game-choice-items-list > :last-child {
+    margin-right: auto;
+  }
+
+  .game-choice-pokemons-list > .my-box,
+  .game-choice-items-list > .my-box {
+    flex: 0 0 auto;
+  }
+
+  .game-choice-items-list > .my-box {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .game-choice > .my-container {
+    max-width: 96vw;
+    max-height: 82vh;
+    overflow-y: auto;
+  }
+}

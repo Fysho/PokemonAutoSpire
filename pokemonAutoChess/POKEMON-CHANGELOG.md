@@ -18,6 +18,18 @@ Covers: stat changes, type/synergy assignments, rarity, evolution rules, passive
 
 ## Changes
 
+### 2026-07-13 — Raise Kingambit, Luxray, and Rillaboom line max PP
+
+**Pokemon**: Pawniard/Bisharp/Kingambit, Shinx/Luxio/Luxray, Grookey/Thwackey/Rillaboom
+**Type**: stat change (max PP)
+**Before**: Kingambit line 60; Luxray line 70; Rillaboom line 70.
+**After**: `maxPP = 80` for all three stages of each line (+20/+10/+10 respectively).
+**Rationale**: Higher max PP delays each line's ability casts while preserving the existing ability effects.
+**Files changed**:
+- `app/models/colyseus-models/pokemon.ts` — Updated max PP on all nine classes.
+- `app/models/precomputed/pokemons-data.csv` — Regenerated the synchronized max PP values.
+- `app/public/src/pages/spire-lobby.tsx` — Added or updated all three PAC Diversions entries.
+
 <!-- 
 Template for recording changes:
 

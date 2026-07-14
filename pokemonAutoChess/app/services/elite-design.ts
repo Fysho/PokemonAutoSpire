@@ -1,7 +1,7 @@
 import {
   EliteDesign,
-  IEliteDesign,
-  IEliteDesignResult
+  type IEliteDesign,
+  type IEliteDesignResult
 } from "../models/mongo-models/elite-design"
 import UserMetadata from "../models/mongo-models/user-metadata"
 import type { SpireEncounter } from "../models/spire-encounters"
@@ -226,10 +226,7 @@ export async function saveEliteDesign(
     if (count >= MAX_DESIGNS_PER_CREATOR) {
       return { ok: false, error: "library_full" }
     }
-    const user = await UserMetadata.findOne(
-      { uid },
-      { displayName: 1 }
-    ).lean()
+    const user = await UserMetadata.findOne({ uid }, { displayName: 1 }).lean()
     const creatorName =
       user?.displayName && !["Player", "Username"].includes(user.displayName)
         ? user.displayName
@@ -291,18 +288,24 @@ export async function setEliteDesignApproved(
   }
 }
 
+export type ApprovedEliteDesign = IEliteDesign & { id: string }
+
 // All approved designs for one act + stage-range bracket (Spire elite pool).
 export async function getApprovedEliteDesigns(
   act: number,
   stageRange: string
-): Promise<(IEliteDesign & { id: string })[]> {
+): Promise<ApprovedEliteDesign[]> {
   try {
     const docs = await EliteDesign.find({
       act,
       stageRange,
       approved: true
     }).lean()
-    return docs.map((d: any) => ({ ...d, id: d._id.toString(), _id: undefined }))
+    return docs.map((d: any) => ({
+      ...d,
+      id: d._id.toString(),
+      _id: undefined
+    }))
   } catch (e) {
     logger.error("Failed to get approved elite designs:", e)
     return []
