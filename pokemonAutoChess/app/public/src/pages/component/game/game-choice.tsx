@@ -1,4 +1,5 @@
 import { MouseEvent, useEffect, useRef, useState } from "react"
+import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 import { RegionDetails } from "../../../../../config"
 import { PlayerChoice } from "../../../../../models/colyseus-models/player-choice"
@@ -23,6 +24,7 @@ import { getGameScene } from "../../game"
 import { playSound, SOUNDS } from "../../utils/audio"
 import { addIconsToDescription } from "../../utils/descriptions"
 import { LocalStoreKeys, localStore } from "../../utils/store"
+import { GamePokemonDetail } from "./game-pokemon-detail"
 import GamePokemonDuoPortrait from "./game-pokemon-duo-portrait"
 import GamePokemonPortrait from "./game-pokemon-portrait"
 import "./game-choice.css"
@@ -160,6 +162,16 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
   const isEliteReward = choice.type === "eliteReward"
   const isUnlockReward = choice.type === "unlockReward"
   const isSpecialReward = isGymReward || isEliteReward || isUnlockReward
+  const detailProposition =
+    detailIndex !== null ? choice.pokemons[detailIndex] : null
+  const detailPokemon =
+    isTouchDevice &&
+    isWildReward &&
+    detailProposition !== null &&
+    detailProposition !== Pkm.DEFAULT &&
+    !(detailProposition in PkmDuos)
+      ? (detailProposition as Pkm)
+      : null
 
   let message: string | null = null
   let regionSynergies: Synergy[] = []
@@ -198,7 +210,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
 
   return (
     <div
-      className="game-choice"
+      className={`game-choice${detailPokemon ? " has-mobile-detail" : ""}`}
       style={{ zIndex: DEPTH.MODAL }}
       onClick={() => setDetailIndex(null)}
     >
@@ -238,7 +250,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
                       index={index}
                       pokemon={proposition as Pkm}
                       inPlanner={false}
-                      detailOpen={isTouchDevice ? detailIndex === index : undefined}
+                      detailOpen={isTouchDevice ? (!isWildReward && detailIndex === index) : undefined}
                     />
                     {(isUnlockReward || (isEliteReward && isSpire)) && item && (
                       <img
@@ -507,6 +519,25 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
           </button>
         )}
       </div>
+      {detailPokemon &&
+        ReactDOM.createPortal(
+          <aside
+            aria-label="Reward details"
+            className="game-choice-mobile-detail my-container"
+            style={{ zIndex: DEPTH.TOOLTIP }}
+            onClick={(event) => {
+              event.stopPropagation()
+              setDetailIndex(null)
+            }}
+          >
+            <GamePokemonDetail
+              key={`${choice.id}-${detailIndex}`}
+              pokemon={detailPokemon}
+              origin="proposition"
+            />
+          </aside>,
+          document.body
+        )}
     </div>
   )
 }

@@ -189,4 +189,27 @@
     max-height: 82vh;
     overflow-y: auto;
   }
+
+  .game-choice.has-mobile-detail {
+    right: max(12px, env(safe-area-inset-right));
+    left: auto;
+    width: calc(100vw - min(320px, 42vw) - 36px);
+    transform: none;
+  }
+
+  .game-choice.has-mobile-detail > .my-container {
+    max-width: 100%;
+  }
+
+  .game-choice-mobile-detail {
+    position: fixed;
+    top: 50%;
+    left: max(12px, env(safe-area-inset-left));
+    width: min(320px, 42vw);
+    max-height: calc(100dvh - 24px);
+    padding: 5px;
+    overflow-y: auto;
+    transform: translateY(-50%);
+    pointer-events: auto;
+  }
 }
