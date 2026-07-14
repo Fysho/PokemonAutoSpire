@@ -85,8 +85,8 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
   const [visible, setVisible] = useState(true)
 
   // Touch devices: tap picks immediately; press-and-hold (~400ms) opens the
-  // pokemon's details instead (hover doesn't exist on touch). Wild-reward
-  // details stay visible only while the finger remains down. The click
+  // pokemon's details in a separate overlay (hover doesn't exist on touch).
+  // Details stay visible only while the finger remains down. The click
   // synthesized for the long-press release is swallowed so it cannot pick.
   const [isTouchDevice] = useState(
     () => window.matchMedia("(pointer: coarse)").matches
@@ -135,9 +135,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
 
   const endLongPress = () => {
     cancelLongPress()
-    if (choice.type === "wildReward") {
-      setDetailIndex(null)
-    }
+    setDetailIndex(null)
   }
 
   const onChoiceClick = (event: MouseEvent, index: number) => {
@@ -147,11 +145,10 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
       longPressFired.current = false
       return
     }
-    // Non-wild details keep their existing tap-to-dismiss behavior. Wild
-    // details close on release, so the next deliberate tap must select.
+    // Details close on release, so stale detail state must never consume the
+    // next deliberate tap.
     if (detailIndex !== null) {
       setDetailIndex(null)
-      if (choice.type !== "wildReward") return
     }
     playSound(SOUNDS.BUTTON_CLICK)
     pickChoice(choice.id, index)
@@ -172,14 +169,14 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
   const isSpecialReward = isGymReward || isEliteReward || isUnlockReward
   const detailProposition =
     detailIndex !== null ? choice.pokemons[detailIndex] : null
-  const detailPokemon =
+  const detailPokemons: readonly Pkm[] =
     isTouchDevice &&
-    isWildReward &&
     detailProposition !== null &&
-    detailProposition !== Pkm.DEFAULT &&
-    !(detailProposition in PkmDuos)
-      ? (detailProposition as Pkm)
-      : null
+    detailProposition !== Pkm.DEFAULT
+      ? detailProposition in PkmDuos
+        ? PkmDuos[detailProposition as PkmDuo]
+        : [detailProposition as Pkm]
+      : []
 
   let message: string | null = null
   let regionSynergies: Synergy[] = []
@@ -258,7 +255,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
                       index={index}
                       pokemon={proposition as Pkm}
                       inPlanner={false}
-                      detailOpen={isTouchDevice ? (!isWildReward && detailIndex === index) : undefined}
+                      detailOpen={isTouchDevice ? false : undefined}
                     />
                     {(isUnlockReward || (isEliteReward && isSpire)) && item && (
                       <img
@@ -326,6 +323,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
                       origin="proposition"
                       index={index}
                       duo={proposition as PkmDuo}
+                      detailOpen={isTouchDevice ? false : undefined}
                       inPlanner={
                         teamPlanner?.some(
                           (pokemon) =>
@@ -340,7 +338,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
                       origin="proposition"
                       index={index}
                       pokemon={proposition as Pkm}
-                      detailOpen={isTouchDevice ? detailIndex === index : undefined}
+                      detailOpen={isTouchDevice ? false : undefined}
                       inPlanner={
                         teamPlanner?.some((pokemon) => {
                           if (proposition in PkmDuos) {
@@ -527,22 +525,24 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
           </button>
         )}
       </div>
-      {detailPokemon &&
+      {detailPokemons.length > 0 &&
         ReactDOM.createPortal(
           <aside
             aria-label="Reward details"
-            className="game-choice-mobile-detail my-container"
+            className={`game-choice-mobile-detail my-container${detailPokemons.length > 1 ? " game-choice-mobile-detail-duo" : ""}`}
             style={{ zIndex: DEPTH.TOOLTIP }}
             onClick={(event) => {
               event.stopPropagation()
               setDetailIndex(null)
             }}
           >
-            <GamePokemonDetail
-              key={`${choice.id}-${detailIndex}`}
-              pokemon={detailPokemon}
-              origin="proposition"
-            />
+            {detailPokemons.map((pokemon) => (
+              <GamePokemonDetail
+                key={`${choice.id}-${detailIndex}-${pokemon}`}
+                pokemon={pokemon}
+                origin="proposition"
+              />
+            ))}
           </aside>,
           document.body
         )}

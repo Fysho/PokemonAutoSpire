@@ -17,6 +17,8 @@ export default function GamePokemonDuoPortrait(props: {
   duo: PkmDuo
   click?: React.MouseEventHandler<HTMLDivElement>
   inPlanner?: boolean
+  /** Force both detail tooltips open or closed. undefined = normal hover behavior */
+  detailOpen?: boolean
 }) {
   const duo = PkmDuos[props.duo].map((p) => getPokemonData(p))
   const rarityColor = RarityColor[duo[0].rarity]
@@ -53,6 +55,7 @@ export default function GamePokemonDuoPortrait(props: {
             id={`tooltip-${props.origin}-${props.index}-${p.index}`}
             className="custom-theme-tooltip game-pokemon-detail-tooltip"
             place="bottom"
+            isOpen={props.detailOpen}
           >
             <GamePokemonDetail
               pokemon={p.name}
