@@ -85,9 +85,9 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
   const [visible, setVisible] = useState(true)
 
   // Touch devices: tap picks immediately; press-and-hold (~400ms) opens the
-  // pokemon's detail tooltip instead (hover doesn't exist on touch). The
-  // click fired when the long-press finger lifts is swallowed so it can't
-  // pick, and the next tap anywhere dismisses the details.
+  // pokemon's details instead (hover doesn't exist on touch). Wild-reward
+  // details stay visible only while the finger remains down. The click
+  // synthesized for the long-press release is swallowed so it cannot pick.
   const [isTouchDevice] = useState(
     () => window.matchMedia("(pointer: coarse)").matches
   )
@@ -133,17 +133,25 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
     }
   }
 
+  const endLongPress = () => {
+    cancelLongPress()
+    if (choice.type === "wildReward") {
+      setDetailIndex(null)
+    }
+  }
+
   const onChoiceClick = (event: MouseEvent, index: number) => {
     event.stopPropagation()
-    // Click fired by lifting a long-press: keep the details open, don't pick.
+    // Ignore only the click synthesized by releasing a completed long-press.
     if (longPressFired.current) {
       longPressFired.current = false
       return
     }
-    // Details are showing: this tap just dismisses them.
+    // Non-wild details keep their existing tap-to-dismiss behavior. Wild
+    // details close on release, so the next deliberate tap must select.
     if (detailIndex !== null) {
       setDetailIndex(null)
-      return
+      if (choice.type !== "wildReward") return
     }
     playSound(SOUNDS.BUTTON_CLICK)
     pickChoice(choice.id, index)
@@ -152,8 +160,8 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
   const longPressHandlers = (index: number) => ({
     onTouchStart: () => startLongPress(index),
     onTouchMove: cancelLongPress,
-    onTouchEnd: cancelLongPress,
-    onTouchCancel: cancelLongPress
+    onTouchEnd: endLongPress,
+    onTouchCancel: endLongPress
   })
 
   const choiceBoxClass = () => "my-box active clickable"
@@ -210,7 +218,7 @@ export default function GameChoice({ rewardSubPicker, onClose }: GameChoiceProps
 
   return (
     <div
-      className={`game-choice${detailPokemon ? " has-mobile-detail" : ""}`}
+      className="game-choice"
       style={{ zIndex: DEPTH.MODAL }}
       onClick={() => setDetailIndex(null)}
     >
