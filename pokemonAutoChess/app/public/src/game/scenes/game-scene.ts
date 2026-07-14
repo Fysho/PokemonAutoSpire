@@ -381,6 +381,7 @@ export default class GameScene extends Scene {
     this.mapName = mapName
 
     if (mapName === "town") {
+      if (this.map) this.map.destroy()
       this.map = this.add.tilemap("town")
       const tileset = this.map.addTilesetImage("town_tileset", "town_tileset")!
       this.map.createLayer("layer0", tileset, 0, 0)?.setScale(2, 2)

@@ -61,6 +61,10 @@ canvas,
     bottom: calc(3em + 12px) !important;
     transform: none !important;
   }
+
+  .game-admin-cheats {
+    display: none !important;
+  }
 }
 
 body {

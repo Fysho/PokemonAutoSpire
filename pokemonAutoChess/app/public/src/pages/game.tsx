@@ -1706,7 +1706,7 @@ export default function Game() {
           <GameToasts />
           <TutorialDialog onExit={leave} />
           {isAdmin && !spectate && (
-          <div style={{
+          <div className="game-admin-cheats" style={{
             position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
             display: "flex", flexDirection: "column", gap: "8px", zIndex: 300
           }}>
