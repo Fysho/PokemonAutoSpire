@@ -1,17 +1,13 @@
-import { getStateCallbacks, Room } from "@colyseus/sdk"
+import { getStateCallbacks, type Room } from "@colyseus/sdk"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
 import { toast } from "react-toastify"
+import { RegionDetails } from "../../../config"
+import { ALL_RELICS, RELICS, type Relic } from "../../../core/relics"
+import type { Wanderer } from "../../../models/colyseus-models/wanderer"
+import type GameState from "../../../rooms/states/game-state"
 import {
-  MinStageForGameToCount,
-  RegionDetails
-} from "../../../config"
-import { IPokemonRecord } from "../../../models/colyseus-models/game-record"
-import { Wanderer } from "../../../models/colyseus-models/wanderer"
-import GameState from "../../../rooms/states/game-state"
-import {
-  type IAfterGamePlayer,
   type IBoardEvent,
   type IDps,
   type IDragDropCombineMessage,
@@ -22,22 +18,16 @@ import {
   Role,
   Transfer
 } from "../../../types"
-import { CloseCodes, CloseCodesMessages } from "../../../types/enum/CloseCodes"
 import { ConnectionStatus } from "../../../types/enum/ConnectionStatus"
 import { GamePhaseState, Team } from "../../../types/enum/Game"
 import { Item } from "../../../types/enum/Item"
-import { ALL_RELICS, RELICS, Relic } from "../../../core/relics"
-import { Passive } from "../../../types/enum/Passive"
 import { Pkm } from "../../../types/enum/Pokemon"
-import type { Synergy } from "../../../types/enum/Synergy"
 import type { NonFunctionPropNames } from "../../../types/HelperTypes"
 import type { DisplayText } from "../../../types/strings/DisplayText"
-import type { ErrorMessage } from "../../../types/strings/ErrorMessage"
-import { getAvatarString } from "../../../utils/avatar"
 import { logger } from "../../../utils/logger"
 import { schemaValues } from "../../../utils/schemas"
-import GameContainer from "../game/game-container"
 import { BoardMode } from "../game/components/board-manager"
+import GameContainer from "../game/game-container"
 import type GameScene from "../game/scenes/game-scene"
 import {
   selectConnectedPlayer,
@@ -45,7 +35,16 @@ import {
   useAppDispatch,
   useAppSelector
 } from "../hooks"
-import { authenticateUser, beginEliteTest, clearGameReconnection, client, hasLastEliteTest, isEliteTestActive, joinGame, resendLastEliteTest, rooms } from "../network"
+import {
+  authenticateUser,
+  beginEliteTest,
+  clearGameReconnection,
+  client,
+  hasLastEliteTest,
+  isEliteTestActive,
+  resendLastEliteTest,
+  rooms
+} from "../network"
 import store from "../stores"
 import {
   addDpsMeter,
@@ -57,75 +56,64 @@ import {
   removeDpsMeter,
   removePlayer,
   setAdditionalPokemons,
+  setArceusDamageDealt,
+  setCurrentAct,
+  setCurrentFloor,
+  setDifficultyMode,
   setEmotesUnlocked,
+  setEncounterAvatar,
+  setEncounterDifficulty,
+  setEncounterGroundHoles,
+  setEncounterInventory,
+  setEncounterMoney,
+  setEncounterName,
+  setEncounterPokemonCount,
+  setEncounterTotalItems,
+  setEncounterTotalStars,
   setGameMode,
+  setGameSpeed,
   setInterest,
+  setIsEndless,
+  setIsNewArceusRecord,
+  setIsSpire,
+  setIsTutorial,
   setLife,
   setLoadingProgress,
   setMaxInterest,
   setMoney,
   setNoELO,
   setPhase,
-  setPodium,
-  setRunHP,
-  setDifficultyMode,
-  setIsEndless,
-  setIsSpire,
-  setIsTutorial,
-  setSpireClass,
-  setCurrentAct,
-  setCurrentFloor,
-  setEncounterDifficulty,
-  setEncounterMoney,
-  setEncounterPokemonCount,
-  setEncounterTotalStars,
-  setEncounterTotalItems,
-  setEncounterName,
-  setEncounterAvatar,
-  setEncounterInventory,
-  setEncounterGroundHoles,
-  setGameSpeed,
-  setArceusDamageDealt,
-  setIsNewArceusRecord,
-  setPreviousArceusRecord,
   setPreviousArceusHolder,
+  setPreviousArceusRecord,
   setRoundTime,
+  setRunHP,
   setShopFreeRolls,
   setShopLocked,
   setSpecialGameRule,
+  setSpireClass,
   setStageLevel,
   setStreak,
   setSynergies,
   setWeather,
   updateExperienceManager
 } from "../stores/GameStore"
-import {
-  setConnectionStatus,
-  setErrorAlertMessage,
-  setRole
-} from "../stores/NetworkStore"
+import { setConnectionStatus, setRole } from "../stores/NetworkStore"
+import GameBalancePanel from "./component/game/game-balance-panel"
+import GameBottomBar from "./component/game/game-bottom-bar"
 import GameChoice from "./component/game/game-choice"
+import GameDpsMeter from "./component/game/game-dps-meter"
 import GameEventOverlay from "./component/game/game-event"
-import GameOpponentItems from "./component/game/game-opponent-items"
-import GameRelicContainer from "./component/game/game-relic-container"
-import GameRunEnd from "./component/game/game-run-end"
+import GameFinalRank from "./component/game/game-final-rank"
+import GameLoadingScreen from "./component/game/game-loading-screen"
 import GameMap from "./component/game/game-map"
+import GameOpponentItems from "./component/game/game-opponent-items"
+import GameOpponentSynergies from "./component/game/game-opponent-synergies"
+import GameRelicContainer from "./component/game/game-relic-container"
 import GameRest from "./component/game/game-rest"
 import GameRewardsScreen from "./component/game/game-rewards-screen"
-import GameDpsMeter from "./component/game/game-dps-meter"
-import GameExperience from "./component/game/game-experience"
-import GameFinalRank from "./component/game/game-final-rank"
-import { GameLifeInfo } from "./component/game/game-life-info"
-import GameLoadingScreen from "./component/game/game-loading-screen"
-import { GameMoneyInfo } from "./component/game/game-money-info"
-import GamePlayers from "./component/game/game-players"
+import GameRunEnd from "./component/game/game-run-end"
 import GameShop from "./component/game/game-shop"
-import { GameTeamInfo } from "./component/game/game-team-info"
-import GameSpectatePlayerInfo from "./component/game/game-spectate-player-info"
-import GameBalancePanel from "./component/game/game-balance-panel"
 import GameStageInfo from "./component/game/game-stage-info"
-import GameBottomBar from "./component/game/game-bottom-bar"
-import GameOpponentSynergies from "./component/game/game-opponent-synergies"
 import GameSynergies from "./component/game/game-synergies"
 import GameToasts from "./component/game/game-toasts"
 import TutorialDialog from "./component/game/tutorial-dialog"
@@ -251,7 +239,9 @@ function AdminGivePokemon() {
             <div
               key={p}
               onMouseDown={() => give(p)}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#34495e")}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "#34495e")
+              }
               onMouseLeave={(e) =>
                 (e.currentTarget.style.background = "transparent")
               }
@@ -343,7 +333,9 @@ function AdminGiveItem() {
             <div
               key={i}
               onMouseDown={() => give(i)}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#34495e")}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "#34495e")
+              }
               onMouseLeave={(e) =>
                 (e.currentTarget.style.background = "transparent")
               }
@@ -360,7 +352,12 @@ function AdminGiveItem() {
             >
               <img
                 src={`assets/item/${i}.png`}
-                style={{ width: "20px", height: "20px", imageRendering: "pixelated", flexShrink: 0 }}
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  imageRendering: "pixelated",
+                  flexShrink: 0
+                }}
               />
               {i}
             </div>
@@ -434,7 +431,9 @@ function AdminGiveRelic() {
             <div
               key={r}
               onMouseDown={() => give(r)}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#34495e")}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "#34495e")
+              }
               onMouseLeave={(e) =>
                 (e.currentTarget.style.background = "transparent")
               }
@@ -451,7 +450,12 @@ function AdminGiveRelic() {
             >
               <img
                 src={`/assets/relics/${r}.png`}
-                style={{ width: "20px", height: "20px", objectFit: "contain", flexShrink: 0 }}
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  objectFit: "contain",
+                  flexShrink: 0
+                }}
                 onError={(e) => {
                   ;(e.target as HTMLImageElement).style.visibility = "hidden"
                 }}
@@ -466,9 +470,15 @@ function AdminGiveRelic() {
 }
 
 // Payload of Transfer.ELITE_TEST_RESULT (see stopEliteTestFight in game-commands.ts).
-// Either an error (empty design / no saved teams for the stage) or a fight summary.
+// Either an error (invalid request / missing or malformed opponent / no saved
+// teams) or a fight summary.
 interface EliteTestResult {
-  error?: "no_data" | "empty_design"
+  error?:
+    | "no_data"
+    | "empty_design"
+    | "invalid_target"
+    | "opponent_not_found"
+    | "invalid_opponent"
   stage?: string
   winner?: "elite" | "opponent" | "draw"
   eliteAlive?: number
@@ -487,14 +497,17 @@ export default function Game() {
   )
   const room: Room<GameState> | undefined = rooms.game
   const uid: string = useAppSelector((state) => state.network.uid)
-  const isAdmin = useAppSelector((state) => state.network.profile?.role === Role.ADMIN)
+  const isAdmin = useAppSelector(
+    (state) => state.network.profile?.role === Role.ADMIN
+  )
   const spectatedPlayerId: string = useAppSelector(
     (state) => state.game.playerIdSpectated
   )
   const connectedPlayer = useAppSelector(selectConnectedPlayer)
   const spectatedPlayer = useAppSelector(selectSpectatedPlayer)
   const isSpectator = room?.state?.spectators?.has(uid) ?? false
-  const spectate = isSpectator || spectatedPlayerId !== uid || !spectatedPlayer?.alive
+  const spectate =
+    isSpectator || spectatedPlayerId !== uid || !spectatedPlayer?.alive
 
   const initialized = useRef<boolean>(false)
   const connecting = useRef<boolean>(false)
@@ -509,13 +522,17 @@ export default function Game() {
   const [connectError, setConnectError] = useState<string>("")
   const [spectatorCount, setSpectatorCount] = useState<number>(0)
   const [announcement, setAnnouncement] = useState<string | null>(null)
-  const [eliteTestResult, setEliteTestResult] = useState<EliteTestResult | null>(null)
-  const [eliteTestAwaitingBegin, setEliteTestAwaitingBegin] = useState<boolean>(false)
+  const [eliteTestResult, setEliteTestResult] =
+    useState<EliteTestResult | null>(null)
+  const [eliteTestAwaitingBegin, setEliteTestAwaitingBegin] =
+    useState<boolean>(false)
   // One-time prompt when first arriving in the elite-test sandbox: the room
   // starts as an empty board, so tell the user to re-open the Elite Designer
   // to load their design and run tests. The test room is created BEFORE
   // navigating here, so isEliteTestActive() is already true on first render.
-  const [eliteTestWelcome, setEliteTestWelcome] = useState<boolean>(() => isEliteTestActive())
+  const [eliteTestWelcome, setEliteTestWelcome] = useState<boolean>(() =>
+    isEliteTestActive()
+  )
   const [finalRank, setFinalRank] = useState<number>(0)
   enum FinalRankVisibility {
     HIDDEN,
@@ -526,19 +543,16 @@ export default function Game() {
     useState<FinalRankVisibility>(FinalRankVisibility.HIDDEN)
   const container = useRef<HTMLDivElement>(null)
 
-  const connectToGame = useCallback(
-    async () => {
-      if (rooms.game?.connection.isOpen) {
-        connected.current = true
-        connecting.current = false
-        dispatch(setConnectionStatus(ConnectionStatus.CONNECTED))
-        return
-      }
+  const connectToGame = useCallback(async () => {
+    if (rooms.game?.connection.isOpen) {
+      connected.current = true
+      connecting.current = false
+      dispatch(setConnectionStatus(ConnectionStatus.CONNECTED))
+      return
+    }
 
-      navigate("/lobby")
-    },
-    [dispatch]
-  )
+    navigate("/lobby")
+  }, [dispatch])
 
   const leave = useCallback(async () => {
     clearGameReconnection()
@@ -814,7 +828,9 @@ export default function Game() {
       room.onMessage(
         Transfer.TUTORIAL_DIALOG,
         (msg: { trigger: string; steps: string[] }) => {
-          window.dispatchEvent(new CustomEvent("tutorial-dialog", { detail: msg }))
+          window.dispatchEvent(
+            new CustomEvent("tutorial-dialog", { detail: msg })
+          )
         }
       )
 
@@ -955,14 +971,18 @@ export default function Game() {
       })
 
       const syncEncounterInventory = () => {
-        dispatch(setEncounterInventory(Array.from(room.state.encounterInventory)))
+        dispatch(
+          setEncounterInventory(Array.from(room.state.encounterInventory))
+        )
       }
       $state.encounterInventory.onChange(syncEncounterInventory)
       $state.encounterInventory.onAdd(syncEncounterInventory)
       $state.encounterInventory.onRemove(syncEncounterInventory)
 
       const syncEncounterGroundHoles = () => {
-        dispatch(setEncounterGroundHoles(Array.from(room.state.encounterGroundHoles)))
+        dispatch(
+          setEncounterGroundHoles(Array.from(room.state.encounterGroundHoles))
+        )
       }
       $state.encounterGroundHoles.onChange(syncEncounterGroundHoles)
       $state.encounterGroundHoles.onAdd(syncEncounterGroundHoles)
@@ -1108,7 +1128,8 @@ export default function Game() {
         gameContainer.initializePlayer(player)
         const $player = $(player)
 
-        const isViewedPlayer = () => player.id === uid || (room?.state?.spectators?.has(uid) ?? false)
+        const isViewedPlayer = () =>
+          player.id === uid || (room?.state?.spectators?.has(uid) ?? false)
         if (isViewedPlayer()) {
           dispatch(setInterest(player.interest))
           dispatch(setMaxInterest(player.maxInterest))
@@ -1432,10 +1453,18 @@ export default function Game() {
       )
     }
   }, [isTutorial, connectedPlayer])
-  const arceusDamageDealt = useAppSelector((state) => state.game.arceusDamageDealt)
-  const isNewArceusRecord = useAppSelector((state) => state.game.isNewArceusRecord)
-  const previousArceusRecord = useAppSelector((state) => state.game.previousArceusRecord)
-  const previousArceusHolder = useAppSelector((state) => state.game.previousArceusHolder)
+  const arceusDamageDealt = useAppSelector(
+    (state) => state.game.arceusDamageDealt
+  )
+  const isNewArceusRecord = useAppSelector(
+    (state) => state.game.isNewArceusRecord
+  )
+  const previousArceusRecord = useAppSelector(
+    (state) => state.game.previousArceusRecord
+  )
+  const previousArceusHolder = useAppSelector(
+    (state) => state.game.previousArceusHolder
+  )
   const isMapPhase = phase === GamePhaseState.MAP
   const isRestPhase = phase === GamePhaseState.REST
   const isEventPhase = phase === GamePhaseState.EVENT
@@ -1450,8 +1479,7 @@ export default function Game() {
     (isRewardPhase || isMapPhase) &&
     hasPendingRewards &&
     !pendingChoices.some((choice) => choice.type === "starter")
-  const shouldShowRewards =
-    isRewardPhase || (isMapPhase && hasPendingRewards)
+  const shouldShowRewards = isRewardPhase || (isMapPhase && hasPendingRewards)
   const isMapShowing = !mapHidden && mapVersion > 0
   const isBoardHidden = isMapShowing || isEventPhase
 
@@ -1467,60 +1495,95 @@ export default function Game() {
         <>
           <MainSidebar page="game" leave={leave} leaveLabel={t("leave_game")} />
           {spectatorCount > 0 && (
-            <div style={{
-              position: "absolute", top: "8px", left: "60px",
-              padding: "4px 10px", borderRadius: "8px", background: "rgba(0,0,0,0.5)",
-              color: "white", fontSize: "12px", zIndex: 200
-            }}>
+            <div
+              style={{
+                position: "absolute",
+                top: "8px",
+                left: "60px",
+                padding: "4px 10px",
+                borderRadius: "8px",
+                background: "rgba(0,0,0,0.5)",
+                color: "white",
+                fontSize: "12px",
+                zIndex: 200
+              }}
+            >
               {spectatorCount} watching
             </div>
           )}
           {isSpectator && (
-            <div style={{
-              position: "absolute", top: "8px", left: spectatorCount > 0 ? "170px" : "60px",
-              padding: "4px 10px", borderRadius: "8px", background: "rgba(52,152,219,0.7)",
-              color: "white", fontSize: "12px", zIndex: 200, fontWeight: "bold"
-            }}>
+            <div
+              style={{
+                position: "absolute",
+                top: "8px",
+                left: spectatorCount > 0 ? "170px" : "60px",
+                padding: "4px 10px",
+                borderRadius: "8px",
+                background: "rgba(52,152,219,0.7)",
+                color: "white",
+                fontSize: "12px",
+                zIndex: 200,
+                fontWeight: "bold"
+              }}
+            >
               Spectating
             </div>
           )}
-          <GameRelicContainer relics={Array.from((isSpectator ? spectatedPlayer : connectedPlayer)?.relics ?? [])} />
+          <GameRelicContainer
+            relics={Array.from(
+              (isSpectator ? spectatedPlayer : connectedPlayer)?.relics ?? []
+            )}
+          />
           <GameOpponentItems />
-          {(runComplete || runFailed) && (() => {
-            const history = Array.from(connectedPlayer?.history ?? [])
-            const battlesWon = history.filter(h => h.result === "WIN").length
-            const battlesLost = history.filter(h => h.result === "DEFEAT").length
-            const totalGold = connectedPlayer?.gameStats?.totalMoneyEarned ?? 0
-            return (
-              <GameRunEnd
-                victory={runComplete}
-                runHP={runHP}
-                battlesWon={battlesWon}
-                battlesLost={battlesLost}
-                totalGold={totalGold}
-                difficultyMode={difficultyMode}
-                eliteFourAvailable={eliteFourAvailable}
-                currentAct={currentAct}
-                arceusDamageDealt={arceusDamageDealt}
-                isNewArceusRecord={isNewArceusRecord}
-                previousArceusRecord={previousArceusRecord}
-                previousArceusHolder={previousArceusHolder}
-                onEnterEliteFour={eliteFourAvailable ? () => {
-                  rooms.game?.send(Transfer.ENTER_ELITE_FOUR)
-                  setRunComplete(false)
-                  setRunFailed(false)
-                  setEliteFourAvailable(false)
-                  setMapHidden(false)
-                } : undefined}
-                onChallengeArceus={currentAct === 4 ? () => {
-                  rooms.game?.send(Transfer.ENTER_ACT_5)
-                  setRunComplete(false)
-                  setRunFailed(false)
-                  setMapHidden(false)
-                } : undefined}
-              />
-            )
-          })()}
+          {(runComplete || runFailed) &&
+            (() => {
+              const history = Array.from(connectedPlayer?.history ?? [])
+              const battlesWon = history.filter(
+                (h) => h.result === "WIN"
+              ).length
+              const battlesLost = history.filter(
+                (h) => h.result === "DEFEAT"
+              ).length
+              const totalGold =
+                connectedPlayer?.gameStats?.totalMoneyEarned ?? 0
+              return (
+                <GameRunEnd
+                  victory={runComplete}
+                  runHP={runHP}
+                  battlesWon={battlesWon}
+                  battlesLost={battlesLost}
+                  totalGold={totalGold}
+                  difficultyMode={difficultyMode}
+                  eliteFourAvailable={eliteFourAvailable}
+                  currentAct={currentAct}
+                  arceusDamageDealt={arceusDamageDealt}
+                  isNewArceusRecord={isNewArceusRecord}
+                  previousArceusRecord={previousArceusRecord}
+                  previousArceusHolder={previousArceusHolder}
+                  onEnterEliteFour={
+                    eliteFourAvailable
+                      ? () => {
+                          rooms.game?.send(Transfer.ENTER_ELITE_FOUR)
+                          setRunComplete(false)
+                          setRunFailed(false)
+                          setEliteFourAvailable(false)
+                          setMapHidden(false)
+                        }
+                      : undefined
+                  }
+                  onChallengeArceus={
+                    currentAct === 4
+                      ? () => {
+                          rooms.game?.send(Transfer.ENTER_ACT_5)
+                          setRunComplete(false)
+                          setRunFailed(false)
+                          setMapHidden(false)
+                        }
+                      : undefined
+                  }
+                />
+              )
+            })()}
           <GameFinalRank
             rank={finalRank}
             hide={spectateTillTheEnd}
@@ -1538,8 +1601,18 @@ export default function Game() {
               difficultyMode={difficultyMode}
               isEndless={isEndless}
               onHide={() => setMapHidden(true)}
-              readOnly={spectate || (!isMapPhase && (connectedPlayer?.choices?.length ?? 0) > 0)}
-              showRerollMap={!spectate && !isSpire && (connectedPlayer?.choices?.some((c: any) => c.type === "starter") ?? false)}
+              readOnly={
+                spectate ||
+                (!isMapPhase && (connectedPlayer?.choices?.length ?? 0) > 0)
+              }
+              showRerollMap={
+                !spectate &&
+                !isSpire &&
+                (connectedPlayer?.choices?.some(
+                  (c: any) => c.type === "starter"
+                ) ??
+                  false)
+              }
               hasChoicesPending={hasChoicesPending}
               canForfeitPendingChoices={canForfeitPendingChoices}
               isMapPhase={isMapPhase}
@@ -1549,10 +1622,12 @@ export default function Game() {
           {isRestPhase && room?.state && (
             <GameRest
               runHP={runHP}
-              choices={Array.from(room.state.spireEventChoiceLabels ?? []).map((label, i) => ({
-                label,
-                description: room.state.spireEventChoiceDescs?.[i] ?? ""
-              }))}
+              choices={Array.from(room.state.spireEventChoiceLabels ?? []).map(
+                (label, i) => ({
+                  label,
+                  description: room.state.spireEventChoiceDescs?.[i] ?? ""
+                })
+              )}
               readOnly={spectate}
             />
           )}
@@ -1561,154 +1636,200 @@ export default function Game() {
               eventName={room.state.spireEventName}
               eventDescription={room.state.spireEventDescription}
               portrait={room.state.spireEventPortrait}
-              choices={Array.from(room.state.spireEventChoiceLabels ?? []).map((label, i) => ({
-                label,
-                description: room.state.spireEventChoiceDescs?.[i] ?? ""
-              }))}
+              choices={Array.from(room.state.spireEventChoiceLabels ?? []).map(
+                (label, i) => ({
+                  label,
+                  description: room.state.spireEventChoiceDescs?.[i] ?? ""
+                })
+              )}
               runHP={runHP}
               gold={money}
               readOnly={spectate}
             />
           )}
           {shouldShowRewards && <GameRewardsScreen />}
-          {!spectate && !runComplete && !runFailed && isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
-            <div className="game-action-float" style={{
-              position: "absolute",
-              bottom: "170px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 50
-            }}>
-              <button
-                onClick={openMap}
+          {!spectate &&
+            !runComplete &&
+            !runFailed &&
+            isMapPhase &&
+            mapHidden &&
+            mapVersion > 0 &&
+            (connectedPlayer?.choices?.length ?? 1) === 0 && (
+              <div
+                className="game-action-float"
                 style={{
-                  padding: "8px 24px",
-                  fontSize: "16px",
-                  borderRadius: "6px",
-                  border: "2px solid #fff",
-                  background: "#2ecc71",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: "bold"
+                  position: "absolute",
+                  bottom: "170px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 50
                 }}
               >
-                Continue to Map
-              </button>
-            </div>
-          )}
-          {!spectate && phase === GamePhaseState.PICK && !isEliteTestActive() && (
-            <div className="game-action-float" style={{
-              position: "absolute",
-              bottom: "170px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 50
-            }}>
-              <button
-                onClick={() => rooms.game?.send(Transfer.SKIP_REWARD)}
+                <button
+                  onClick={openMap}
+                  style={{
+                    padding: "8px 24px",
+                    fontSize: "16px",
+                    borderRadius: "6px",
+                    border: "2px solid #fff",
+                    background: "#2ecc71",
+                    color: "white",
+                    cursor: "pointer",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Continue to Map
+                </button>
+              </div>
+            )}
+          {!spectate &&
+            phase === GamePhaseState.PICK &&
+            !isEliteTestActive() && (
+              <div
+                className="game-action-float"
                 style={{
-                  padding: "8px 24px",
-                  fontSize: "16px",
-                  borderRadius: "6px",
-                  border: "2px solid #fff",
-                  background: "#e74c3c",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: "bold"
+                  position: "absolute",
+                  bottom: "170px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 50
                 }}
               >
-                Start Fight
-              </button>
-            </div>
-          )}
-          {!spectate && phase === GamePhaseState.PICK && isEliteTestActive() && !eliteTestAwaitingBegin && (
-            <div className="game-action-float" style={{
-              position: "absolute",
-              bottom: "170px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 50
-            }}>
-              <button
-                onClick={() =>
-                  window.dispatchEvent(new CustomEvent("open-elite-designer"))
-                }
+                <button
+                  onClick={() => rooms.game?.send(Transfer.SKIP_REWARD)}
+                  style={{
+                    padding: "8px 24px",
+                    fontSize: "16px",
+                    borderRadius: "6px",
+                    border: "2px solid #fff",
+                    background: "#e74c3c",
+                    color: "white",
+                    cursor: "pointer",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Start Fight
+                </button>
+              </div>
+            )}
+          {!spectate &&
+            phase === GamePhaseState.PICK &&
+            isEliteTestActive() &&
+            !eliteTestAwaitingBegin && (
+              <div
+                className="game-action-float"
                 style={{
-                  padding: "8px 24px",
-                  fontSize: "16px",
-                  borderRadius: "6px",
-                  border: "2px solid #fff",
-                  background: "#2ecc71",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: "bold"
+                  position: "absolute",
+                  bottom: "170px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 50
                 }}
               >
-                Open Elite Designer
-              </button>
-            </div>
-          )}
-          {!spectate && phase === GamePhaseState.PICK && isEliteTestActive() && eliteTestAwaitingBegin && (
-            <div className="game-action-float" style={{
-              position: "absolute",
-              bottom: "170px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 50,
-              display: "flex",
-              gap: "8px"
-            }}>
-              <button
-                onClick={() => beginEliteTest()}
+                <button
+                  onClick={() =>
+                    window.dispatchEvent(new CustomEvent("open-elite-designer"))
+                  }
+                  style={{
+                    padding: "8px 24px",
+                    fontSize: "16px",
+                    borderRadius: "6px",
+                    border: "2px solid #fff",
+                    background: "#2ecc71",
+                    color: "white",
+                    cursor: "pointer",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Open Elite Designer
+                </button>
+              </div>
+            )}
+          {!spectate &&
+            phase === GamePhaseState.PICK &&
+            isEliteTestActive() &&
+            eliteTestAwaitingBegin && (
+              <div
+                className="game-action-float"
                 style={{
-                  padding: "8px 24px",
-                  fontSize: "16px",
-                  borderRadius: "6px",
-                  border: "2px solid #fff",
-                  background: "#27ae60",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: "bold"
+                  position: "absolute",
+                  bottom: "170px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 50,
+                  display: "flex",
+                  gap: "8px"
                 }}
               >
-                ▶ Begin
-              </button>
-              <button
-                onClick={() =>
-                  window.dispatchEvent(new CustomEvent("open-elite-designer"))
-                }
-                style={{
-                  padding: "8px 16px",
-                  fontSize: "14px",
-                  borderRadius: "6px",
-                  border: "2px solid #fff",
-                  background: "#555",
-                  color: "white",
-                  cursor: "pointer"
-                }}
-              >
-                Edit Design
-              </button>
-            </div>
-          )}
+                <button
+                  onClick={() => beginEliteTest()}
+                  style={{
+                    padding: "8px 24px",
+                    fontSize: "16px",
+                    borderRadius: "6px",
+                    border: "2px solid #fff",
+                    background: "#27ae60",
+                    color: "white",
+                    cursor: "pointer",
+                    fontWeight: "bold"
+                  }}
+                >
+                  ▶ Begin
+                </button>
+                <button
+                  onClick={() =>
+                    window.dispatchEvent(new CustomEvent("open-elite-designer"))
+                  }
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "14px",
+                    borderRadius: "6px",
+                    border: "2px solid #fff",
+                    background: "#555",
+                    color: "white",
+                    cursor: "pointer"
+                  }}
+                >
+                  Edit Design
+                </button>
+              </div>
+            )}
           {!spectate && isShopPhase && (
-            <div className="game-action-float" style={{
-              position: "absolute", bottom: "200px", left: "50%", transform: "translateX(-50%)", zIndex: 50
-            }}>
+            <div
+              className="game-action-float"
+              style={{
+                position: "absolute",
+                bottom: "200px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 50
+              }}
+            >
               <button
                 onClick={() => rooms.game?.send(Transfer.SKIP_REWARD)}
                 style={{
-                  padding: "10px 28px", fontSize: "16px", borderRadius: "8px",
-                  border: "2px solid #fff", background: "#3498db", color: "white",
-                  cursor: "pointer", fontWeight: "bold"
+                  padding: "10px 28px",
+                  fontSize: "16px",
+                  borderRadius: "8px",
+                  border: "2px solid #fff",
+                  background: "#3498db",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: "bold"
                 }}
               >
                 Leave Shop
               </button>
             </div>
           )}
-          {!isBoardHidden && <GameStageInfo onLeave={() => setShowLeaveConfirm(true)} />}
-          {!isBoardHidden && <GameBottomBar onShowMap={mapVersion > 0 ? () => setMapHidden(false) : undefined} />}
+          {!isBoardHidden && (
+            <GameStageInfo onLeave={() => setShowLeaveConfirm(true)} />
+          )}
+          {!isBoardHidden && (
+            <GameBottomBar
+              onShowMap={mapVersion > 0 ? () => setMapHidden(false) : undefined}
+            />
+          )}
           {!isBoardHidden && <GameSynergies />}
           {!isBoardHidden && <GameOpponentSynergies />}
           {!isBoardHidden && <GameShop />}
@@ -1718,18 +1839,38 @@ export default function Game() {
           <GameToasts />
           <TutorialDialog onExit={leave} />
           {isAdmin && !spectate && (
-          <div className="game-admin-cheats" style={{
-            position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
-            display: "flex", flexDirection: "column", gap: "8px", zIndex: 300
-          }}>
+            <div
+              className="game-admin-cheats"
+              style={{
+                position: "absolute",
+                right: "10px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                zIndex: 300
+              }}
+            >
               <>
                 <button
-                  onClick={() => { setRunComplete(true); setEliteFourAvailable(true) }}
-                  style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                  onClick={() => {
+                    setRunComplete(true)
+                    setEliteFourAvailable(true)
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    background: "#2ecc71",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}
                 >
                   Test Victory
                 </button>
-                {[1, 2, 3].map(act => (
+                {[1, 2, 3].map((act) => (
                   <button
                     key={act}
                     onClick={() => {
@@ -1738,26 +1879,58 @@ export default function Game() {
                       setRunFailed(false)
                       setMapHidden(false)
                     }}
-                    style={{ padding: "6px 12px", background: "#2c3e50", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                    style={{
+                      padding: "6px 12px",
+                      background: "#2c3e50",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "12px"
+                    }}
                   >
                     Skip to Act {act}
                   </button>
                 ))}
                 <button
                   onClick={() => rooms.game?.send(Transfer.GIVE_GOLD)}
-                  style={{ padding: "6px 12px", background: "#f39c12", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                  style={{
+                    padding: "6px 12px",
+                    background: "#f39c12",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}
                 >
                   Give 999 Gold
                 </button>
                 <button
                   onClick={() => rooms.game?.send(Transfer.GIVE_MEWTWO)}
-                  style={{ padding: "6px 12px", background: "#3498db", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                  style={{
+                    padding: "6px 12px",
+                    background: "#3498db",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}
                 >
                   Give Mewtwo
                 </button>
                 <button
                   onClick={() => rooms.game?.send(Transfer.GIVE_DITTO)}
-                  style={{ padding: "6px 12px", background: "#a259c4", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                  style={{
+                    padding: "6px 12px",
+                    background: "#a259c4",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}
                 >
                   Give Ditto
                 </button>
@@ -1766,7 +1939,15 @@ export default function Game() {
                 <AdminGiveRelic />
                 <button
                   onClick={() => rooms.game?.send(Transfer.ADMIN_HEAL)}
-                  style={{ padding: "6px 12px", background: "#2ecc71", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                  style={{
+                    padding: "6px 12px",
+                    background: "#2ecc71",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}
                 >
                   Heal
                 </button>
@@ -1778,7 +1959,15 @@ export default function Game() {
                     setEliteFourAvailable(false)
                     setMapHidden(false)
                   }}
-                  style={{ padding: "6px 12px", background: "#8e44ad", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                  style={{
+                    padding: "6px 12px",
+                    background: "#8e44ad",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}
                 >
                   Skip to Elite 4
                 </button>
@@ -1789,18 +1978,34 @@ export default function Game() {
                     setRunFailed(false)
                     setMapHidden(false)
                   }}
-                  style={{ padding: "6px 12px", background: "#9b59b6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                  style={{
+                    padding: "6px 12px",
+                    background: "#9b59b6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}
                 >
                   Skip to Act 5
                 </button>
                 <button
                   onClick={() => rooms.game?.send(Transfer.RESET_CHAMPION)}
-                  style={{ padding: "6px 12px", background: "#e74c3c", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                  style={{
+                    padding: "6px 12px",
+                    background: "#e74c3c",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}
                 >
                   Reset E4/Champion
                 </button>
               </>
-          </div>
+            </div>
           )}
         </>
       ) : (
@@ -1808,25 +2013,40 @@ export default function Game() {
       )}
       <ConnectionStatusNotification />
       {announcement && (
-        <div style={{
-          position: "fixed",
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999
-        }}>
-          <div className="my-container" style={{
-            padding: "24px",
-            maxWidth: "450px",
-            textAlign: "center",
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.7)",
             display: "flex",
-            flexDirection: "column",
-            gap: "16px"
-          }}>
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+        >
+          <div
+            className="my-container"
+            style={{
+              padding: "24px",
+              maxWidth: "450px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px"
+            }}
+          >
             <h3 style={{ color: "#f1c40f", margin: 0 }}>Server Announcement</h3>
-            <p style={{ fontSize: "14px", opacity: 0.9, margin: 0, whiteSpace: "pre-wrap" }}>
+            <p
+              style={{
+                fontSize: "14px",
+                opacity: 0.9,
+                margin: 0,
+                whiteSpace: "pre-wrap"
+              }}
+            >
               {announcement}
             </p>
             <button
@@ -1840,30 +2060,40 @@ export default function Game() {
         </div>
       )}
       {eliteTestWelcome && !eliteTestResult && (
-        <div style={{
-          position: "fixed",
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.55)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999
-        }}>
-          <div className="my-container" style={{
-            padding: "24px",
-            maxWidth: "440px",
-            textAlign: "center",
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.55)",
             display: "flex",
-            flexDirection: "column",
-            gap: "14px"
-          }}>
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+        >
+          <div
+            className="my-container"
+            style={{
+              padding: "24px",
+              maxWidth: "440px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px"
+            }}
+          >
             <h3 style={{ color: "#f1c40f", margin: 0 }}>Test Mode</h3>
             <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>
-              Welcome to the test sandbox — it starts as an empty board.
-              Open the Elite Designer again to load your design, run test
-              fights, and measure success rates.
+              Welcome to the test sandbox — it starts as an empty board. Open
+              the Elite Designer again to load your design, run test fights, and
+              measure success rates.
             </p>
-            <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+            <div
+              style={{ display: "flex", gap: "8px", justifyContent: "center" }}
+            >
               <button
                 className="bubbly green"
                 onClick={() => {
@@ -1885,32 +2115,58 @@ export default function Game() {
         </div>
       )}
       {eliteTestResult && (
-        <div style={{
-          position: "fixed",
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.55)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999
-        }}>
-          <div className="my-container" style={{
-            padding: "24px",
-            maxWidth: "420px",
-            textAlign: "center",
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.55)",
             display: "flex",
-            flexDirection: "column",
-            gap: "14px"
-          }}>
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+        >
+          <div
+            className="my-container"
+            style={{
+              padding: "24px",
+              maxWidth: "420px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px"
+            }}
+          >
             <h3 style={{ color: "#f1c40f", margin: 0 }}>Elite Test Result</h3>
             {eliteTestResult.error === "no_data" ? (
               <p style={{ margin: 0 }}>
                 No saved player teams for that stage yet — pick another stage.
               </p>
             ) : eliteTestResult.error === "empty_design" ? (
-              <p style={{ margin: 0 }}>Place some Pokémon on the board first.</p>
+              <p style={{ margin: 0 }}>
+                Place some Pokémon on the board first.
+              </p>
+            ) : eliteTestResult.error === "invalid_target" ? (
+              <p style={{ margin: 0 }}>
+                That test stage or difficulty is invalid. Reopen the designer
+                and choose another option.
+              </p>
+            ) : eliteTestResult.error === "opponent_not_found" ? (
+              <p style={{ margin: 0 }}>
+                That library design no longer exists. Reopen the designer and
+                choose another opponent.
+              </p>
+            ) : eliteTestResult.error === "invalid_opponent" ? (
+              <p style={{ margin: 0 }}>
+                That library design is empty or malformed and cannot be tested.
+              </p>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
                 <p style={{ margin: 0, fontSize: "20px", fontWeight: "bold" }}>
                   {eliteTestResult.winner === "elite"
                     ? "✅ Elite wins"
@@ -1932,7 +2188,9 @@ export default function Game() {
                 </p>
               </div>
             )}
-            <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+            <div
+              style={{ display: "flex", gap: "8px", justifyContent: "center" }}
+            >
               {!eliteTestResult.error && hasLastEliteTest() && (
                 <button
                   className="bubbly blue"
@@ -1964,55 +2222,77 @@ export default function Game() {
           </div>
         </div>
       )}
-      {connectionStatus === ConnectionStatus.CONNECTION_FAILED && !runComplete && !runFailed && (
-        <div style={{
-          position: "fixed",
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9998,
-          color: "white"
-        }}>
-          <h2 style={{ margin: "0 0 8px", textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
-            Disconnected
-          </h2>
-          <p style={{ margin: "0 0 16px", opacity: 0.8, fontSize: "14px" }}>
-            Your run has been saved. You can resume from the lobby.
-          </p>
-          <button
-            onClick={leave}
+      {connectionStatus === ConnectionStatus.CONNECTION_FAILED &&
+        !runComplete &&
+        !runFailed && (
+          <div
             style={{
-              padding: "12px 36px",
-              fontSize: "18px",
-              borderRadius: "8px",
-              border: "none",
-              background: "#e74c3c",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: "bold",
-              boxShadow: "0 4px 12px rgba(231,76,60,0.4)"
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0,0,0,0.7)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9998,
+              color: "white"
             }}
           >
-            Return to Lobby
-          </button>
-        </div>
-      )}
+            <h2
+              style={{
+                margin: "0 0 8px",
+                textShadow: "0 2px 8px rgba(0,0,0,0.8)"
+              }}
+            >
+              Disconnected
+            </h2>
+            <p style={{ margin: "0 0 16px", opacity: 0.8, fontSize: "14px" }}>
+              Your run has been saved. You can resume from the lobby.
+            </p>
+            <button
+              onClick={leave}
+              style={{
+                padding: "12px 36px",
+                fontSize: "18px",
+                borderRadius: "8px",
+                border: "none",
+                background: "#e74c3c",
+                color: "white",
+                cursor: "pointer",
+                fontWeight: "bold",
+                boxShadow: "0 4px 12px rgba(231,76,60,0.4)"
+              }}
+            >
+              Return to Lobby
+            </button>
+          </div>
+        )}
       {showLeaveConfirm && (
-        <div style={{
-          position: "fixed",
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9998,
-          color: "white"
-        }}>
-          <h2 style={{ margin: "0 0 8px", textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9998,
+            color: "white"
+          }}
+        >
+          <h2
+            style={{
+              margin: "0 0 8px",
+              textShadow: "0 2px 8px rgba(0,0,0,0.8)"
+            }}
+          >
             Leave Game
           </h2>
           <p style={{ margin: "0 0 20px", opacity: 0.8, fontSize: "14px" }}>

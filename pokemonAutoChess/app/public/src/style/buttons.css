@@ -20,6 +20,25 @@ button {
   user-select: none;
 }
 
+@media (pointer: coarse) {
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  button *,
+  [role="button"] * {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
 .bubbly:not([disabled]):hover {
   background: var(--color-bg-primary);
   cursor: var(--cursor-hover);

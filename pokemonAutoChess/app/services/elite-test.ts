@@ -2,14 +2,21 @@ import Simulation from "../core/simulation"
 import Player from "../models/colyseus-models/player"
 import { computeSynergies } from "../models/colyseus-models/synergies"
 import PokemonFactory from "../models/pokemon-factory"
+import {
+  type DifficultyMode,
+  getArceusEncounter,
+  getLegendaryBossEncounter,
+  type SpireEncounter
+} from "../models/spire-encounters"
 import type GameRoom from "../rooms/game-room"
 import GameState from "../rooms/states/game-state"
 import { Emotion, Role } from "../types"
 import { Team } from "../types/enum/Game"
 import type { Item } from "../types/enum/Item"
-import type { Pkm } from "../types/enum/Pokemon"
+import { PkmIndex, type Pkm } from "../types/enum/Pokemon"
 import { Synergy } from "../types/enum/Synergy"
 import { logger } from "../utils/logger"
+import { getAvatarString } from "../utils/avatar"
 import { getWeather } from "../utils/weather"
 import {
   type AsyncFightOpponent,
@@ -25,6 +32,35 @@ export interface ParsedEliteDesign {
   board: { name: Pkm; x: number; y: number; items: Item[] }[]
   bonus: Record<string, number>
   icon?: Pkm
+}
+
+export function parseEliteTestDifficulty(
+  value: unknown
+): DifficultyMode | null {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 3
+    ? (value as DifficultyMode)
+    : null
+}
+
+export function parseEliteTestBossAct(target: string): 1 | 2 | 3 | null {
+  const match = target.match(/^boss-act([1-3])$/)
+  return match ? (Number(match[1]) as 1 | 2 | 3) : null
+}
+
+// Built-in fallback for boss tests and the live Arceus encounter. Approved boss
+// designs are resolved by GameRoom before this fallback is used.
+export function createBuiltInEliteTestEncounter(
+  target: string,
+  difficulty: unknown
+): SpireEncounter | null {
+  const mode = parseEliteTestDifficulty(difficulty)
+  if (mode == null) return null
+  if (target === "arceus") return getArceusEncounter(mode)
+  const act = parseEliteTestBossAct(target)
+  return act == null ? null : getLegendaryBossEncounter(act, mode)
 }
 
 // Parse an Elite Designer export string into a structured design. Returns null on
@@ -134,6 +170,35 @@ export function applyEliteDesignToPlayer(
     player.synergies.set(key as Synergy, counts.get(key as Synergy) ?? 0)
   )
   player.effects.update(player.synergies, player.board)
+}
+
+// Materializes a library design as a real red Player. This intentionally avoids
+// the PVE encounter path so authored held items and every team/main bonus,
+// including max PP, retain exactly the same semantics as the blue design.
+export function buildEliteDesignOpponent(
+  design: ParsedEliteDesign,
+  state: GameState
+): Player {
+  const avatarPokemon = design.icon ?? design.board[0]?.name
+  const avatar = avatarPokemon
+    ? getAvatarString(PkmIndex[avatarPokemon], false)
+    : "0129/Normal"
+  const opponent = new Player(
+    "elite-test-designed-opponent",
+    design.name,
+    1200,
+    0,
+    avatar,
+    true,
+    2,
+    new Map(),
+    "",
+    Role.BOT,
+    state
+  )
+  opponent.team = Team.RED_TEAM
+  applyEliteDesignToPlayer(opponent, design, state)
+  return opponent
 }
 
 // ============================================================================

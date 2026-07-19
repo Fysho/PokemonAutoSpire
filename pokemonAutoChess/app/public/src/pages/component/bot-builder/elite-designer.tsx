@@ -1316,21 +1316,65 @@ export function EnterTestModeTab(props: { onRequestClose?: () => void }) {
   )
 }
 
-// "Test vs Endless Team" controls: pick which endless stage's saved player
-// teams to fight and run an AI-vs-AI test of the current design against a
-// random team from that stage. Requires being in the test sandbox (see
-// EnterTestModeTab in the modal's tab row). The fight is watched in the game
-// view (this modal closes on Test) and a result popup is shown by game.tsx.
+// Test controls: stage the current design against a live encounter, saved
+// Endless team, or another shared library design. Requires the dedicated test
+// sandbox; the modal closes so the preview and fight remain visible.
+type EliteTestDifficulty = 0 | 1 | 2 | 3
+
+const ELITE_TEST_DIFFICULTIES: {
+  value: EliteTestDifficulty
+  label: string
+}[] = [
+  { value: 0, label: "Easy" },
+  { value: 1, label: "Normal" },
+  { value: 2, label: "Hard" },
+  { value: 3, label: "Impossible" }
+]
+
+const SPECIAL_TEST_STAGES = [
+  { stage: "boss-act1", label: "Act 1 Boss (live pool)" },
+  { stage: "boss-act2", label: "Act 2 Boss (live pool)" },
+  { stage: "boss-act3", label: "Act 3 Boss (live pool)" },
+  { stage: "arceus", label: "Arceus" }
+] as const
+
+type EliteTestOpponentType = "stage" | "design"
+
+interface EliteTestLibraryDesign {
+  id: string
+  kind: "elite" | "boss"
+  name: string
+  act: number
+  creatorName: string
+}
+
 function EliteTestControls(props: {
   design: EliteDesign
   onRequestClose?: () => void
 }) {
   const { design, onRequestClose } = props
 
+  const [opponentType, setOpponentType] = useState<EliteTestOpponentType>(() =>
+    localStore.get(LocalStoreKeys.ELITE_TEST_OPPONENT_TYPE) === "design"
+      ? "design"
+      : "stage"
+  )
   const [stages, setStages] = useState<{ stage: string; count: number }[]>([])
   const [stage, setStage] = useState<string>(
-    () => localStore.get(LocalStoreKeys.ELITE_TEST_STAGE) ?? ""
+    () => localStore.get(LocalStoreKeys.ELITE_TEST_STAGE) ?? "boss-act1"
   )
+  const [libraryDesigns, setLibraryDesigns] = useState<
+    EliteTestLibraryDesign[]
+  >([])
+  const [opponentDesignId, setOpponentDesignId] = useState<string>(
+    () => localStore.get(LocalStoreKeys.ELITE_TEST_DESIGN_ID) ?? ""
+  )
+  const [difficulty, setDifficulty] = useState<EliteTestDifficulty>(() => {
+    const stored = localStore.get(LocalStoreKeys.ELITE_TEST_DIFFICULTY)
+    return ELITE_TEST_DIFFICULTIES.some(({ value }) => value === stored)
+      ? stored
+      : 1
+  })
 
   const inTestRoom = isEliteTestActive()
   const inOtherRoom = !!rooms.game && !inTestRoom
@@ -1343,8 +1387,30 @@ function EliteTestControls(props: {
         if (cancelled) return
         const list = Array.isArray(data) ? data : []
         setStages(list)
-        setStage((cur) =>
-          list.some((s) => s.stage === cur) ? cur : (list[0]?.stage ?? "")
+        setStage((current) => {
+          const isSpecial = SPECIAL_TEST_STAGES.some(
+            ({ stage: value }) => value === current
+          )
+          return isSpecial || list.some(({ stage: value }) => value === current)
+            ? current
+            : (list[0]?.stage ?? "boss-act1")
+        })
+      })
+      .catch(() => {})
+    fetch("/api/elite-designs")
+      .then((res) => res.json())
+      .then((data: EliteTestLibraryDesign[]) => {
+        if (cancelled) return
+        const list = (Array.isArray(data) ? data : []).sort(
+          (left, right) =>
+            left.kind.localeCompare(right.kind) ||
+            left.act - right.act ||
+            left.name.localeCompare(right.name) ||
+            left.creatorName.localeCompare(right.creatorName)
+        )
+        setLibraryDesigns(list)
+        setOpponentDesignId((current) =>
+          list.some(({ id }) => id === current) ? current : (list[0]?.id ?? "")
         )
       })
       .catch(() => {})
@@ -1354,13 +1420,35 @@ function EliteTestControls(props: {
   }, [])
 
   useEffect(() => {
+    localStore.set(LocalStoreKeys.ELITE_TEST_OPPONENT_TYPE, opponentType)
+  }, [opponentType])
+
+  useEffect(() => {
     if (stage) localStore.set(LocalStoreKeys.ELITE_TEST_STAGE, stage)
   }, [stage])
 
+  useEffect(() => {
+    if (opponentDesignId) {
+      localStore.set(LocalStoreKeys.ELITE_TEST_DESIGN_ID, opponentDesignId)
+    }
+  }, [opponentDesignId])
+
+  useEffect(() => {
+    localStore.set(LocalStoreKeys.ELITE_TEST_DIFFICULTY, difficulty)
+  }, [difficulty])
+
+  const hasOpponent =
+    opponentType === "stage" ? stage !== "" : opponentDesignId !== ""
+
   function runTest() {
-    if (!inTestRoom || !stage || design.board.length === 0) return
-    sendEliteTest(buildExportString(design), stage)
-    onRequestClose?.() // close the modal so the battle is visible
+    if (!inTestRoom || !hasOpponent || design.board.length === 0) return
+    sendEliteTest(
+      buildExportString(design),
+      opponentType === "stage"
+        ? { type: "stage", stage, difficulty }
+        : { type: "design", designId: opponentDesignId }
+    )
+    onRequestClose?.()
   }
 
   if (inOtherRoom) {
@@ -1374,17 +1462,92 @@ function EliteTestControls(props: {
   return (
     <span className="elite-test-controls">
       <label className="elite-field">
-        <span>Test stage</span>
+        <span>Opponent type</span>
         <select
-          value={stage}
-          onChange={(e) => setStage(e.target.value)}
-          disabled={stages.length === 0}
-          title="Endless stages with saved player teams"
+          value={opponentType}
+          onChange={(event) =>
+            setOpponentType(event.target.value as EliteTestOpponentType)
+          }
         >
-          {stages.length === 0 && <option value="">No saved teams</option>}
-          {stages.map((s) => (
-            <option key={s.stage} value={s.stage}>
-              {formatStageLabel(s.stage)} ({s.count})
+          <option value="stage">Stage encounter</option>
+          <option value="design">Library design</option>
+        </select>
+      </label>
+      {opponentType === "stage" ? (
+        <label className="elite-field">
+          <span>Test stage</span>
+          <select
+            value={stage}
+            onChange={(event) => setStage(event.target.value)}
+            title="Live act bosses, Arceus, or a saved Endless team"
+          >
+            <optgroup label="Act-end encounters">
+              {SPECIAL_TEST_STAGES.map((option) => (
+                <option key={option.stage} value={option.stage}>
+                  {option.label}
+                </option>
+              ))}
+            </optgroup>
+            {stages.length > 0 && (
+              <optgroup label="Saved Endless teams">
+                {stages.map((option) => (
+                  <option key={option.stage} value={option.stage}>
+                    {formatStageLabel(option.stage)} ({option.count})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </label>
+      ) : (
+        <label className="elite-field">
+          <span>Designed opponent</span>
+          <select
+            value={opponentDesignId}
+            onChange={(event) => setOpponentDesignId(event.target.value)}
+            disabled={libraryDesigns.length === 0}
+            title="All shared elite and boss designs"
+          >
+            {libraryDesigns.length === 0 && (
+              <option value="">No shared designs</option>
+            )}
+            {(["elite", "boss"] as const).map((kind) => {
+              const options = libraryDesigns.filter(
+                (candidate) => candidate.kind === kind
+              )
+              return options.length > 0 ? (
+                <optgroup
+                  key={kind}
+                  label={kind === "elite" ? "Elites" : "Bosses"}
+                >
+                  {options.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      Act {option.act} · {option.name} — {option.creatorName}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null
+            })}
+          </select>
+        </label>
+      )}
+      <label className="elite-field">
+        <span>Difficulty</span>
+        <select
+          value={difficulty}
+          onChange={(event) =>
+            setDifficulty(Number(event.target.value) as EliteTestDifficulty)
+          }
+          disabled={opponentType === "design"}
+          title={
+            opponentType === "design"
+              ? "Library designs use their exact authored items and bonuses"
+              : "Difficulty passed to the selected live encounter"
+          }
+        >
+          {ELITE_TEST_DIFFICULTIES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </select>
@@ -1392,15 +1555,15 @@ function EliteTestControls(props: {
       <button
         className="bubbly green"
         onClick={runTest}
-        disabled={!inTestRoom || !stage || design.board.length === 0}
+        disabled={!inTestRoom || !hasOpponent || design.board.length === 0}
         title={
           !inTestRoom
             ? "Enter Test Mode first (button at the top of this window)"
             : design.board.length === 0
               ? "Place some Pokémon first"
-              : !stage
-                ? "No endless stage with saved teams"
-                : "Fight a random saved team from the selected stage"
+              : !hasOpponent
+                ? "No opponent is available"
+                : "Stage a fight against the selected opponent"
         }
       >
         ▶ Test

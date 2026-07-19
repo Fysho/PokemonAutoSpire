@@ -19,6 +19,17 @@
   padding: 2px 4px;
 }
 
+#team-builder.elite-designer .elite-test-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+
+#team-builder.elite-designer .elite-test-controls .elite-field select {
+  max-width: 240px;
+}
+
 #team-builder.elite-designer .elite-name {
   flex: 1 1 160px;
 }

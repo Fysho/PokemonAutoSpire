@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict"
 import { test } from "node:test"
+import PokemonFactory from "../../models/pokemon-factory"
 import type { PlayerChoice } from "../../models/colyseus-models/player-choice"
 import {
   designToSpireEliteData,
@@ -7,13 +8,24 @@ import {
 } from "../../services/elite-design"
 import {
   bracketStagesForDesign,
+  buildEliteDesignOpponent,
   buildMeasurementPoolSchedule,
-  ELITE_MEASURE_DIFFICULTIES
+  createBuiltInEliteTestEncounter,
+  ELITE_MEASURE_DIFFICULTIES,
+  parseEliteTestBossAct,
+  parseEliteDesignExport,
+  parseEliteTestDifficulty
 } from "../../services/elite-test"
-import { BattleResult, GamePhaseState } from "../../types/enum/Game"
+import {
+  BattleResult,
+  GameMode,
+  GamePhaseState,
+  Team
+} from "../../types/enum/Game"
 import { Item } from "../../types/enum/Item"
 import { Pkm } from "../../types/enum/Pokemon"
 import GameRoom from "../game-room"
+import GameState from "../states/game-state"
 import { isEliteLossResult, OnUpdatePhaseCommand } from "./game-commands"
 
 type RewardOption = { pokemon: Pkm; item?: Item }
@@ -165,6 +177,69 @@ test("measurement pools deterministically fill all 100 fights", () => {
     "first"
   ])
   assert.deepEqual(buildMeasurementPoolSchedule([]), [])
+})
+
+test("special test stages validate difficulty and use live encounter factories", () => {
+  assert.equal(parseEliteTestDifficulty(0), 0)
+  assert.equal(parseEliteTestDifficulty(3), 3)
+  assert.equal(parseEliteTestDifficulty(-1), null)
+  assert.equal(parseEliteTestDifficulty("3"), null)
+  assert.equal(parseEliteTestBossAct("boss-act2"), 2)
+  assert.equal(parseEliteTestBossAct("boss-act4"), null)
+
+  const boss = createBuiltInEliteTestEncounter("boss-act1", 2)
+  assert.ok(boss)
+  assert.ok(boss.board.length > 0)
+  assert.equal(createBuiltInEliteTestEncounter("boss-act4", 2), null)
+
+  const easyArceus = createBuiltInEliteTestEncounter("arceus", 0)
+  const impossibleArceus = createBuiltInEliteTestEncounter("arceus", 3)
+  assert.equal(easyArceus?.board[0][2], 2)
+  assert.equal(impossibleArceus?.board[0][2], 3)
+})
+
+test("designed opponents preserve authored items and every bonus", () => {
+  const state = new GameState(
+    "test",
+    "test",
+    true,
+    GameMode.CUSTOM_LOBBY,
+    null,
+    null,
+    null
+  )
+  const design = parseEliteDesignExport(
+    JSON.stringify({
+      name: "Exact Opponent",
+      icon: Pkm.MEW,
+      board: [[Pkm.MEW, 4, 2]],
+      items: [[Item.SHELL_BELL]],
+      bonus: {
+        bonusHP: 100,
+        bonusAtk: 5,
+        bonusDef: 3,
+        bonusSpeDef: 4,
+        bonusAP: 20,
+        bonusPP: 10,
+        mainBonusHP: 50,
+        mainBonusAtk: 7,
+        mainBonusAP: 11
+      }
+    })
+  )
+  assert.ok(design)
+  const opponent = buildEliteDesignOpponent(design, state)
+  const pokemon = [...opponent.board.values()][0]
+  const baseline = PokemonFactory.createPokemonFromName(Pkm.MEW)
+
+  assert.equal(opponent.team, Team.RED_TEAM)
+  assert.equal(pokemon.hp, baseline.hp + 150)
+  assert.equal(pokemon.atk, baseline.atk + 12)
+  assert.equal(pokemon.def, baseline.def + 3)
+  assert.equal(pokemon.speDef, baseline.speDef + 4)
+  assert.equal(pokemon.ap, baseline.ap + 31)
+  assert.equal(pokemon.maxPP, baseline.maxPP + 10)
+  assert.deepEqual([...pokemon.items], [Item.SHELL_BELL])
 })
 
 test("boss exports retain both configurable reward systems", () => {

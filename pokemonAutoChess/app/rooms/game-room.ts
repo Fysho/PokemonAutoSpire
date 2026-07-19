@@ -18,20 +18,27 @@ import type { Egg, Pokemon } from "../models/colyseus-models/pokemon"
 import PokemonFactory from "../models/pokemon-factory"
 import {
   getAdditionalsTier1,
-  getPokemonData,
-  PRECOMPUTED_REGIONAL_MONS
+  getPokemonData
 } from "../models/precomputed/precomputed-pokemon-data"
 import { PRECOMPUTED_POKEMONS_PER_RARITY } from "../models/precomputed/precomputed-rarity"
 import { getSellPrice } from "../models/shop"
+import {
+  addHardModeItems,
+  adjustEncounterItems,
+  type DifficultyMode,
+  type SpireEncounter
+} from "../models/spire-encounters"
 import {
   type ApprovedEliteDesign,
   classicFloorToStageRange,
   designToSpireEliteData,
   getApprovedBossDesigns,
   getApprovedEliteDesigns,
+  getEliteDesignById,
   type SpireEliteDesignData,
   spireFloorToStageRange
 } from "../services/elite-design"
+import type { ParsedEliteDesign } from "../services/elite-test"
 import {
   type IDragDropCombineMessage,
   type IDragDropItemMessage,
@@ -42,7 +49,6 @@ import {
   type IPokemon,
   type IPokemonEntity,
   Role,
-  Title,
   Transfer
 } from "../types"
 import { EvolutionRuleType } from "../types/EvolutionRules"
@@ -158,6 +164,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
   // of the current test fight so the result can report a duration.
   isEliteTest: boolean = false
   eliteTestFightStart: number = 0
+  eliteTestOpponentDesign: ParsedEliteDesign | null = null
   // Anti-AFK idle tracking (see OnUpdateCommand). idlePhase is the phase the
   // idle timer is currently counting against; idleTimeMs is real ms elapsed in
   // it without advancing the run.
@@ -1127,14 +1134,29 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     this.onMessage(
       Transfer.TEST_ELITE_DESIGN,
-      async (client, payload: { design?: string; stage?: string }) => {
-        // Elite Designer sandbox only. Build an AI-vs-AI fight: the design (blue)
-        // vs a random saved endless team for the chosen stage (red). Refuses when
-        // the design is empty or the stage has no saved teams.
+      async (
+        client,
+        payload: {
+          design?: string
+          opponent?: {
+            type?: unknown
+            stage?: unknown
+            difficulty?: unknown
+            designId?: unknown
+          }
+        }
+      ) => {
+        // Elite Designer sandbox only. Stages a saved-team snapshot, live PVE
+        // encounter, or another library design; the fight still waits for Begin.
         if (!this.isEliteTest || !client.auth || !this.isPlayer(client)) return
-        if (this.state.phase === GamePhaseState.FIGHT) return // a test is already running
+        if (this.state.phase === GamePhaseState.FIGHT) return
         try {
-          const { parseEliteDesignExport } = require("../services/elite-test")
+          const {
+            createBuiltInEliteTestEncounter,
+            parseEliteDesignExport,
+            parseEliteTestBossAct,
+            parseEliteTestDifficulty
+          } = require("../services/elite-test")
           const design = parseEliteDesignExport(payload?.design ?? "")
           if (!design || design.board.length === 0) {
             this.broadcast(Transfer.ELITE_TEST_RESULT, {
@@ -1142,24 +1164,16 @@ export default class GameRoom extends Room<{ state: GameState }> {
             })
             return
           }
-          const {
-            getRandomAsyncOpponentNoFallback
-          } = require("../services/async-fight-pool")
-          const opponent = await getRandomAsyncOpponentNoFallback(
-            payload?.stage ?? ""
-          )
-          // Re-read phase after the await (a fight may have started meanwhile). Cast
-          // to number to dodge TS narrowing the early-return above into this check.
-          if ((this.state.phase as number) === GamePhaseState.FIGHT) return
-          if (!opponent) {
+
+          const request = payload?.opponent
+          if (!request || typeof request !== "object") {
             this.broadcast(Transfer.ELITE_TEST_RESULT, {
-              error: "no_data",
-              stage: payload?.stage ?? ""
+              error: "invalid_target"
             })
             return
           }
           const player = schemaValues(this.state.players).find(
-            (p: Player) => !p.isBot
+            (candidate: Player) => !candidate.isBot
           )
           if (!player) return
           const cmd = new OnUpdatePhaseCommand()
@@ -1167,7 +1181,149 @@ export default class GameRoom extends Room<{ state: GameState }> {
           cmd.room = this
           cmd.state = this.state
           cmd.clock = this.clock
-          cmd.setupEliteTestPreview(player, design, opponent)
+
+          if (request.type === "design") {
+            if (
+              typeof request.designId !== "string" ||
+              request.designId.length === 0
+            ) {
+              this.broadcast(Transfer.ELITE_TEST_RESULT, {
+                error: "invalid_target"
+              })
+              return
+            }
+            const opponentDoc = await getEliteDesignById(request.designId)
+            if ((this.state.phase as number) === GamePhaseState.FIGHT) return
+            if (!opponentDoc) {
+              this.broadcast(Transfer.ELITE_TEST_RESULT, {
+                error: "opponent_not_found"
+              })
+              return
+            }
+            const opponentDesign = parseEliteDesignExport(
+              opponentDoc.designJson
+            )
+            if (!opponentDesign || opponentDesign.board.length === 0) {
+              this.broadcast(Transfer.ELITE_TEST_RESULT, {
+                error: "invalid_opponent"
+              })
+              return
+            }
+            const rangeEnd =
+              opponentDoc.stageRange === "boss"
+                ? 20
+                : Number(opponentDoc.stageRange.match(/-(\d+)$/)?.[1] ?? 20)
+            const stageLevel = (opponentDoc.act - 1) * 15 + rangeEnd
+            this.state.difficultyMode = 1
+            player.map = "town" as any
+            cmd.setupEliteTestDesignPreview(
+              player,
+              design,
+              opponentDesign,
+              stageLevel
+            )
+            return
+          }
+
+          if (request.type !== "stage") {
+            this.broadcast(Transfer.ELITE_TEST_RESULT, {
+              error: "invalid_target"
+            })
+            return
+          }
+          const difficulty = parseEliteTestDifficulty(request.difficulty)
+          if (difficulty == null) {
+            this.broadcast(Transfer.ELITE_TEST_RESULT, {
+              error: "invalid_target"
+            })
+            return
+          }
+          const target = typeof request.stage === "string" ? request.stage : ""
+          const bossAct = parseEliteTestBossAct(target)
+          const isSpecialTarget = bossAct != null || target === "arceus"
+          if (
+            !isSpecialTarget &&
+            (target.startsWith("boss-act") ||
+              !/^act\d+-floor(?:5|10|15|20)$/.test(target))
+          ) {
+            this.broadcast(Transfer.ELITE_TEST_RESULT, {
+              error: "invalid_target"
+            })
+            return
+          }
+          this.state.difficultyMode = difficulty
+
+          if (isSpecialTarget) {
+            let encounter: SpireEncounter | null = null
+            let stageLevel = 61
+            if (bossAct != null) {
+              const approvedBosses = (await getApprovedBossDesigns(bossAct))
+                .map((doc) => designToSpireEliteData(doc))
+                .filter(
+                  (candidate): candidate is SpireEliteDesignData =>
+                    candidate?.kind === "boss"
+                )
+              const selected =
+                approvedBosses.length > 0
+                  ? this.state.withRunRng(
+                      () =>
+                        approvedBosses[
+                          Math.floor(Math.random() * approvedBosses.length)
+                        ]
+                    )
+                  : null
+              encounter = selected
+                ? addHardModeItems(
+                    adjustEncounterItems(
+                      selected.encounter,
+                      difficulty as DifficultyMode,
+                      bossAct
+                    ),
+                    bossAct,
+                    20,
+                    difficulty as DifficultyMode
+                  )
+                : createBuiltInEliteTestEncounter(target, difficulty)
+              stageLevel = (bossAct - 1) * 15 + 20
+              player.map = "town" as any
+            } else {
+              encounter = createBuiltInEliteTestEncounter(target, difficulty)
+              player.map = "In the Nightmare" as any
+            }
+            if (!encounter) {
+              this.broadcast(Transfer.ELITE_TEST_RESULT, {
+                error: "invalid_target"
+              })
+              return
+            }
+            if ((this.state.phase as number) === GamePhaseState.FIGHT) return
+            cmd.setupEliteTestEncounterPreview(
+              player,
+              design,
+              encounter,
+              stageLevel
+            )
+            return
+          }
+
+          const {
+            getRandomAsyncOpponentNoFallback
+          } = require("../services/async-fight-pool")
+          const opponent = await getRandomAsyncOpponentNoFallback(target)
+          if ((this.state.phase as number) === GamePhaseState.FIGHT) return
+          if (!opponent) {
+            this.broadcast(Transfer.ELITE_TEST_RESULT, {
+              error: "no_data",
+              stage: target
+            })
+            return
+          }
+          const stageMatch = target.match(/^act(\d+)-floor(\d+)$/)
+          const act = Number(stageMatch?.[1] ?? 1)
+          const floor = Number(stageMatch?.[2] ?? 1)
+          const stageLevel = (act - 1) * 15 + floor
+          player.map = (opponent.region || "town") as any
+          cmd.setupEliteTestPreview(player, design, opponent, stageLevel)
         } catch (error) {
           logger.error("elite test preview error", error)
         }
@@ -1885,6 +2041,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
       if (this.state.isSpire) {
         // Spire: own level-up curve, starting fresh at level 1.
+        // biome-ignore lint/correctness/useHookAtTopLevel: This is an experience-manager method, not a React hook.
         player.experienceManager.useSpireMode()
       }
       if (!player.isBot) {

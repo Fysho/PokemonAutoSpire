@@ -1,9 +1,9 @@
-import { Client, Room } from "@colyseus/sdk"
+import { Client, type Room } from "@colyseus/sdk"
 import firebase from "firebase/compat/app"
 import "firebase/compat/auth"
 import type { server } from "../../app.config.ts"
 import { FIREBASE_CONFIG } from "../../config"
-import GameState from "../../rooms/states/game-state"
+import type GameState from "../../rooms/states/game-state"
 import { Role, Transfer } from "../../types"
 import { logger } from "../../utils/logger"
 import store from "./stores"
@@ -128,7 +128,14 @@ export const rooms: {
 // State for the ELITE_TEST room (a special GameRoom that runs AI-vs-AI elite
 // design test fights). Module-level so it survives client-side route changes.
 let eliteTestActive = false
-let lastEliteTest: { design: string; stage: string } | null = null
+type EliteTestDifficulty = 0 | 1 | 2 | 3
+export type EliteTestOpponent =
+  | { type: "stage"; stage: string; difficulty: EliteTestDifficulty }
+  | { type: "design"; designId: string }
+let lastEliteTest: {
+  design: string
+  opponent: EliteTestOpponent
+} | null = null
 
 export async function leaveRoom(
   roomName: keyof typeof rooms,
@@ -156,11 +163,16 @@ export function joinGame(room: Room<GameState>) {
   leaveAllRooms()
   rooms.game = room
   try {
-    localStorage.setItem("spire_reconnect", JSON.stringify({
-      reconnectionToken: room.reconnectionToken,
-      roomId: room.roomId
-    }))
-  } catch { /* localStorage unavailable */ }
+    localStorage.setItem(
+      "spire_reconnect",
+      JSON.stringify({
+        reconnectionToken: room.reconnectionToken,
+        roomId: room.roomId
+      })
+    )
+  } catch {
+    /* localStorage unavailable */
+  }
 }
 
 export async function spectateGame(roomId: string): Promise<Room<GameState>> {
@@ -177,7 +189,11 @@ export async function spectateGame(roomId: string): Promise<Room<GameState>> {
 }
 
 export function clearGameReconnection() {
-  try { localStorage.removeItem("spire_reconnect") } catch { /* noop */ }
+  try {
+    localStorage.removeItem("spire_reconnect")
+  } catch {
+    /* noop */
+  }
 }
 
 // Creates (and joins) the Elite Designer test sandbox: a GameRoom with eliteTest
@@ -231,9 +247,9 @@ export function isEliteTestActive(): boolean {
   return eliteTestActive && !!rooms.game && rooms.game.connection.isOpen
 }
 
-export function sendEliteTest(design: string, stage: string) {
-  lastEliteTest = { design, stage }
-  rooms.game?.send(Transfer.TEST_ELITE_DESIGN, { design, stage })
+export function sendEliteTest(design: string, opponent: EliteTestOpponent) {
+  lastEliteTest = { design, opponent }
+  rooms.game?.send(Transfer.TEST_ELITE_DESIGN, lastEliteTest)
 }
 
 export function resendLastEliteTest() {

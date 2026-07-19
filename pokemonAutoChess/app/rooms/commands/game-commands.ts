@@ -1,8 +1,7 @@
 import { Command } from "@colyseus/command"
 import { type MapSchema, SetSchema, StateView } from "@colyseus/schema"
-import { type Client, updateLobby } from "colyseus"
+import type { Client } from "colyseus"
 import {
-  AdditionalPicksStages,
   BOARD_SIDE_HEIGHT,
   BOARD_WIDTH,
   FIGHTING_PHASE_DURATION,
@@ -16,10 +15,7 @@ import {
   PkmsWithAltForms,
   PORTAL_CAROUSEL_BASE_DURATION,
   PortalCarouselStages,
-  SHARDS_PER_SHINY_UNOWN_WANDERER,
-  SHARDS_PER_UNOWN_WANDERER,
   SHINY_UNOWN_ENCOUNTER_CHANCE,
-  StageDuration,
   SynergyTriggers,
   TREASURE_BOX_LIFE_THRESHOLD,
   UNOWN_ENCOUNTER_CHANCE
@@ -53,20 +49,15 @@ import {
 import Simulation from "../../core/simulation"
 import { CLASS_EXCLUSIVE_RELICS } from "../../core/spire-classes"
 import { getUnitScore } from "../../core/unit-score"
-import { getLevelUpCost } from "../../models/colyseus-models/experience-manager"
 import { MapNodeType } from "../../models/colyseus-models/map-node"
 import type Player from "../../models/colyseus-models/player"
 import { PlayerChoice } from "../../models/colyseus-models/player-choice"
-import {
-  type Pokemon,
-  PokemonClasses
-} from "../../models/colyseus-models/pokemon"
+import type { Pokemon } from "../../models/colyseus-models/pokemon"
 import Synergies, {
   computeSynergies,
   getSynergyStep
 } from "../../models/colyseus-models/synergies"
 import { Effects } from "../../models/effects"
-import UserMetadata from "../../models/mongo-models/user-metadata"
 import PokemonFactory, {
   getPokemonBaseline
 } from "../../models/pokemon-factory"
@@ -118,6 +109,7 @@ import {
 import { discordService } from "../../services/discord"
 import {
   applyEliteDesignToPlayer,
+  buildEliteDesignOpponent,
   type ParsedEliteDesign
 } from "../../services/elite-test"
 import {
@@ -126,7 +118,6 @@ import {
   snapshotPlayerTeam
 } from "../../services/team-snapshot"
 import {
-  Emotion,
   type IClient,
   type IDragDropCombineMessage,
   type IDragDropItemMessage,
@@ -178,7 +169,6 @@ import { Passive } from "../../types/enum/Passive"
 import {
   Pkm,
   PkmIndex,
-  PkmRegionalVariants,
   Unowns,
   UnownsForScribble
 } from "../../types/enum/Pokemon"
@@ -199,7 +189,6 @@ import {
   isPositionEmpty
 } from "../../utils/board"
 import { distanceC } from "../../utils/distance"
-import { repeat } from "../../utils/function"
 import { logger } from "../../utils/logger"
 import { max } from "../../utils/number"
 import {
@@ -4129,8 +4118,10 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
   setupEliteTestPreview(
     player: Player,
     design: ParsedEliteDesign,
-    opponent: AsyncFightOpponent
+    opponent: AsyncFightOpponent,
+    stageLevel: number
   ) {
+    this.room.eliteTestOpponentDesign = null
     applyEliteDesignToPlayer(player, design, this.state)
     player.alive = true
     player.team = Team.BLUE_TEAM
@@ -4138,6 +4129,15 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     player.opponentName = opponent.playerName
     player.opponentAvatar = opponent.avatar
     player.opponentTitle = "ENDLESS" as any
+    this.state.stageLevel = stageLevel
+    this.state.encounterName = opponent.playerName
+    this.state.encounterAvatar = opponent.avatar
+    this.state.encounterBonusHP = 0
+    this.state.encounterBonusAtk = 0
+    this.state.encounterBonusDef = 0
+    this.state.encounterBonusSpeDef = 0
+    this.state.encounterBonusAP = 0
+    this.state.encounterBonusPP = 0
 
     const snap = opponent.snapshot
     this.state.encounterSnapshot = snap
@@ -4187,43 +4187,126 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.eliteTestAwaitingBegin = true
   }
 
-  // Elite Designer test — step 2: start the staged fight. Reconstructs the stashed
-  // opponent snapshot into a red Player and runs the simulation (blue = the design
-  // already on the human player). Pure AI-vs-AI; the human spectates.
-  beginEliteTestFight() {
-    const player = schemaValues(this.state.players).find(
-      (p: Player) => !p.isBot
+  // Stages another shared design using the snapshot preview format, then keeps
+  // the parsed design for exact Player materialization when Begin is pressed.
+  setupEliteTestDesignPreview(
+    player: Player,
+    design: ParsedEliteDesign,
+    opponentDesign: ParsedEliteDesign,
+    stageLevel: number
+  ) {
+    const opponentPlayer = buildEliteDesignOpponent(opponentDesign, this.state)
+    this.setupEliteTestPreview(
+      player,
+      design,
+      {
+        playerName: opponentDesign.name,
+        avatar: opponentPlayer.avatar,
+        region: "town",
+        snapshot: snapshotPlayerTeam(opponentPlayer)
+      },
+      stageLevel
     )
-    const snap = this.state.encounterSnapshot
-    if (!player || !snap || !this.state.eliteTestAwaitingBegin) return
+    player.opponentId = opponentPlayer.id
+    player.opponentTitle = "DESIGN" as any
+    this.state.encounterName = opponentDesign.name
+    this.state.encounterAvatar = opponentPlayer.avatar
+    this.room.eliteTestOpponentDesign = opponentDesign
+  }
 
-    const opponentPlayer = reconstructTeamAsPlayer(snap, this.state)
+  // Stages a live PVE encounter (act boss or Arceus) while preserving the
+  // sandbox's manual preview → Begin flow.
+  setupEliteTestEncounterPreview(
+    player: Player,
+    design: ParsedEliteDesign,
+    encounter: SpireEncounter,
+    stageLevel: number
+  ) {
+    this.room.eliteTestOpponentDesign = null
+    applyEliteDesignToPlayer(player, design, this.state)
     player.alive = true
     player.team = Team.BLUE_TEAM
-    player.opponentId = opponentPlayer.id
-    player.registerPlayedPokemons()
+    player.opponentId = "pve"
+    player.opponentName = encounter.name
+    player.opponentAvatar = getAvatarString(PkmIndex[encounter.avatar], false)
+    player.opponentTitle = "BOSS" as any
 
-    this.state.eliteTestAwaitingBegin = false
+    this.state.stageLevel = stageLevel
     this.state.encounterSnapshot = null
-    this.state.simulations.clear()
-    this.state.phase = GamePhaseState.FIGHT
-    this.state.time = FIGHTING_PHASE_DURATION
-    this.state.roundTime = Math.round(this.state.time / 1000)
-    this.room.eliteTestFightStart = Date.now()
-
-    const weather = getWeather(player, opponentPlayer, opponentPlayer.board)
-    const simulation = new Simulation(
-      crypto.randomUUID(),
-      this.room,
-      player,
-      opponentPlayer,
-      this.state.stageLevel,
-      weather,
-      false
+    resetArraySchema(
+      this.state.spireEncounterBoard,
+      encounter.board.map(([pkm, x, y], index) => {
+        const itemStr = encounter.items?.[index]?.length
+          ? `,${encounter.items[index].join(",")}`
+          : ""
+        const boostStr =
+          index === 0 &&
+          (encounter.mainBonusHP ||
+            encounter.mainBonusAtk ||
+            encounter.mainBonusAP)
+            ? `|${encounter.mainBonusHP ?? 0},${encounter.mainBonusAtk ?? 0},0,0,${encounter.mainBonusAP ?? 0},0`
+            : ""
+        return `${pkm},${x},${y}${itemStr}${boostStr}`
+      })
     )
-    player.simulationId = simulation.id
-    this.state.simulations.set(simulation.id, simulation)
-    simulation.start()
+    resetArraySchema(this.state.encounterInventory, [])
+    resetArraySchema(this.state.encounterGroundHoles, [])
+    this.state.encounterMoney = 0
+
+    const previewPokemon = encounter.board.map(([pkm], index) => {
+      const pokemon = PokemonFactory.createPokemonFromName(pkm)
+      pokemon.positionY = 1
+      encounter.items?.[index]?.forEach((item) => pokemon.items.add(item))
+      return pokemon
+    })
+    const synergies = computeSynergies(previewPokemon)
+    resetArraySchema(
+      this.state.encounterSynergies,
+      Array.from(synergies.entries())
+        .filter(([, value]) => value > 0)
+        .map(([key, value]) => `${key}:${value}`)
+    )
+
+    const stats = calculateEncounterStats(encounter)
+    this.state.encounterDifficulty = stats.difficulty
+    this.state.encounterPokemonCount = stats.pokemonCount
+    this.state.encounterTotalStars = stats.totalStars
+    this.state.encounterTotalItems = stats.totalItems
+    this.state.encounterName = encounter.name
+    this.state.encounterAvatar = player.opponentAvatar
+    this.state.encounterBonusHP = encounter.bonusHP ?? 0
+    this.state.encounterBonusAtk = encounter.bonusAtk ?? 0
+    this.state.encounterBonusDef = encounter.bonusDef ?? 0
+    this.state.encounterBonusSpeDef = encounter.bonusSpeDef ?? 0
+    this.state.encounterBonusAP = encounter.bonusAP ?? 0
+    this.state.encounterBonusPP = encounter.bonusPP ?? 0
+
+    this.state.simulations.clear()
+    player.simulationId = ""
+    this.state.phase = GamePhaseState.PICK
+    this.state.time = 999 * 1000
+    this.state.roundTime = 999
+    this.state.eliteTestAwaitingBegin = true
+  }
+
+  // Elite Designer test — step 2: starts whichever designed team, saved-team
+  // snapshot, or live PVE opponent was staged above through the normal fight
+  // constructor. The sandbox intercepts completion before live-run handling.
+  beginEliteTestFight() {
+    const player = schemaValues(this.state.players).find(
+      (candidate: Player) => !candidate.isBot
+    )
+    const hasOpponent =
+      this.room.eliteTestOpponentDesign != null ||
+      this.state.encounterSnapshot != null ||
+      this.state.spireEncounterBoard.length > 0
+    if (!player || !hasOpponent || !this.state.eliteTestAwaitingBegin) return
+
+    player.alive = true
+    player.team = Team.BLUE_TEAM
+    this.state.eliteTestAwaitingBegin = false
+    this.room.eliteTestFightStart = Date.now()
+    this.initializeFightingPhase()
   }
 
   // Ends an elite test fight: compute the result summary from the simulation, send
@@ -4292,6 +4375,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     // Back to idle (fake-infinite PICK; manual phases don't auto-advance). Clear the
     // opponent preview state so the idle board doesn't show a stale enemy team.
     this.state.eliteTestAwaitingBegin = false
+    this.room.eliteTestOpponentDesign = null
     this.state.encounterSnapshot = null
     this.state.encounterMoney = 0
     resetArraySchema(this.state.spireEncounterBoard, [])
@@ -4333,6 +4417,39 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
       this.autoSaveRun()
     }
 
+    const designedOpponent = this.room.eliteTestOpponentDesign
+    if (designedOpponent) {
+      const opponentPlayer = buildEliteDesignOpponent(
+        designedOpponent,
+        this.state
+      )
+      this.state.players.forEach((player: Player) => {
+        if (!player.alive) return
+        player.opponentId = opponentPlayer.id
+        player.opponentName = designedOpponent.name
+        player.opponentAvatar = opponentPlayer.avatar
+        player.opponentTitle = "DESIGN" as any
+        player.team = Team.BLUE_TEAM
+
+        const weather = getWeather(player, opponentPlayer, opponentPlayer.board)
+        const simulation = new Simulation(
+          crypto.randomUUID(),
+          this.room,
+          player,
+          opponentPlayer,
+          this.state.stageLevel,
+          weather,
+          false
+        )
+        player.simulationId = simulation.id
+        this.state.simulations.set(simulation.id, simulation)
+        simulation.start()
+      })
+      this.room.eliteTestOpponentDesign = null
+      this.state.encounterSnapshot = null
+      return
+    }
+
     if (snapshot) {
       // Snapshot-based encounter (champion/E4/saved teams): full Player reconstruction
       const opponentPlayer = reconstructTeamAsPlayer(snapshot, this.state)
@@ -4371,13 +4488,13 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
           player.opponentId = opponentPlayer.id
           player.opponentName = this.state.encounterName || snapshot.name
           player.opponentAvatar = snapshot.avatar
-          player.opponentTitle = (
-            node?.nodeType === MapNodeType.ELITE_FOUR
-              ? "ELITE FOUR"
-              : node?.nodeType === MapNodeType.CHAMPION
-                ? "CHAMPION"
-                : "TRAINER"
-          ) as any
+          player.opponentTitle = this.room.isEliteTest
+            ? player.opponentTitle
+            : ((node?.nodeType === MapNodeType.ELITE_FOUR
+                ? "ELITE FOUR"
+                : node?.nodeType === MapNodeType.CHAMPION
+                  ? "CHAMPION"
+                  : "TRAINER") as any)
           player.team = Team.BLUE_TEAM
 
           const weather = getWeather(
@@ -4431,17 +4548,17 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
             PkmIndex[encounter.avatar],
             false
           )
-          player.opponentTitle = (
-            node?.nodeType === MapNodeType.GYM_LEADER
-              ? "GYM LEADER"
-              : node?.nodeType === MapNodeType.ELITE
-                ? "ELITE"
-                : node?.nodeType === MapNodeType.UNLOCK
-                  ? "UNLOCK"
-                  : node?.nodeType === MapNodeType.LEGENDARY_BOSS
-                    ? "BOSS"
-                    : "WILD"
-          ) as any
+          player.opponentTitle = this.room.isEliteTest
+            ? player.opponentTitle
+            : ((node?.nodeType === MapNodeType.GYM_LEADER
+                ? "GYM LEADER"
+                : node?.nodeType === MapNodeType.ELITE
+                  ? "ELITE"
+                  : node?.nodeType === MapNodeType.UNLOCK
+                    ? "UNLOCK"
+                    : node?.nodeType === MapNodeType.LEGENDARY_BOSS
+                      ? "BOSS"
+                      : "WILD") as any)
           player.team = Team.BLUE_TEAM
 
           const pveBoard = PokemonFactory.makePveBoard(
