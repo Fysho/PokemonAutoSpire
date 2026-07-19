@@ -98,9 +98,6 @@ export default class GameState extends Schema {
   // fixed map and guided dialog at each stage. Never saved/resumed, never counted
   // toward stats/leaderboards. Gated by `isTutorial`.
   @type("boolean") isTutorial: boolean = false
-  // AutoWave is an ephemeral admin-only prediction sandbox built on the Elite
-  // Designer test fight machinery. It never creates or saves a real run.
-  @type("boolean") isAutoWave: boolean = false
   // Elite Designer test sandbox: true while both teams are staged on the board in a
   // preview (PICK) and waiting for the player to press "Begin" to start the fight.
   @type("boolean") eliteTestAwaitingBegin: boolean = false

@@ -313,7 +313,6 @@ export default class GameRoom extends Room<{ state: GameState }> {
       maxRank,
       specialGameRule
     )
-    this.state.isAutoWave = this.isAutoWave
     if (isTutorial) {
       // Tutorial: a guided, fully-scripted single-act run on the normal-mode
       // ruleset. Never spire/endless; difficulty pinned to Normal. The scripted
