@@ -1,9 +1,10 @@
 import * as assert from "node:assert/strict"
 import { test } from "node:test"
-import PokemonFactory from "../../models/pokemon-factory"
 import type { PlayerChoice } from "../../models/colyseus-models/player-choice"
+import PokemonFactory from "../../models/pokemon-factory"
 import {
   designToSpireEliteData,
+  pickAutoWaveMatchupFrom,
   validateEliteDesignContent
 } from "../../services/elite-design"
 import {
@@ -12,8 +13,8 @@ import {
   buildMeasurementPoolSchedule,
   createBuiltInEliteTestEncounter,
   ELITE_MEASURE_DIFFICULTIES,
-  parseEliteTestBossAct,
   parseEliteDesignExport,
+  parseEliteTestBossAct,
   parseEliteTestDifficulty
 } from "../../services/elite-test"
 import {
@@ -270,4 +271,32 @@ test("boss exports retain both configurable reward systems", () => {
   assert.equal(design.useDefaultBossItemRewards, false)
   assert.deepEqual(design.bossItemRewards, [Item.SHELL_BELL, "RANDOM_TOOL"])
   assert.equal(design.bossItemRewardsShown, 2)
+})
+
+test("AutoWave matches uniformly within two ordered elite brackets", () => {
+  const candidates = [
+    { id: "blue", kind: "elite" as const, act: 2, stageRange: "16-20" },
+    { id: "lower-2", kind: "elite" as const, act: 2, stageRange: "6-10" },
+    { id: "lower-1", kind: "elite" as const, act: 2, stageRange: "11-15" },
+    { id: "upper-1", kind: "elite" as const, act: 3, stageRange: "1-5" },
+    { id: "upper-2", kind: "elite" as const, act: 3, stageRange: "6-10" },
+    { id: "too-high", kind: "elite" as const, act: 3, stageRange: "11-15" },
+    { id: "boss", kind: "boss" as const, act: 2, stageRange: "boss" }
+  ]
+  const rolls = [0, 0.999]
+  const matchup = pickAutoWaveMatchupFrom(candidates, () => rolls.shift() ?? 0)
+
+  assert.ok(matchup)
+  assert.equal(matchup.blue.id, "blue")
+  assert.equal(matchup.red.id, "upper-2")
+  assert.notEqual(matchup.red.id, matchup.blue.id)
+})
+
+test("AutoWave reports no matchup without two compatible elites", () => {
+  const matchup = pickAutoWaveMatchupFrom([
+    { id: "only", kind: "elite" as const, act: 1, stageRange: "6-10" },
+    { id: "boss", kind: "boss" as const, act: 1, stageRange: "boss" }
+  ])
+
+  assert.equal(matchup, null)
 })

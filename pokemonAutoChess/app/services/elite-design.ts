@@ -542,6 +542,64 @@ const STAGE_LADDER: { act: number; stageRange: string }[] = [
   { act: 3, stageRange: "16-20" }
 ]
 
+export type AutoWaveEliteDesign = IEliteDesign & { id: string }
+
+type AutoWaveCandidate = Pick<
+  AutoWaveEliteDesign,
+  "id" | "kind" | "act" | "stageRange"
+>
+
+// Picks the first team uniformly from every viable elite, then picks the second
+// uniformly from all distinct elites within two positions on the ordered stage
+// ladder. "Viable" only excludes a first team when no legal opponent exists.
+export function pickAutoWaveMatchupFrom<T extends AutoWaveCandidate>(
+  designs: T[],
+  random: () => number = Math.random
+): { blue: T; red: T } | null {
+  const categorized = designs
+    .filter((design) => design.kind === "elite")
+    .map((design) => ({
+      design,
+      category: STAGE_LADDER.findIndex(
+        ({ act, stageRange }) =>
+          act === design.act && stageRange === design.stageRange
+      )
+    }))
+    .filter(({ category }) => category >= 0)
+
+  const viable = categorized.filter(({ design, category }) =>
+    categorized.some(
+      (candidate) =>
+        candidate.design.id !== design.id &&
+        Math.abs(candidate.category - category) <= 2
+    )
+  )
+  if (viable.length === 0) return null
+
+  const blue = viable[Math.floor(random() * viable.length)]
+  const redPool = categorized.filter(
+    (candidate) =>
+      candidate.design.id !== blue.design.id &&
+      Math.abs(candidate.category - blue.category) <= 2
+  )
+  const red = redPool[Math.floor(random() * redPool.length)]
+  return { blue: blue.design, red: red.design }
+}
+
+// AutoWave intentionally uses every saved elite design, including unapproved
+// work-in-progress entries, while excluding malformed/empty exports and bosses.
+export async function getRandomAutoWaveMatchup(): Promise<{
+  blue: AutoWaveEliteDesign
+  red: AutoWaveEliteDesign
+} | null> {
+  const designs = (await listEliteDesigns()).filter((design) => {
+    if (design.kind !== "elite") return false
+    const parsed = parseEliteDesignExport(design.designJson)
+    return parsed != null && parsed.board.length > 0
+  })
+  return pickAutoWaveMatchupFrom(designs)
+}
+
 // Moves a design one step up/down the stage ladder (creator or admin only).
 // Rewrites act/stages INSIDE designJson too — the stored metadata is always
 // derived from the export string, so they must never disagree. Clears results

@@ -41,6 +41,7 @@ import {
   clearGameReconnection,
   client,
   hasLastEliteTest,
+  isAutoWaveActive,
   isEliteTestActive,
   resendLastEliteTest,
   rooms
@@ -488,6 +489,35 @@ interface EliteTestResult {
   opponentName?: string
 }
 
+interface AutoWaveTeam {
+  id: string
+  name: string
+  act: number
+  stageRange: string
+}
+
+interface AutoWaveMatchup {
+  blue: AutoWaveTeam
+  red: AutoWaveTeam
+}
+
+interface AutoWaveMatchupMessage {
+  error?: "insufficient_pool" | "invalid_design" | "server_error"
+  blue?: AutoWaveTeam
+  red?: AutoWaveTeam
+}
+
+interface AutoWaveResult {
+  winner: "blue" | "red" | "draw"
+  prediction: "blue" | "red"
+  correct: boolean | null
+  blueAlive: number
+  redAlive: number
+  hpPercent: number
+  durationSec: number
+  matchup: AutoWaveMatchup
+}
+
 export default function Game() {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
@@ -526,12 +556,25 @@ export default function Game() {
     useState<EliteTestResult | null>(null)
   const [eliteTestAwaitingBegin, setEliteTestAwaitingBegin] =
     useState<boolean>(false)
+  const autoWaveMode = isAutoWaveActive()
+  const [autoWaveMatchup, setAutoWaveMatchup] =
+    useState<AutoWaveMatchup | null>(null)
+  const [autoWaveResult, setAutoWaveResult] = useState<AutoWaveResult | null>(
+    null
+  )
+  const [autoWavePrediction, setAutoWavePrediction] = useState<
+    "blue" | "red" | null
+  >(null)
+  const [autoWaveLoading, setAutoWaveLoading] = useState<boolean>(false)
+  const [autoWaveError, setAutoWaveError] =
+    useState<AutoWaveMatchupMessage["error"]>(undefined)
+  const autoWaveRequested = useRef<boolean>(false)
   // One-time prompt when first arriving in the elite-test sandbox: the room
   // starts as an empty board, so tell the user to re-open the Elite Designer
   // to load their design and run tests. The test room is created BEFORE
   // navigating here, so isEliteTestActive() is already true on first render.
-  const [eliteTestWelcome, setEliteTestWelcome] = useState<boolean>(() =>
-    isEliteTestActive()
+  const [eliteTestWelcome, setEliteTestWelcome] = useState<boolean>(
+    () => isEliteTestActive() && !isAutoWaveActive()
   )
   const [finalRank, setFinalRank] = useState<number>(0)
   enum FinalRankVisibility {
@@ -836,6 +879,26 @@ export default function Game() {
 
       room.onMessage(Transfer.ELITE_TEST_RESULT, (result: EliteTestResult) => {
         setEliteTestResult(result)
+      })
+
+      room.onMessage(
+        Transfer.AUTOWAVE_MATCHUP,
+        (message: AutoWaveMatchupMessage) => {
+          setAutoWaveLoading(false)
+          if (message.error || !message.blue || !message.red) {
+            setAutoWaveError(message.error ?? "server_error")
+            setAutoWaveMatchup(null)
+            return
+          }
+          setAutoWaveError(undefined)
+          setAutoWavePrediction(null)
+          setAutoWaveResult(null)
+          setAutoWaveMatchup({ blue: message.blue, red: message.red })
+        }
+      )
+
+      room.onMessage(Transfer.AUTOWAVE_RESULT, (result: AutoWaveResult) => {
+        setAutoWaveResult(result)
       })
 
       // Success-rate measurement progress/result from the elite test sandbox.
@@ -1406,6 +1469,13 @@ export default function Game() {
     leave
   ])
 
+  useEffect(() => {
+    if (!loaded || !autoWaveMode || autoWaveRequested.current || !room) return
+    autoWaveRequested.current = true
+    setAutoWaveLoading(true)
+    room.send(Transfer.AUTOWAVE_NEXT_ROUND)
+  }, [loaded, autoWaveMode, room])
+
   const phase = useAppSelector((state) => state.game.phase)
   const runHP = useAppSelector((state) => state.game.runHP)
   const currentAct = useAppSelector((state) => state.game.currentAct)
@@ -1715,6 +1785,7 @@ export default function Game() {
           {!spectate &&
             phase === GamePhaseState.PICK &&
             isEliteTestActive() &&
+            !autoWaveMode &&
             !eliteTestAwaitingBegin && (
               <div
                 className="game-action-float"
@@ -1748,6 +1819,7 @@ export default function Game() {
           {!spectate &&
             phase === GamePhaseState.PICK &&
             isEliteTestActive() &&
+            !autoWaveMode &&
             eliteTestAwaitingBegin && (
               <div
                 className="game-action-float"
@@ -1794,6 +1866,147 @@ export default function Game() {
                 </button>
               </div>
             )}
+          {!spectate &&
+            autoWaveMode &&
+            phase === GamePhaseState.PICK &&
+            !autoWaveMatchup &&
+            !autoWaveResult && (
+              <div
+                className="game-action-float my-container"
+                style={{
+                  position: "absolute",
+                  bottom: "150px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 50,
+                  padding: "12px 16px",
+                  minWidth: "300px",
+                  textAlign: "center"
+                }}
+              >
+                <strong>AutoWave</strong>
+                <p style={{ margin: "6px 0 10px", fontSize: "13px" }}>
+                  {autoWaveError
+                    ? autoWaveError === "insufficient_pool"
+                      ? "At least two compatible elite designs are required."
+                      : "A matchup could not be loaded."
+                    : autoWaveLoading
+                      ? "Selecting two elite teams..."
+                      : "Preparing AutoWave..."}
+                </p>
+                {autoWaveError && (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "center",
+                      gap: "8px"
+                    }}
+                  >
+                    <button
+                      className="bubbly blue"
+                      onClick={() => {
+                        setAutoWaveError(undefined)
+                        setAutoWaveLoading(true)
+                        rooms.game?.send(Transfer.AUTOWAVE_NEXT_ROUND)
+                      }}
+                    >
+                      Try Again
+                    </button>
+                    <button
+                      className="bubbly"
+                      style={{ backgroundColor: "#555" }}
+                      onClick={leave}
+                    >
+                      Quit AutoWave
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          {!spectate &&
+            autoWaveMode &&
+            phase === GamePhaseState.PICK &&
+            eliteTestAwaitingBegin &&
+            autoWaveMatchup &&
+            !autoWaveResult && (
+              <div
+                className="game-action-float my-container"
+                style={{
+                  position: "absolute",
+                  bottom: "138px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 50,
+                  padding: "12px 16px",
+                  minWidth: "430px",
+                  textAlign: "center"
+                }}
+              >
+                <strong>Who will win?</strong>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "12px",
+                    margin: "10px 0"
+                  }}
+                >
+                  <div>
+                    <div style={{ color: "#5dade2", fontWeight: "bold" }}>
+                      Blue: {autoWaveMatchup.blue.name}
+                    </div>
+                    <small style={{ opacity: 0.75 }}>
+                      Act {autoWaveMatchup.blue.act}, stages{" "}
+                      {autoWaveMatchup.blue.stageRange}
+                    </small>
+                  </div>
+                  <div>
+                    <div style={{ color: "#ec7063", fontWeight: "bold" }}>
+                      Red: {autoWaveMatchup.red.name}
+                    </div>
+                    <small style={{ opacity: 0.75 }}>
+                      Act {autoWaveMatchup.red.act}, stages{" "}
+                      {autoWaveMatchup.red.stageRange}
+                    </small>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <button
+                    className="bubbly blue"
+                    disabled={autoWavePrediction != null}
+                    onClick={() => {
+                      setAutoWavePrediction("blue")
+                      rooms.game?.send(Transfer.AUTOWAVE_PREDICT, "blue")
+                    }}
+                  >
+                    Predict Blue
+                  </button>
+                  <button
+                    className="bubbly red"
+                    disabled={autoWavePrediction != null}
+                    onClick={() => {
+                      setAutoWavePrediction("red")
+                      rooms.game?.send(Transfer.AUTOWAVE_PREDICT, "red")
+                    }}
+                  >
+                    Predict Red
+                  </button>
+                  <button
+                    className="bubbly"
+                    style={{ backgroundColor: "#555" }}
+                    onClick={leave}
+                  >
+                    Quit
+                  </button>
+                </div>
+              </div>
+            )}
           {!spectate && isShopPhase && (
             <div
               className="game-action-float"
@@ -1838,7 +2051,7 @@ export default function Game() {
           <GameDpsMeter />
           <GameToasts />
           <TutorialDialog onExit={leave} />
-          {isAdmin && !spectate && (
+          {isAdmin && !spectate && !autoWaveMode && (
             <div
               className="game-admin-cheats"
               style={{
@@ -2217,6 +2430,106 @@ export default function Game() {
                 style={{ backgroundColor: "#555" }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {autoWaveResult && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.62)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+        >
+          <div
+            className="my-container"
+            style={{
+              padding: "24px",
+              maxWidth: "460px",
+              width: "calc(100% - 32px)",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px"
+            }}
+          >
+            <h3 style={{ color: "#f1c40f", margin: 0 }}>AutoWave Result</h3>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "22px",
+                fontWeight: "bold",
+                color:
+                  autoWaveResult.correct == null
+                    ? "#ddd"
+                    : autoWaveResult.correct
+                      ? "#58d68d"
+                      : "#ec7063"
+              }}
+            >
+              {autoWaveResult.correct == null
+                ? "Draw — no win or loss"
+                : autoWaveResult.correct
+                  ? "Correct prediction"
+                  : "Incorrect prediction"}
+            </p>
+            <p style={{ margin: 0, fontSize: "14px" }}>
+              {autoWaveResult.winner === "draw"
+                ? "Neither team won."
+                : `${
+                    autoWaveResult.winner === "blue"
+                      ? autoWaveResult.matchup.blue.name
+                      : autoWaveResult.matchup.red.name
+                  } (${autoWaveResult.winner === "blue" ? "Blue" : "Red"}) won.`}
+            </p>
+            <p style={{ margin: 0, fontSize: "13px", opacity: 0.8 }}>
+              You predicted{" "}
+              {autoWaveResult.prediction === "blue"
+                ? autoWaveResult.matchup.blue.name
+                : autoWaveResult.matchup.red.name}
+              .
+            </p>
+            <p style={{ margin: 0, fontSize: "13px", opacity: 0.8 }}>
+              Blue {autoWaveResult.blueAlive} left · Red{" "}
+              {autoWaveResult.redAlive} left
+              {autoWaveResult.winner !== "draw" &&
+                ` · winner ${autoWaveResult.hpPercent}% HP`}
+            </p>
+            <p style={{ margin: 0, fontSize: "12px", opacity: 0.65 }}>
+              {autoWaveResult.durationSec}s
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                justifyContent: "center"
+              }}
+            >
+              <button
+                className="bubbly green"
+                onClick={() => {
+                  setAutoWaveResult(null)
+                  setAutoWaveMatchup(null)
+                  setAutoWavePrediction(null)
+                  setAutoWaveError(undefined)
+                  setAutoWaveLoading(true)
+                  rooms.game?.send(Transfer.AUTOWAVE_NEXT_ROUND)
+                }}
+              >
+                Try Another Fight
+              </button>
+              <button
+                className="bubbly"
+                style={{ backgroundColor: "#555" }}
+                onClick={leave}
+              >
+                Quit AutoWave
               </button>
             </div>
           </div>

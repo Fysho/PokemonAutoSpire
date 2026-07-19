@@ -128,6 +128,7 @@ export const rooms: {
 // State for the ELITE_TEST room (a special GameRoom that runs AI-vs-AI elite
 // design test fights). Module-level so it survives client-side route changes.
 let eliteTestActive = false
+let autoWaveActive = false
 type EliteTestDifficulty = 0 | 1 | 2 | 3
 export type EliteTestOpponent =
   | { type: "stage"; stage: string; difficulty: EliteTestDifficulty }
@@ -143,6 +144,7 @@ export async function leaveRoom(
 ): Promise<number> {
   if (roomName === "game") {
     eliteTestActive = false
+    autoWaveActive = false
     lastEliteTest = null
   }
   const room = rooms[roomName]
@@ -241,6 +243,57 @@ export async function createEliteTestRoom(identity: {
   eliteTestActive = true
   clearGameReconnection()
   return room
+}
+
+// Creates the ephemeral admin-only AutoWave sandbox. The server performs the
+// admin check and chooses each matchup; the client only submits predictions.
+export async function createAutoWaveRoom(identity: {
+  uid: string
+  displayName: string
+  avatar: string
+}): Promise<Room<GameState>> {
+  const idToken = await getIdToken()
+  const odToken = identity.uid || "local-player"
+  const name = identity.displayName || "AutoWavePlayer"
+  const room = await client.create<GameState>("game", {
+    idToken,
+    odToken,
+    displayName: name,
+    users: {
+      [odToken]: {
+        uid: odToken,
+        name,
+        elo: 1000,
+        games: 0,
+        avatar: identity.avatar || "0019/Normal",
+        isBot: false
+      }
+    },
+    preparationId: "autowave",
+    name: "AutoWave",
+    ownerName: name,
+    noElo: true,
+    gameMode: "CUSTOM_LOBBY",
+    specialGameRule: null,
+    minRank: null,
+    maxRank: null,
+    tournamentId: null,
+    bracketId: null,
+    difficultyMode: 1,
+    resume: false,
+    isEndless: false,
+    autoWave: true
+  })
+  await leaveAllRooms()
+  rooms.game = room
+  eliteTestActive = true
+  autoWaveActive = true
+  clearGameReconnection()
+  return room
+}
+
+export function isAutoWaveActive(): boolean {
+  return autoWaveActive && !!rooms.game && rooms.game.connection.isOpen
 }
 
 export function isEliteTestActive(): boolean {

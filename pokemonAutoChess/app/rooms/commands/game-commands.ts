@@ -4387,7 +4387,29 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     this.state.roundTime = 999
     this.room.eliteTestFightStart = 0
 
-    this.room.broadcast(Transfer.ELITE_TEST_RESULT, result)
+    if (this.room.isAutoWave) {
+      const winner =
+        result.winner === "elite"
+          ? "blue"
+          : result.winner === "opponent"
+            ? "red"
+            : "draw"
+      const prediction = this.room.autoWavePrediction
+      this.room.broadcast(Transfer.AUTOWAVE_RESULT, {
+        winner,
+        prediction,
+        correct: winner === "draw" ? null : prediction === winner,
+        blueAlive: result.eliteAlive,
+        redAlive: result.opponentAlive,
+        hpPercent: result.hpPercent,
+        durationSec: result.durationSec,
+        matchup: this.room.autoWaveMatchup
+      })
+      this.room.autoWavePrediction = null
+      this.room.autoWaveMatchup = null
+    } else {
+      this.room.broadcast(Transfer.ELITE_TEST_RESULT, result)
+    }
   }
 
   initializeFightingPhase() {

@@ -35,6 +35,7 @@ import {
   getApprovedBossDesigns,
   getApprovedEliteDesigns,
   getEliteDesignById,
+  getRandomAutoWaveMatchup,
   type SpireEliteDesignData,
   spireFloorToStageRange
 } from "../services/elite-design"
@@ -165,6 +166,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
   isEliteTest: boolean = false
   eliteTestFightStart: number = 0
   eliteTestOpponentDesign: ParsedEliteDesign | null = null
+  isAutoWave: boolean = false
+  autoWaveLoading: boolean = false
+  autoWavePrediction: "blue" | "red" | null = null
+  autoWaveMatchup: {
+    blue: { id: string; name: string; act: number; stageRange: string }
+    red: { id: string; name: string; act: number; stageRange: string }
+  } | null = null
   // Anti-AFK idle tracking (see OnUpdateCommand). idlePhase is the phase the
   // idle timer is currently counting against; idleTimeMs is real ms elapsed in
   // it without advancing the run.
@@ -188,6 +196,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
   // When room is initialized
   async onCreate({
+    idToken,
     users,
     preparationId,
     name,
@@ -205,8 +214,10 @@ export default class GameRoom extends Room<{ state: GameState }> {
     isSpire,
     spireClass,
     isTutorial,
-    eliteTest
+    eliteTest,
+    autoWave
   }: {
+    idToken?: string
     users: Record<string, IGameUser>
     preparationId: string
     name: string
@@ -225,13 +236,31 @@ export default class GameRoom extends Room<{ state: GameState }> {
     spireClass?: string
     isTutorial?: boolean
     eliteTest?: boolean
+    autoWave?: boolean
   }) {
-    this.isEliteTest = !!eliteTest
-    if (this.isEliteTest) {
-      // The Elite Designer (and its test sandbox) is sign-in only: guests all
-      // share the "local-player" uid, so they'd co-own one library bucket. The
-      // client gates the whole designer UI; this is the server-side backstop.
-      const creatorUid = Object.keys(users || {})[0]
+    this.isAutoWave = !!autoWave
+    this.isEliteTest = !!eliteTest || this.isAutoWave
+    const creatorUid = Object.keys(users || {})[0]
+    if (this.isAutoWave) {
+      if (!creatorUid || creatorUid === "local-player" || !idToken) {
+        throw new Error("AutoWave requires an admin account")
+      }
+      const token = await admin.auth().verifyIdToken(idToken)
+      if (token.uid !== creatorUid) {
+        throw new Error("AutoWave account mismatch")
+      }
+      const UserMetadata =
+        require("../models/mongo-models/user-metadata").default
+      const meta = await UserMetadata.findOne(
+        { uid: creatorUid },
+        { role: 1 }
+      ).lean()
+      if (meta?.role !== Role.ADMIN) {
+        throw new Error("AutoWave requires an admin account")
+      }
+    } else if (this.isEliteTest) {
+      // The Elite Designer test sandbox is sign-in only: guests all share the
+      // "local-player" uid and would otherwise co-own one library bucket.
       if (!creatorUid || creatorUid === "local-player") {
         throw new Error("The Elite Designer requires an account")
       }
@@ -284,6 +313,7 @@ export default class GameRoom extends Room<{ state: GameState }> {
       maxRank,
       specialGameRule
     )
+    this.state.isAutoWave = this.isAutoWave
     if (isTutorial) {
       // Tutorial: a guided, fully-scripted single-act run on the normal-mode
       // ruleset. Never spire/endless; difficulty pinned to Normal. The scripted
@@ -1148,7 +1178,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
       ) => {
         // Elite Designer sandbox only. Stages a saved-team snapshot, live PVE
         // encounter, or another library design; the fight still waits for Begin.
-        if (!this.isEliteTest || !client.auth || !this.isPlayer(client)) return
+        if (
+          !this.isEliteTest ||
+          this.isAutoWave ||
+          !client.auth ||
+          !this.isPlayer(client)
+        )
+          return
         if (this.state.phase === GamePhaseState.FIGHT) return
         try {
           const {
@@ -1332,7 +1368,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
 
     this.onMessage(Transfer.BEGIN_ELITE_TEST, (client) => {
       // Start the staged elite test fight (both teams already previewed on board).
-      if (!this.isEliteTest || !client.auth || !this.isPlayer(client)) return
+      if (
+        !this.isEliteTest ||
+        this.isAutoWave ||
+        !client.auth ||
+        !this.isPlayer(client)
+      )
+        return
       if (!this.state.eliteTestAwaitingBegin) return
       try {
         const cmd = new OnUpdatePhaseCommand()
@@ -1346,6 +1388,119 @@ export default class GameRoom extends Room<{ state: GameState }> {
       }
     })
 
+    this.onMessage(Transfer.AUTOWAVE_NEXT_ROUND, async (client) => {
+      if (
+        !this.isAutoWave ||
+        !client.auth ||
+        !this.isPlayer(client) ||
+        this.autoWaveLoading ||
+        this.state.phase === GamePhaseState.FIGHT ||
+        this.state.eliteTestAwaitingBegin
+      )
+        return
+
+      this.autoWaveLoading = true
+      try {
+        const matchup = await getRandomAutoWaveMatchup()
+        if (
+          (this.state.phase as number) === GamePhaseState.FIGHT ||
+          this.state.eliteTestAwaitingBegin
+        )
+          return
+        if (!matchup) {
+          client.send(Transfer.AUTOWAVE_MATCHUP, {
+            error: "insufficient_pool"
+          })
+          return
+        }
+
+        const { parseEliteDesignExport } = require("../services/elite-test")
+        const blueDesign = parseEliteDesignExport(matchup.blue.designJson)
+        const redDesign = parseEliteDesignExport(matchup.red.designJson)
+        if (
+          !blueDesign ||
+          blueDesign.board.length === 0 ||
+          !redDesign ||
+          redDesign.board.length === 0
+        ) {
+          client.send(Transfer.AUTOWAVE_MATCHUP, {
+            error: "invalid_design"
+          })
+          return
+        }
+
+        const player = this.state.players.get(client.auth.uid)
+        if (!player) return
+        const cmd = new OnUpdatePhaseCommand()
+        cmd.setPayload({})
+        cmd.room = this
+        cmd.state = this.state
+        cmd.clock = this.clock
+        const rangeEnd = Number(
+          matchup.red.stageRange.match(/-(\d+)$/)?.[1] ?? 20
+        )
+        const stageLevel = (matchup.red.act - 1) * 15 + rangeEnd
+        this.state.difficultyMode = 1
+        player.map = "town"
+        cmd.setupEliteTestDesignPreview(
+          player,
+          blueDesign,
+          redDesign,
+          stageLevel
+        )
+        this.autoWavePrediction = null
+        this.autoWaveMatchup = {
+          blue: {
+            id: matchup.blue.id,
+            name: matchup.blue.name,
+            act: matchup.blue.act,
+            stageRange: matchup.blue.stageRange
+          },
+          red: {
+            id: matchup.red.id,
+            name: matchup.red.name,
+            act: matchup.red.act,
+            stageRange: matchup.red.stageRange
+          }
+        }
+        client.send(Transfer.AUTOWAVE_MATCHUP, this.autoWaveMatchup)
+      } catch (error) {
+        logger.error("AutoWave matchup error", error)
+        client.send(Transfer.AUTOWAVE_MATCHUP, { error: "server_error" })
+      } finally {
+        this.autoWaveLoading = false
+      }
+    })
+
+    this.onMessage(
+      Transfer.AUTOWAVE_PREDICT,
+      (client, prediction: "blue" | "red") => {
+        if (
+          !this.isAutoWave ||
+          !client.auth ||
+          !this.isPlayer(client) ||
+          !this.autoWaveMatchup ||
+          this.autoWavePrediction != null ||
+          !this.state.eliteTestAwaitingBegin ||
+          (prediction !== "blue" && prediction !== "red")
+        )
+          return
+
+        this.autoWavePrediction = prediction
+        try {
+          const cmd = new OnUpdatePhaseCommand()
+          cmd.setPayload({})
+          cmd.room = this
+          cmd.state = this.state
+          cmd.clock = this.clock
+          cmd.beginEliteTestFight()
+        } catch (error) {
+          this.autoWavePrediction = null
+          logger.error("AutoWave prediction error", error)
+        }
+      }
+    )
+
     this.onMessage(
       Transfer.MEASURE_ELITE_DESIGN,
       async (client, payload: { id?: string }) => {
@@ -1353,7 +1508,13 @@ export default class GameRoom extends Room<{ state: GameState }> {
         // rate: headless AI-vs-AI fights against every saved endless team in the
         // pools bracketing its stage range. Results persist to the design doc;
         // progress/result broadcast via ELITE_MEASURE_UPDATE.
-        if (!this.isEliteTest || !client.auth || !this.isPlayer(client)) return
+        if (
+          !this.isEliteTest ||
+          this.isAutoWave ||
+          !client.auth ||
+          !this.isPlayer(client)
+        )
+          return
         if (this.state.phase === GamePhaseState.FIGHT) return
         const designId = payload?.id ?? ""
         try {
