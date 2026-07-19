@@ -1,4 +1,4 @@
-import { Room } from "@colyseus/sdk"
+import type { Room } from "@colyseus/sdk"
 import Phaser, { GameObjects, Scene } from "phaser"
 import {
   BERRY_TREE_POSITIONS,
@@ -20,14 +20,20 @@ import {
 } from "../../../../types"
 import { DungeonMusic, type DungeonPMDO } from "../../../../types/enum/Dungeon"
 import { GamePhaseState } from "../../../../types/enum/Game"
-import { Item, isItemSellable, ItemRecipe, Mulches } from "../../../../types/enum/Item"
-import { Pkm } from "../../../../types/enum/Pokemon"
+import {
+  type Item,
+  ItemRecipe,
+  isItemSellable,
+  Mulches
+} from "../../../../types/enum/Item"
+import type { Pkm } from "../../../../types/enum/Pokemon"
 import { isIn } from "../../../../utils/array"
 import { throttle } from "../../../../utils/function"
 import { logger } from "../../../../utils/logger"
 import { clamp } from "../../../../utils/number"
 import { schemaValues } from "../../../../utils/schemas"
 import { clearTitleNotificationIcon } from "../../../../utils/window"
+import { isEliteTestActive } from "../../network"
 import { cyclePlayers, playerClick } from "../../pages/game"
 import { playMusic, playSound, SOUNDS } from "../../pages/utils/audio"
 import { transformBoardCoordinates } from "../../pages/utils/utils"
@@ -163,7 +169,7 @@ export default class GameScene extends Scene {
       )
 
       this.weatherManager = new WeatherManager(this)
-      this.weatherManager?.setTownDaytime(0)
+      if (!isEliteTestActive()) this.weatherManager.setTownDaytime(0)
 
       this.wandererManager = new WanderersManager(this)
       if (!this.music) {
@@ -189,7 +195,8 @@ export default class GameScene extends Scene {
       this.lastPokemonDetail.updateTooltipPosition()
     }
     if (
-      (this.room?.state?.phase === GamePhaseState.TOWN || this.room?.state?.phase === GamePhaseState.SHOP) &&
+      (this.room?.state?.phase === GamePhaseState.TOWN ||
+        this.room?.state?.phase === GamePhaseState.SHOP) &&
       this.minigameManager
     ) {
       this.minigameManager.update()
@@ -338,7 +345,10 @@ export default class GameScene extends Scene {
       this.board?.battleMode(true)
     } else if (newPhase === GamePhaseState.TOWN) {
       // TOWN phase disabled in PokemonAutoSpire
-    } else if (newPhase === GamePhaseState.MAP || newPhase === GamePhaseState.EVENT) {
+    } else if (
+      newPhase === GamePhaseState.MAP ||
+      newPhase === GamePhaseState.EVENT
+    ) {
       if (this.board) {
         this.board.mode = BoardMode.MAP
       }
@@ -481,11 +491,15 @@ export default class GameScene extends Scene {
       if (
         pointer.leftButtonDown() &&
         this.minigameManager &&
-        (this.room?.state.phase === GamePhaseState.TOWN || this.room?.state.phase === GamePhaseState.SHOP) &&
+        (this.room?.state.phase === GamePhaseState.TOWN ||
+          this.room?.state.phase === GamePhaseState.SHOP) &&
         !this.spectate
       ) {
         const hitObjects = this.input.hitTestPointer(pointer)
-        if (hitObjects.some((obj) => obj instanceof Phaser.GameObjects.Container)) return
+        if (
+          hitObjects.some((obj) => obj instanceof Phaser.GameObjects.Container)
+        )
+          return
         const camera = this.cameras.main
         const x = camera.worldView.left + pointer.x / camera.zoom
         const y = camera.worldView.top + pointer.y / camera.zoom
@@ -615,7 +629,11 @@ export default class GameScene extends Scene {
             let visible = false
             if (inBench) {
               visible = pokemon.canBeBenched
-            } else if (this.room?.state.phase === GamePhaseState.PICK || this.room?.state.phase === GamePhaseState.MAP || this.room?.state.phase === GamePhaseState.REWARD) {
+            } else if (
+              this.room?.state.phase === GamePhaseState.PICK ||
+              this.room?.state.phase === GamePhaseState.MAP ||
+              this.room?.state.phase === GamePhaseState.REWARD
+            ) {
               visible = true
             }
             spot.setVisible(visible)
@@ -730,7 +748,10 @@ export default class GameScene extends Scene {
             })
           }
           // Item -> SELL-ZONE = SELL ITEM
-          else if (dropZone.name === "sell-zone" && isItemSellable(gameObject.name as Item)) {
+          else if (
+            dropZone.name === "sell-zone" &&
+            isItemSellable(gameObject.name as Item)
+          ) {
             this.room?.send(Transfer.SELL_ITEM, gameObject.name)
           }
           // RETURN TO ORIGINAL SPOT (includes unsellable items dropped on sell zone)
@@ -837,7 +858,8 @@ export default class GameScene extends Scene {
         if (
           dropZone.name === "sell-zone" &&
           (gameObject instanceof PokemonSprite ||
-            (gameObject instanceof ItemContainer && isItemSellable(gameObject.name as Item)))
+            (gameObject instanceof ItemContainer &&
+              isItemSellable(gameObject.name as Item)))
         ) {
           this.sellZone?.onDragEnter()
         }
@@ -865,7 +887,8 @@ export default class GameScene extends Scene {
         if (
           dropZone.name === "sell-zone" &&
           (gameObject instanceof PokemonSprite ||
-            (gameObject instanceof ItemContainer && isItemSellable(gameObject.name as Item)))
+            (gameObject instanceof ItemContainer &&
+              isItemSellable(gameObject.name as Item)))
         ) {
           this.sellZone?.onDragLeave()
         }

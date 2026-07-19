@@ -48,6 +48,7 @@ import type { DisplayText } from "../../../types/strings/DisplayText"
 import { logger } from "../../../utils/logger"
 import { clamp, max } from "../../../utils/number"
 import { schemaValues } from "../../../utils/schemas"
+import { isEliteTestActive } from "../network"
 import { getCachedPortrait } from "../pages/component/game/game-pokemon-portrait"
 import { playSound, SOUNDS } from "../pages/utils/audio"
 import { transformBoardCoordinates } from "../pages/utils/utils"
@@ -674,7 +675,9 @@ class GameContainer {
         if (hostPlayer && !this.player) {
           this.room.send(Transfer.SPECTATE, hostPlayer.id)
           this.setPlayer(hostPlayer)
-          const simulation = this.room.state.simulations.get(hostPlayer.simulationId)
+          const simulation = this.room.state.simulations.get(
+            hostPlayer.simulationId
+          )
           if (simulation) {
             this.setSimulation(simulation)
           }
@@ -724,6 +727,11 @@ class GameContainer {
           this.gameScene.weatherManager.addSmog()
         } else if (value === Weather.MURKY) {
           this.gameScene.weatherManager.addMurky()
+        }
+        // Test fights retain weather mechanics and particles, but the full-map
+        // color wash obscures visual inspection of authored teams.
+        if (isEliteTestActive()) {
+          this.gameScene.weatherManager.clearColorFilter()
         }
       }
     }
@@ -779,7 +787,9 @@ class GameContainer {
     if (
       board &&
       player.id === this.playerIdSpectated &&
-      (board.mode === BoardMode.PICK || board.mode === BoardMode.MAP || pokemon.positionY === 0)
+      (board.mode === BoardMode.PICK ||
+        board.mode === BoardMode.MAP ||
+        pokemon.positionY === 0)
     ) {
       const pokemonUI = this.gameScene?.board?.addPokemonSprite(pokemon)
       if (!pokemonUI) return

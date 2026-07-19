@@ -624,13 +624,15 @@ export default class WeatherManager {
     )
   }
 
+  clearColorFilter() {
+    this.colorFilter?.destroy()
+    this.colorFilter = undefined
+  }
+
   clearWeather() {
     this.particlesEmitters.forEach((emitter) => emitter.destroy())
     this.particlesEmitters = []
-    if (this.colorFilter) {
-      this.colorFilter.destroy()
-      this.colorFilter = undefined
-    }
+    this.clearColorFilter()
     if (this.image) {
       this.image.destroy()
       this.image = undefined
