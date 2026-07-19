@@ -1,8 +1,12 @@
 import { readFile } from "node:fs/promises"
 import { monitor } from "@colyseus/monitor"
-import type { SavedRunData } from "./services/run-save"
-import { defineRoom, defineServer, matchMaker, ServerOptions } from "colyseus"
 import { WebSocketTransport } from "@colyseus/ws-transport"
+import {
+  defineRoom,
+  defineServer,
+  matchMaker,
+  type ServerOptions
+} from "colyseus"
 import cors from "cors"
 import express from "express"
 import basicAuth from "express-basic-auth"
@@ -15,6 +19,7 @@ import { USERNAME_REGEXP } from "./config/server/rules"
 import { initTilemap } from "./core/design"
 import { PRECOMPUTED_POKEMONS_PER_TYPE } from "./models/precomputed/precomputed-types"
 import GameRoom from "./rooms/game-room"
+import type { SavedRunData } from "./services/run-save"
 import { DungeonPMDO } from "./types/enum/Dungeon"
 import { Item } from "./types/enum/Item"
 import { Pkm, PkmIndex } from "./types/enum/Pokemon"
@@ -88,7 +93,7 @@ async function renderLegalPage(
   }
 }
 
-let gameOptions: ServerOptions = {
+const gameOptions: ServerOptions = {
   transport: new WebSocketTransport({
     pingInterval: 15000,
     pingMaxRetries: 4
@@ -334,7 +339,9 @@ export const server = defineServer({
       try {
         const rooms = await matchMaker.query({})
         const ccu = rooms.reduce((sum, r) => sum + (r.clients ?? 0), 0)
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
         const totalAccounts = await UserMetadata.countDocuments()
         const version = pkg.version
         res.send({ ccu, totalAccounts, version })
@@ -355,7 +362,8 @@ export const server = defineServer({
         const rooms = await matchMaker.query({})
         const active = rooms.some((r) => {
           if (r.name !== "game" || (r.clients ?? 0) <= 0) return false
-          const meta = typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
+          const meta =
+            typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
           return meta?.ownerUid === uid
         })
         res.json({ active })
@@ -367,7 +375,15 @@ export const server = defineServer({
     app.get("/api/public-runs-debug", async (req, res) => {
       try {
         const rooms = await matchMaker.query({})
-        res.json(rooms.map((r) => ({ roomId: r.roomId, clients: r.clients, name: r.name, metadataType: typeof r.metadata, metadata: r.metadata })))
+        res.json(
+          rooms.map((r) => ({
+            roomId: r.roomId,
+            clients: r.clients,
+            name: r.name,
+            metadataType: typeof r.metadata,
+            metadata: r.metadata
+          }))
+        )
       } catch (error) {
         res.json({ error: String(error) })
       }
@@ -379,21 +395,26 @@ export const server = defineServer({
         const runs = rooms
           .filter((r) => r.clients > 0)
           .map((r) => {
-            const meta = typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
+            const meta =
+              typeof r.metadata === "string"
+                ? JSON.parse(r.metadata)
+                : r.metadata
             // Elite Designer test sandboxes are game rooms too, but they're not
             // runs — keep them out of the lobby's Live Runs / spectate list.
             if (meta?.isEliteTest) return null
-            return meta?.ownerName ? {
-              roomId: r.roomId,
-              ownerName: meta.ownerName ?? "Unknown",
-              difficultyMode: meta.difficultyMode ?? 1,
-              isEndless: meta.isEndless ?? false,
-              currentAct: meta.currentAct ?? 1,
-              currentFloor: meta.currentFloor ?? 0,
-              runHP: meta.runHP ?? 100,
-              spectatorCount: meta.spectatorCount ?? 0,
-              clients: r.clients ?? 1
-            } : null
+            return meta?.ownerName
+              ? {
+                  roomId: r.roomId,
+                  ownerName: meta.ownerName ?? "Unknown",
+                  difficultyMode: meta.difficultyMode ?? 1,
+                  isEndless: meta.isEndless ?? false,
+                  currentAct: meta.currentAct ?? 1,
+                  currentFloor: meta.currentFloor ?? 0,
+                  runHP: meta.runHP ?? 100,
+                  spectatorCount: meta.spectatorCount ?? 0,
+                  clients: r.clients ?? 1
+                }
+              : null
           })
           .filter(Boolean)
         res.json(runs)
@@ -415,8 +436,13 @@ export const server = defineServer({
 
     app.get("/api/spire-region/:uid", async (req, res) => {
       try {
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
-        const user = await UserMetadata.findOne({ uid: req.params.uid }, { spireRegion: 1 }).lean()
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
+        const user = await UserMetadata.findOne(
+          { uid: req.params.uid },
+          { spireRegion: 1 }
+        ).lean()
         res.json({ region: user?.spireRegion ?? "town" })
       } catch (error) {
         logger.error("Error fetching spire region:", error)
@@ -426,8 +452,13 @@ export const server = defineServer({
 
     app.get("/api/tutorial-completed/:uid", async (req, res) => {
       try {
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
-        const user = await UserMetadata.findOne({ uid: req.params.uid }, { tutorialCompleted: 1 }).lean()
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
+        const user = await UserMetadata.findOne(
+          { uid: req.params.uid },
+          { tutorialCompleted: 1 }
+        ).lean()
         res.json({ completed: !!user?.tutorialCompleted })
       } catch (error) {
         logger.error("Error fetching tutorial completion:", error)
@@ -441,7 +472,9 @@ export const server = defineServer({
         if (typeof region !== "string") {
           return res.status(400).json({ error: "Invalid region" })
         }
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
         await UserMetadata.updateOne(
           { uid: req.params.uid },
           { $set: { spireRegion: region } },
@@ -456,8 +489,13 @@ export const server = defineServer({
 
     app.get("/api/user-role/:uid", async (req, res) => {
       try {
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
-        const user = await UserMetadata.findOne({ uid: req.params.uid }, { role: 1 }).lean()
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
+        const user = await UserMetadata.findOne(
+          { uid: req.params.uid },
+          { role: 1 }
+        ).lean()
         res.json({ role: user?.role || "BASIC" })
       } catch (error) {
         res.json({ role: "BASIC" })
@@ -466,14 +504,26 @@ export const server = defineServer({
 
     app.get("/api/spire-stats/:uid", async (req, res) => {
       try {
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
-        const user = await UserMetadata.findOne({ uid: req.params.uid }, { spireStats: 1 }).lean()
-        res.json(user?.spireStats ?? {
-          easy: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
-          normal: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
-          hard: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
-          impossible: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 }
-        })
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
+        const user = await UserMetadata.findOne(
+          { uid: req.params.uid },
+          { spireStats: 1 }
+        ).lean()
+        res.json(
+          user?.spireStats ?? {
+            easy: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
+            normal: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
+            hard: { runsStarted: 0, wins: 0, champion: 0, arceusDamage: 0 },
+            impossible: {
+              runsStarted: 0,
+              wins: 0,
+              champion: 0,
+              arceusDamage: 0
+            }
+          }
+        )
       } catch (error) {
         logger.error("Error fetching spire stats:", error)
         res.status(500).json({ error: "Internal server error" })
@@ -484,14 +534,24 @@ export const server = defineServer({
     // Mirrors the validation used at run start; never accepts auth-derived names.
     app.put("/api/player-name/:uid", async (req, res) => {
       try {
-        const name = typeof req.body?.name === "string" ? req.body.name.trim() : ""
-        if (!USERNAME_REGEXP.test(name) || name === "Player" || name === "Username") {
+        const name =
+          typeof req.body?.name === "string" ? req.body.name.trim() : ""
+        if (
+          !USERNAME_REGEXP.test(name) ||
+          name === "Player" ||
+          name === "Username"
+        ) {
           return res.status(400).json({ error: "Invalid name" })
         }
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
         await UserMetadata.updateOne(
           { uid: req.params.uid },
-          { $set: { displayName: name }, $setOnInsert: { uid: req.params.uid } },
+          {
+            $set: { displayName: name },
+            $setOnInsert: { uid: req.params.uid }
+          },
           { upsert: true }
         )
         res.json({ ok: true })
@@ -504,8 +564,13 @@ export const server = defineServer({
     // Read the player's saved name (source of truth for the lobby input).
     app.get("/api/player-name/:uid", async (req, res) => {
       try {
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
-        const user = await UserMetadata.findOne({ uid: req.params.uid }, { displayName: 1 }).lean()
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
+        const user = await UserMetadata.findOne(
+          { uid: req.params.uid },
+          { displayName: 1 }
+        ).lean()
         res.json({ name: (user as any)?.displayName ?? null })
       } catch (error) {
         logger.error("Error fetching player name:", error)
@@ -516,8 +581,13 @@ export const server = defineServer({
     // Read the player's saved avatar (sprite string, e.g. "0019/Normal").
     app.get("/api/player-avatar/:uid", async (req, res) => {
       try {
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
-        const user = await UserMetadata.findOne({ uid: req.params.uid }, { avatar: 1 }).lean()
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
+        const user = await UserMetadata.findOne(
+          { uid: req.params.uid },
+          { avatar: 1 }
+        ).lean()
         res.json({ avatar: (user as any)?.avatar ?? null })
       } catch (error) {
         logger.error("Error fetching player avatar:", error)
@@ -528,11 +598,14 @@ export const server = defineServer({
     // Persist the player's chosen avatar (sprite string form) to UserMetadata.avatar.
     app.put("/api/player-avatar/:uid", async (req, res) => {
       try {
-        const avatar = typeof req.body?.avatar === "string" ? req.body.avatar.trim() : ""
+        const avatar =
+          typeof req.body?.avatar === "string" ? req.body.avatar.trim() : ""
         if (!/^[0-9]{3,4}(\/[0-9]{3,4})*\/[A-Za-z]+$/.test(avatar)) {
           return res.status(400).json({ error: "Invalid avatar" })
         }
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
         await UserMetadata.updateOne(
           { uid: req.params.uid },
           { $set: { avatar }, $setOnInsert: { uid: req.params.uid } },
@@ -551,7 +624,9 @@ export const server = defineServer({
       try {
         const q = typeof req.query.q === "string" ? req.query.q.trim() : ""
         if (q.length < 1) return res.json([])
-        const UserMetadata = (await import("./models/mongo-models/user-metadata")).default
+        const UserMetadata = (
+          await import("./models/mongo-models/user-metadata")
+        ).default
         const results = await UserMetadata.find(
           { displayName: { $gte: q, $lt: q + "￿" } },
           { uid: 1, displayName: 1, avatar: 1, _id: 0 }
@@ -578,20 +653,33 @@ export const server = defineServer({
         const simplify = (snap: any) => ({
           name: snap.name,
           avatar: snap.avatar,
-          pokemon: snap.pokemon.filter((p: any) => p.y > 0).map((p: any) => ({
-            name: p.name,
-            items: p.items || []
-          })),
+          pokemon: snap.pokemon
+            .filter((p: any) => p.y > 0)
+            .map((p: any) => ({
+              name: p.name,
+              items: p.items || []
+            })),
           inventory: snap.inventory || []
         })
         const e4Victories = data.eliteFourVictories ?? [0, 0, 0, 0]
         const e4Ties = data.eliteFourTies ?? [0, 0, 0, 0]
         res.json({
-          champion: { ...simplify(data.champion), victories: data.championVictories ?? 0, ties: data.championTies ?? 0 },
-          eliteFour: data.eliteFour.map((snap, i) => ({ ...simplify(snap), victories: e4Victories[i] ?? 0, ties: e4Ties[i] ?? 0 })),
+          champion: {
+            ...simplify(data.champion),
+            victories: data.championVictories ?? 0,
+            ties: data.championTies ?? 0
+          },
+          eliteFour: data.eliteFour.map((snap, i) => ({
+            ...simplify(snap),
+            victories: e4Victories[i] ?? 0,
+            ties: e4Ties[i] ?? 0
+          })),
           championSince: data.championSince ?? null,
           longestReign: data.longestReign
-            ? { name: data.longestReign.name, durationMs: data.longestReign.durationMs }
+            ? {
+                name: data.longestReign.name,
+                durationMs: data.longestReign.durationMs
+              }
             : null
         })
       } catch (error) {
@@ -602,7 +690,9 @@ export const server = defineServer({
 
     app.get("/api/arceus-record/:difficulty", async (req, res) => {
       try {
-        const { getArceusLeaderboardForClient } = await import("./services/arceus-record")
+        const { getArceusLeaderboardForClient } = await import(
+          "./services/arceus-record"
+        )
         const mode = parseInt(req.params.difficulty) as 0 | 1 | 2 | 3
         if (mode !== 0 && mode !== 1 && mode !== 2 && mode !== 3) {
           return res.status(400).json({ error: "Invalid difficulty" })
@@ -616,7 +706,9 @@ export const server = defineServer({
 
     app.get("/api/endless-record", async (req, res) => {
       try {
-        const { getEndlessLeaderboardForClient } = await import("./services/endless-record")
+        const { getEndlessLeaderboardForClient } = await import(
+          "./services/endless-record"
+        )
         res.json(getEndlessLeaderboardForClient())
       } catch (error) {
         logger.error("Error fetching endless record:", error)
@@ -636,7 +728,9 @@ export const server = defineServer({
 
     app.get("/api/async-stages", async (req, res) => {
       try {
-        const { getPopulatedAsyncStages } = await import("./services/async-fight-pool")
+        const { getPopulatedAsyncStages } = await import(
+          "./services/async-fight-pool"
+        )
         res.json(await getPopulatedAsyncStages())
       } catch (error) {
         logger.error("Error fetching async stages:", error)
@@ -678,7 +772,9 @@ export const server = defineServer({
 
     app.put("/api/elite-designs/:id/approve", async (req, res) => {
       try {
-        const { setEliteDesignApproved } = await import("./services/elite-design")
+        const { setEliteDesignApproved } = await import(
+          "./services/elite-design"
+        )
         const { uid, approved } = req.body ?? {}
         if (typeof uid !== "string" || !uid || typeof approved !== "boolean") {
           return res.status(400).json({ error: "bad_request" })
@@ -731,12 +827,15 @@ export const server = defineServer({
     // design docs. measure-all is admin-only (minutes of CPU).
     app.post("/api/elite-designs/measure-all", async (req, res) => {
       try {
-        const { startEliteMeasureAll } = await import("./services/elite-measure")
-        const { uid, act, stageRange } = req.body ?? {}
+        const { startEliteMeasureAll } = await import(
+          "./services/elite-measure"
+        )
+        const { uid, kind, act, stageRange } = req.body ?? {}
         if (typeof uid !== "string" || !uid) {
           return res.status(400).json({ error: "bad_request" })
         }
         const result = await startEliteMeasureAll(uid, {
+          kind: kind === "elite" || kind === "boss" ? kind : undefined,
           act: typeof act === "number" ? act : undefined,
           stageRange: typeof stageRange === "string" ? stageRange : undefined
         })
@@ -788,7 +887,9 @@ export const server = defineServer({
 
     app.get("/api/elite-measure-status", async (req, res) => {
       try {
-        const { getEliteMeasureStatus } = await import("./services/elite-measure")
+        const { getEliteMeasureStatus } = await import(
+          "./services/elite-measure"
+        )
         res.json(getEliteMeasureStatus())
       } catch (error) {
         res.json({ running: false })
@@ -797,7 +898,9 @@ export const server = defineServer({
 
     app.get("/api/victory-leaderboard/:difficulty", async (req, res) => {
       try {
-        const { getVictoryLeaderboard } = await import("./services/victory-record")
+        const { getVictoryLeaderboard } = await import(
+          "./services/victory-record"
+        )
         const mode = parseInt(req.params.difficulty)
         if (mode !== 0 && mode !== 1 && mode !== 2 && mode !== 3) {
           return res.status(400).json({ error: "Invalid difficulty" })
@@ -815,12 +918,16 @@ export const server = defineServer({
     // List victory records (incl. odToken) for the manager's removal UI.
     app.get("/api/admin/victory-records/:difficulty", async (req, res) => {
       try {
-        const { listVictoryRecordsAsAdmin } = await import("./services/leaderboard-admin")
+        const { listVictoryRecordsAsAdmin } = await import(
+          "./services/leaderboard-admin"
+        )
         const uid = (req.query.uid as string) ?? ""
         const difficulty = parseInt(req.params.difficulty)
         const result = await listVictoryRecordsAsAdmin(uid, difficulty)
         if (!result.ok) {
-          return res.status(result.error === "forbidden" ? 403 : 400).json({ error: result.error })
+          return res
+            .status(result.error === "forbidden" ? 403 : 400)
+            .json({ error: result.error })
         }
         res.json(result.records)
       } catch (error) {
@@ -839,7 +946,9 @@ export const server = defineServer({
         }
         const result = await wipeLeaderboard(uid, board as any, difficulty)
         if (!result.ok) {
-          return res.status(result.error === "forbidden" ? 403 : 400).json({ error: result.error })
+          return res
+            .status(result.error === "forbidden" ? 403 : 400)
+            .json({ error: result.error })
         }
         res.json({ ok: true })
       } catch (error) {
@@ -851,7 +960,9 @@ export const server = defineServer({
     // Remove a single entry from a board.
     app.post("/api/admin/leaderboard/remove", async (req, res) => {
       try {
-        const { removeLeaderboardEntry } = await import("./services/leaderboard-admin")
+        const { removeLeaderboardEntry } = await import(
+          "./services/leaderboard-admin"
+        )
         const { uid, board, difficulty, slot, index, odToken } = req.body ?? {}
         if (typeof uid !== "string" || !uid || typeof board !== "string") {
           return res.status(400).json({ error: "bad_request" })
@@ -863,7 +974,9 @@ export const server = defineServer({
           odToken
         })
         if (!result.ok) {
-          return res.status(result.error === "forbidden" ? 403 : 400).json({ error: result.error })
+          return res
+            .status(result.error === "forbidden" ? 403 : 400)
+            .json({ error: result.error })
         }
         res.json({ ok: true })
       } catch (error) {
@@ -886,10 +999,19 @@ export const server = defineServer({
 
     app.delete("/api/saved-run/:uid", async (req, res) => {
       try {
-        const { loadRun, deleteSavedRun, saveRunHistoryFromSavedRun, updateVictoryRecord, isRunVictory } = await import("./services/run-save")
+        const {
+          loadRun,
+          deleteSavedRun,
+          saveRunHistoryFromSavedRun,
+          updateVictoryRecord,
+          isRunVictory
+        } = await import("./services/run-save")
         const savedRun = await loadRun(req.params.uid)
         if (savedRun?.data) {
-          await saveRunHistoryFromSavedRun(req.params.uid, savedRun.data as SavedRunData)
+          await saveRunHistoryFromSavedRun(
+            req.params.uid,
+            savedRun.data as SavedRunData
+          )
           await updateVictoryRecord(
             req.params.uid,
             savedRun.data.team?.name ?? "Unknown",
@@ -908,11 +1030,13 @@ export const server = defineServer({
     })
 
     app.get("/api/announcements/stream", async (req, res) => {
-      const { addSSEClient, removeSSEClient } = await import("./services/announcement")
+      const { addSSEClient, removeSSEClient } = await import(
+        "./services/announcement"
+      )
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive"
+        Connection: "keep-alive"
       })
       addSSEClient(res)
       req.on("close", () => {
@@ -929,7 +1053,10 @@ export const server = defineServer({
       )
       logger.info("Colyseus monitor available at /colyseus")
 
-      const ccuAuth = basicAuth({ users: { admin: monitorPassword }, challenge: true })
+      const ccuAuth = basicAuth({
+        users: { admin: monitorPassword },
+        challenge: true
+      })
 
       app.get("/api/ccu-history", ccuAuth, async (req, res) => {
         const { getCcuHistory } = await import("./services/ccu-history")

@@ -22,6 +22,7 @@ export interface IPreferencesState {
   musicVolume: number
   sfxVolume: number
   playInBackground: boolean
+  uiScale: number
   showDpsMeter: boolean
   dpsMeterPosition: { x: number; y: number }
   synergiesPosition: { x: number; y: number }
@@ -53,6 +54,7 @@ const defaultPreferences: IPreferencesState = {
   musicVolume: 0,
   sfxVolume: 0,
   playInBackground: false,
+  uiScale: 100,
   showDpsMeter: false,
   dpsMeterPosition: { x: 0, y: 0 },
   synergiesPosition: { x: 0, y: 0 },
@@ -149,8 +151,16 @@ function loadPreferences(): IPreferencesState {
   }
 }
 
+function applyUiScale(uiScale: number) {
+  document.documentElement.style.setProperty(
+    "--ui-font-size",
+    `${16 * (uiScale / 100)}px`
+  )
+}
+
 type Subscription = (newPreferences: IPreferencesState) => void
 let preferences: IPreferencesState = Object.freeze(loadPreferences())
+applyUiScale(preferences.uiScale)
 const subscriptions: Subscription[] = []
 
 // returns a method that unsubscribes
@@ -197,6 +207,7 @@ export function savePreferences(
   localStore.put(LocalStoreKeys.PREFERENCES, resolved, Infinity)
   preferences = Object.freeze({ ...preferences, ...resolved })
   subscriptions.forEach((s) => s(preferences))
+  applyUiScale(preferences.uiScale)
 }
 
 // react hooks

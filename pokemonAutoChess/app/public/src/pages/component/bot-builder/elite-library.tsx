@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useAppSelector } from "../../../hooks"
 import { Role } from "../../../../../types"
-import { PkmIndex, type Pkm } from "../../../../../types/enum/Pokemon"
+import { type Pkm, PkmIndex } from "../../../../../types/enum/Pokemon"
+import { useAppSelector } from "../../../hooks"
 import PokemonPortrait from "../pokemon-portrait"
-import { parseImportString, type EliteDesign } from "./elite-designer"
+import { type EliteDesign, parseImportString } from "./elite-designer"
 import "./elite-designer.css"
 
 // One saved design as returned by GET /api/elite-designs
 // (app/models/mongo-models/elite-design.ts).
 interface LibraryDesign {
+  kind: "elite" | "boss"
   id: string
   name: string
   act: number
@@ -20,6 +21,7 @@ interface LibraryDesign {
   approved: boolean
   createdAt: string
   results: {
+    difficulty?: "easy" | "normal" | "hard" | "impossible"
     stage: string
     wins: number
     draws: number
@@ -50,15 +52,14 @@ const MEASURE_ERROR_LABEL: Record<string, string> = {
   not_found: "Design not found — it may have been deleted.",
   empty_design: "This design has no Pokémon on the board.",
   bad_stage: "This design has an invalid stage range.",
+  insufficient_data:
+    "Every milestone pool needs at least one recorded team before measuring.",
+  simulation_error:
+    "A fight simulation failed, so the incomplete measurement was discarded.",
   guest: "Sign in to run measurements.",
   forbidden: "Measure All is admin-only.",
   no_designs: "No designs match the selected filters.",
   internal: "Measurement failed — check the server logs."
-}
-
-function formatStageLabel(s: string): string {
-  const m = s.match(/^act(\d+)-floor(\d+)$/)
-  return m ? `Act ${m[1]} Floor ${m[2]}` : s
 }
 
 // Mirror of the server's bump ladder (elite-design.ts STAGE_LADDER) — used only
@@ -83,19 +84,42 @@ function ladderIndex(d: LibraryDesign): number {
   )
 }
 
-// Compact "75%/25%" summary — win rate vs the earlier bracket stage, then the
-// later one (results are stored in bracket order: lower stage first).
-function shortRates(d: LibraryDesign): string | null {
-  if (!d.results || d.results.length === 0) return null
-  return d.results
-    .map((r) =>
-      r.sampleSize > 0 ? `${Math.round((100 * r.wins) / r.sampleSize)}%` : "—"
-    )
-    .join("/")
+const DIFFICULTY_LABELS = [
+  ["easy", "Easy"],
+  ["normal", "Normal"],
+  ["hard", "Hard"],
+  ["impossible", "Impossible"]
+] as const
+
+function difficultySummaries(d: LibraryDesign) {
+  return DIFFICULTY_LABELS.map(([difficulty, label]) => {
+    const rows = d.results.filter((result) => result.difficulty === difficulty)
+    return {
+      difficulty,
+      label,
+      wins: rows.reduce((sum, row) => sum + row.wins, 0),
+      draws: rows.reduce((sum, row) => sum + row.draws, 0),
+      losses: rows.reduce((sum, row) => sum + row.losses, 0),
+      sampleSize: rows.reduce((sum, row) => sum + row.sampleSize, 0),
+      testedAt: rows[0]?.testedAt
+    }
+  })
 }
 
-// The success-rate library: every saved elite design, grouped by act and stage
-// range, with its measured win rates against the bracketing endless pools.
+// Compact Easy/Normal/Hard/Impossible aggregate across both milestone pools.
+function shortRates(d: LibraryDesign): string | null {
+  if (!d.results || d.results.length === 0) return null
+  return difficultySummaries(d)
+    .map((summary) =>
+      summary.sampleSize > 0
+        ? `${summary.label[0]} ${Math.round((100 * summary.wins) / summary.sampleSize)}%`
+        : `${summary.label[0]} —`
+    )
+    .join(" · ")
+}
+
+// Shared success-rate library for elite and boss designs, grouped by kind, act,
+// and stage range. Rates aggregate both milestone pools per difficulty.
 export default function EliteLibrary(props: {
   onLoad: (design: EliteDesign) => void
 }) {
@@ -123,6 +147,7 @@ export default function EliteLibrary(props: {
   // and/or stage range. "all" (the default) shows everything.
   const [actFilter, setActFilter] = useState<string>("all")
   const [stageFilter, setStageFilter] = useState<string>("all")
+  const [kindFilter, setKindFilter] = useState<string>("all")
 
   const refresh = useCallback(() => {
     fetch("/api/elite-designs")
@@ -205,7 +230,9 @@ export default function EliteLibrary(props: {
       setPolling(true)
     } else {
       const body = await res.json().catch(() => ({}))
-      setNotice(MEASURE_ERROR_LABEL[body?.error] ?? "Could not start measuring.")
+      setNotice(
+        MEASURE_ERROR_LABEL[body?.error] ?? "Could not start measuring."
+      )
     }
   }
 
@@ -218,6 +245,7 @@ export default function EliteLibrary(props: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         uid: uid ?? "",
+        kind: kindFilter !== "all" ? kindFilter : undefined,
         act: actFilter !== "all" ? Number(actFilter) : undefined,
         stageRange: stageFilter !== "all" ? stageFilter : undefined
       })
@@ -226,7 +254,9 @@ export default function EliteLibrary(props: {
       setPolling(true)
     } else {
       const body = await res.json().catch(() => ({}))
-      setNotice(MEASURE_ERROR_LABEL[body?.error] ?? "Could not start measuring.")
+      setNotice(
+        MEASURE_ERROR_LABEL[body?.error] ?? "Could not start measuring."
+      )
     }
   }
 
@@ -253,7 +283,7 @@ export default function EliteLibrary(props: {
     } else setNotice("Could not load this design (malformed data).")
   }
 
-  // Admin: toggle whether a design can appear as a Spire elite fight.
+  // Admin: toggle whether a design can enter its live encounter pool.
   async function setApproved(design: LibraryDesign, approved: boolean) {
     setNotice("")
     const res = await fetch(`/api/elite-designs/${design.id}/approve`, {
@@ -311,36 +341,51 @@ export default function EliteLibrary(props: {
     [designs]
   )
 
-  // act → stageRange → designs, in ladder order, after applying the filters.
+  // kind → act → stageRange → designs after applying the filters.
   const grouped = useMemo(() => {
     const byGroup = new Map<string, LibraryDesign[]>()
     for (const d of designs) {
+      if (kindFilter !== "all" && d.kind !== kindFilter) continue
       if (actFilter !== "all" && String(d.act) !== actFilter) continue
       if (stageFilter !== "all" && d.stageRange !== stageFilter) continue
-      const key = `${d.act}|${d.stageRange}`
+      const key = `${d.kind}|${d.act}|${d.stageRange}`
       if (!byGroup.has(key)) byGroup.set(key, [])
       byGroup.get(key)!.push(d)
     }
     return [...byGroup.entries()].sort(([a], [b]) => {
-      const [actA, rangeA] = a.split("|")
-      const [actB, rangeB] = b.split("|")
+      const [kindA, actA, rangeA] = a.split("|")
+      const [kindB, actB, rangeB] = b.split("|")
       return (
-        parseInt(actA) - parseInt(actB) || parseInt(rangeA) - parseInt(rangeB)
+        kindA.localeCompare(kindB) ||
+        parseInt(actA) - parseInt(actB) ||
+        parseInt(rangeA) - parseInt(rangeB)
       )
     })
-  }, [designs, actFilter, stageFilter])
+  }, [designs, kindFilter, actFilter, stageFilter])
 
   return (
     <div className="elite-library">
       <div className="elite-library-head">
         <p className="elite-rec-note">
-          Saved elite designs with success rates measured against real player
-          teams from the endless pools bracketing their stage range. Designs
-          marked ✓ Approved appear as elite fights in Spire runs (Spire's
-          16-floor acts map onto these brackets as quarters).
+          Saved elite and boss designs with success rates measured against real
+          player teams at Easy, Normal, Hard, and Impossible. Each completed
+          rate covers exactly 200 fights across the two bracketing milestone
+          pools. Approved elites and bosses enter their respective live
+          encounter pools.
         </p>
         {designs.length > 0 && (
           <div className="elite-library-filters">
+            <label>
+              Type{" "}
+              <select
+                value={kindFilter}
+                onChange={(event) => setKindFilter(event.target.value)}
+              >
+                <option value="all">All</option>
+                <option value="elite">Elite</option>
+                <option value="boss">Boss</option>
+              </select>
+            </label>
             <label>
               Act{" "}
               <select
@@ -374,10 +419,13 @@ export default function EliteLibrary(props: {
                 className="bubbly orange small"
                 onClick={measureAll}
                 disabled={!!measure?.running}
-                title="Measure every design (respects the act/stage filters). Runs on the server — you can close this window; results appear as each design finishes."
+                title="Measure every design matching the type/act/stage filters. Runs on the server; results persist as each design finishes."
               >
                 Measure All
-                {(actFilter !== "all" || stageFilter !== "all") && " (filtered)"}
+                {(kindFilter !== "all" ||
+                  actFilter !== "all" ||
+                  stageFilter !== "all") &&
+                  " (filtered)"}
               </button>
             )}
           </div>
@@ -413,15 +461,18 @@ export default function EliteLibrary(props: {
       )}
 
       {grouped.map(([key, group]) => {
-        const [act, range] = key.split("|")
+        const [kind, act, range] = key.split("|")
         return (
           <section key={key} className="elite-library-group my-box">
             <h4>
-              Act {act} · Stage {range}
+              {kind === "boss"
+                ? `Act ${act} Bosses`
+                : `Act ${act} · Stage ${range}`}
             </h4>
             {group.map((d) => {
               const mine = d.creatorUid === uid
-              const isMeasuring = !!measure?.running && measure.designId === d.id
+              const isMeasuring =
+                !!measure?.running && measure.designId === d.id
               return (
                 <div key={d.id} className="elite-library-row">
                   {d.icon && PkmIndex[d.icon as Pkm] ? (
@@ -437,7 +488,7 @@ export default function EliteLibrary(props: {
                       {shortRates(d) && (
                         <span
                           className="elite-library-shortrate"
-                          title="Win rate vs earlier / later bracket stage"
+                          title="Win rate by classic difficulty (exactly 200 fights each)"
                         >
                           {" "}
                           – {shortRates(d)}
@@ -446,7 +497,7 @@ export default function EliteLibrary(props: {
                       {d.approved && (
                         <span
                           className="elite-library-approvedtag"
-                          title="Approved — can appear as an elite fight in Spire runs"
+                          title={`Approved — can appear as a live ${d.kind} fight`}
                         >
                           ✓ Approved
                         </span>
@@ -465,21 +516,24 @@ export default function EliteLibrary(props: {
                           Not measured yet
                         </span>
                       ) : (
-                        d.results.map((r) => (
+                        difficultySummaries(d).map((summary) => (
                           <span
-                            key={r.stage}
-                            title={`${r.wins} wins · ${r.draws} draws · ${r.losses} losses out of ${r.sampleSize} teams (${new Date(r.testedAt).toLocaleDateString()})`}
+                            key={summary.difficulty}
+                            title={`${summary.wins} wins · ${summary.draws} draws · ${summary.losses} losses out of ${summary.sampleSize} fights${summary.testedAt ? ` (${new Date(summary.testedAt).toLocaleDateString()})` : ""}`}
                           >
-                            vs {formatStageLabel(r.stage)}:{" "}
-                            {r.sampleSize === 0 ? (
+                            {summary.label}:{" "}
+                            {summary.sampleSize === 0 ? (
                               "no teams"
                             ) : (
                               <b>
-                                {Math.round((100 * r.wins) / r.sampleSize)}%
+                                {Math.round(
+                                  (100 * summary.wins) / summary.sampleSize
+                                )}
+                                %
                               </b>
                             )}
-                            {r.sampleSize > 0 &&
-                              ` (${r.wins}W ${r.draws}D ${r.losses}L / ${r.sampleSize})`}
+                            {summary.sampleSize > 0 &&
+                              ` (${summary.wins}W ${summary.draws}D ${summary.losses}L / ${summary.sampleSize})`}
                           </span>
                         ))
                       )}
@@ -500,7 +554,7 @@ export default function EliteLibrary(props: {
                       title={
                         measure?.running
                           ? "A measurement is already running"
-                          : "Fight every saved endless team in the bracketing stages (runs on the server — no Test Mode needed)"
+                          : "Fight exactly 200 times at each classic difficulty (800 fights total; server-side)"
                       }
                     >
                       {isMeasuring ? "Measuring…" : "Measure"}
@@ -511,8 +565,8 @@ export default function EliteLibrary(props: {
                         onClick={() => setApproved(d, !d.approved)}
                         title={
                           d.approved
-                            ? "Remove from the Spire elite pool"
-                            : "Approve for the Spire elite pool"
+                            ? `Remove from the live ${d.kind} pool`
+                            : `Approve for the live ${d.kind} pool`
                         }
                       >
                         {d.approved ? "Unapprove" : "Approve"}
@@ -520,25 +574,31 @@ export default function EliteLibrary(props: {
                     )}
                     {(mine || isAdmin) && (
                       <>
-                        <button
-                          className="bubbly dark small"
-                          onClick={() => bump(d, "down")}
-                          disabled={ladderIndex(d) <= 0 || !!measure?.running}
-                          title="Move down one stage range (clears success rates — re-measure after; non-admin moves also clear approval)"
-                        >
-                          −
-                        </button>
-                        <button
-                          className="bubbly dark small"
-                          onClick={() => bump(d, "up")}
-                          disabled={
-                            ladderIndex(d) >= STAGE_LADDER.length - 1 ||
-                            !!measure?.running
-                          }
-                          title="Move up one stage range (clears success rates — re-measure after; non-admin moves also clear approval)"
-                        >
-                          +
-                        </button>
+                        {d.kind === "elite" && (
+                          <>
+                            <button
+                              className="bubbly dark small"
+                              onClick={() => bump(d, "down")}
+                              disabled={
+                                ladderIndex(d) <= 0 || !!measure?.running
+                              }
+                              title="Move down one stage range (clears rates and may clear approval)"
+                            >
+                              −
+                            </button>
+                            <button
+                              className="bubbly dark small"
+                              onClick={() => bump(d, "up")}
+                              disabled={
+                                ladderIndex(d) >= STAGE_LADDER.length - 1 ||
+                                !!measure?.running
+                              }
+                              title="Move up one stage range (clears rates and may clear approval)"
+                            >
+                              +
+                            </button>
+                          </>
+                        )}
                         <button
                           className="bubbly red small"
                           onClick={() => remove(d)}

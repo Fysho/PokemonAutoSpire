@@ -1,0 +1,138 @@
+﻿BMANs report (translated poorly potentially)
+
+
+First of all, I play Easy and Normal modes a lot.
+
+
+Most other people play these two modes as well.
+
+
+You can obtain two Shining Items, and Silver Dojo Tickets are also useful.
+
+
+(Pokémon get strong easily.)
+
+
+In Easy and Normal modes, Light, Electric, Psychic, Fairy, Dark, Normal, and Ghost types are too strong. It is difficult to use synergistic combinations like the Water, Monster, Aquatic, Bug, Flying, Poison, and Rock types that I like.
+
+
+I will speak based on Easy and Normal modes, which I mainly play and that many others use as well. First, Gardevoir, Blissey, Electribe, King Gambit, and Barnett are too strong. You need to increase their PP, lower their base stats, or raise their synergy conditions.
+
+
+I have played this game a lot. After researching various resources, I found that if you add a Light-type Pokémon and Blissey to a decent combination, it becomes too powerful.
+
+
+There are so many shields that you can't break through them. So, in the two modes mentioned above, the Light, Psychic, Fairy, and Normal combinations using Blissy are just too overpowered.
+
+
+I liked the Monster combination the best in PAC. However, it is too difficult to play in PAS.
+
+
+Actually, I think King Ambit and the amount of shields need to be nerfed in PAS, at the very least. I think the rest can be adjusted.
+
+
+King Ambit is the most powerful unit in PAS. If you look at the Archives, King Ambit always appears.
+
+
+First of all, the Light attribute synergy effects need to be nerfed overall.
+
+
+Personally, the PP recovery is too high, and the increase in Attack/Spell Power is too easy.
+
+
+(It becomes even scarier when Psychic, Water, Normal, and Fairy synergies are added to this.)
+
+
+Psychic's Spell Power needs to be nerfed by about 25%.
+
+
+
+
+________________
+Spencers Report 
+
+
+Nerfs proposals 
+I’m not as strong a player as the others so these are more baseline suggestions, other players probably should offer tweaks or opinions. 
+
+
+Gardevoir - 
+crit cloak / gold cap makes her one shot the entire board. You can nerf her base damage but its the aoe that make her powerful. 
+nerf options: 
+3 targets, 20% to adjacent 
+4 targets, 10% to adjacent
+5 targets, no splash (might need an additional slight ap nerf)
+Recommendation: 5 targets, no splash, she has her own space in the meta to have a chance to deal with non clumped up boards. 3 targets, 20% to adjacent keeps to her original identity as a potentially strong board wipe, just tones down the power. 
+
+
+skeledirge - 
+nerf: 
++30 PP (60->90), 5 flames (no scaling), each flame deals 30% of attack and has 30% chance to burn (no ability increase)
+enough nerf to prevent the infinite spam but still a threat.
+
+
+Kingambit
+he’s got too much of everything right now, strong defense and offense stats, if a bit slow.  He probably should retain his one shot threat but also retain his “slow” identity.
++40 PP (60->100), remove ability crit (ability has too many multipliers already) might need small attack nerf
+
+
+Blissey
+reduce AP scaling by 50%, reduce shields to 20/40/60. 
+Reason: Shield is a broken stat because it is not capped by HP max and because we are reducing the total amount of firepower in the game, blissey will need extra nerfing.
+
+
+Luxray
++10 PP (70->80), def & sdef from 14->9
+Reduce the overbearing-ness of how often it casts and make her more squishy.
+
+
+Snorlax:
+You either reduce body slam HP scaling damage or reduce HP scaling itself. 
+
+
+nerf HP scaling: 
+reduce permanent HP gain to: 
+2 per berry
+3 per dish
+5 when cooking
+
+
+nerf Body slam: Deals 80 + 15% of max HP (scaling with AP)
+
+
+Rillaboom
+TBH I’m not sure how to balance him. 
++20 PP (70->90)
+
+
+
+
+
+
+Talbots report:
+* A lot of these are good, but imo start off slower. Riffing off of that, I'd go Gardevoir: 5 targets, no splash (Prevent full board wipe) Kingambit: +20 pp (Might need to nerf other stats, but this can be a start) Blissey: Reduce AP scaling by 50% (AP blissey is where things get really absurd, avoid nerfing base blissey) Luxray: +10pp (Prevent rapid light casts) Snorlax: reduce hp scaling to 5/5/10 (again, this is a start) Rillaboom: +10 pp (Still casts too often) Skeledirge: Cap flame damage at 70 (Base skeledirge isn't a problem, it's the stat-stacking that is the issue)
+* Again I'll reiterate that I think the most fundamental game changes should be done first before balancing individual pokemon
+
+
+
+
+Talbot also says 
+Eggs in shops are almost never worth it. You can simply reroll for hatches in act 1 anyway; 12 gold is often too much in act 1 (especially when you really need quantity of items quickly); and the eggs take too long to hatch and evolve in acts 2 and 3. Does dunspace evolution work correctly? Does finding falinks troopers work correctly? Does psychic unown work at all (this probably needs a new mecanism). Shop rolling is probably not working. I.e., incense special effect, combee honey dish, grass 9 reroll berry (and unown, of course) What level of randomness is good for the game? I think being able to select or reroll tools after a gym fight probably makes building a team too straightforward, but I think you should consider making tms for human synergy re-rollable/chooseable. End-of-round effect should be adjusted. Right now it is far too easy to take advantage of this by micro-ing gourmet, fire, water, wooloo, and fighting (and possibly more) to optimize your team. This is painful and takes a lot of time, so it's really easy to optimize the fun out of the game. Right now, stat buffing and burst is too strong. The ease of accumulating ridiculous stats makes defense strategies very weak (steel and absurdly high stats can punch right through as there is no corresponding defensive accumulator. There are two parts to this. First, something should be done about stat buffing, whether that's capping the permanent stat buffs or something else. Second, it might be worth revisiting dojo tickets. This is a cool idea, but it isn't very balanced in practice. It eschews team building in favor of building up one ultra-strong pokemon that does everything. It might be interesting to see some sort of shard or fragments that you could use to pick a unique or legendary (or re-roll, or give a choice out of three). PAC has portals that allow you a fairly high chance at a synergy-relevant legendary. A method that serves an analogous purpose would be nice to see.
+
+
+
+
+Spencer says: 
+Just wanted to expand thoughts on this - talbot perspective is from challenger tier but my perspective is from gold tier lol I think dojo tickets should be only applied once per run per pokemon. In order to have game balance you have to have bounded mechanics and right now the upper limit of stat stacking via dojo tickets is way too high so it pretty much makes 1 man teams way too strong. I agree that gourmet micro (among other things) is pretty toxic to the game, those who do it will win over those who don't (with the same strats) and it just forces the gameplay to having a lot of micro which IMO defeats the fun gameloop of an auto game. I think a general balance game philosophy should - lots of viable strong strategies. Once OP stat stacking is removed you have the oppressive pokemon tier that will take over the meta like gengar and poregon etc. I think in general if a pokemon can be a wall for others that cannot be climbed over it needs a nerf. So I think there is a whole list of pokemon that are way too strong. Gameplay wise, no need to implement the random mechanics leftover from PAC like unknown shop IMO. There's such a good base game already it just needs some game design / balancing tweaks.
+
+
+
+
+Talbot Says: I have plenty of suggestions, but fundamentally I think the following should be addressed:
+   * prevent save-scumming
+   * move current beginning-of-round effect (fire shard, water fishing, gourmet, wooloo) to the end of the round just like (effectively) in PAC to prevent microing
+   * balance permanent effects: maybe cap dojo tickets, only allow getting a couple hundred (give or take) AP from return. This could either be A) capping permanent stats (e.g. no AP>300), or B) capping effects (e.g. only 1 dojo ticket allowed)
+   * A few pokemon need to be nerfed (kingambit, skeledirge, and gardevoir for sure; maybe blissey, luxray, snorlax, and rillaboom)
+   * legendary and unique pokemon probably need a rework to make it a little less luck based to get a relevant one (it should still be difficult to force them, but something like gaining type shards to get a legendary)
+* Many of these are in prior suggestion posts, but I also think that ideally one of these would roll out every week or two and then we could retune depending on reception
+* ⁠Improving the end of run experi… I also think this is good to consider - people get frustrated at automatically losing to the E4 without having an optimized team, and so adding an intermediate PvP round (or maybe a choice) would be go

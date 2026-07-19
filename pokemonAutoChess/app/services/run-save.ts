@@ -829,7 +829,13 @@ export function restoreRunToState(
         })
       )
     }
-    if (savedData.phase === GamePhaseState.REWARD) {
+    // Legacy saves may have persisted choices before phase was added. Pending
+    // non-starter choices own the REWARD phase; otherwise resume would force MAP
+    // while the client hides the only screen that can resolve them.
+    if (
+      savedData.phase === GamePhaseState.REWARD ||
+      player.choices.some((choice) => choice.type !== "starter")
+    ) {
       state.phase = GamePhaseState.REWARD
     }
   }

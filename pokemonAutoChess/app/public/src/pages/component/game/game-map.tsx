@@ -5,6 +5,7 @@ import { Transfer } from "../../../../../types"
 import { DungeonPMDO } from "../../../../../types/enum/Dungeon"
 import { Synergy } from "../../../../../types/enum/Synergy"
 import { rooms } from "../../../network"
+import { Modal } from "../modal/modal"
 
 const NODE_COLORS: Record<string, string> = {
   [MapNodeType.WILD_BATTLE]: "#e74c3c",
@@ -78,6 +79,7 @@ interface GameMapProps {
   readOnly?: boolean
   showRerollMap?: boolean
   hasChoicesPending?: boolean
+  canForfeitPendingChoices?: boolean
   isMapPhase?: boolean
   isAdmin?: boolean
 }
@@ -94,6 +96,7 @@ export default function GameMap({
   readOnly = false,
   showRerollMap = false,
   hasChoicesPending = false,
+  canForfeitPendingChoices = false,
   isMapPhase = false,
   isAdmin = false
 }: GameMapProps) {
@@ -108,6 +111,9 @@ export default function GameMap({
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [warningText, setWarningText] = useState<string | null>(null)
   const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [pendingForfeitNodeId, setPendingForfeitNodeId] = useState<
+    string | null
+  >(null)
   const isDragging = useRef(false)
   const dragStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 })
 
@@ -125,6 +131,10 @@ export default function GameMap({
       return
     }
     if (!node.available) return
+    if (hasChoicesPending && canForfeitPendingChoices) {
+      setPendingForfeitNodeId(nodeId)
+      return
+    }
     if (readOnly) {
       showWarning("Clear this floor first")
       return
@@ -133,11 +143,9 @@ export default function GameMap({
       showWarning("Select a reward first")
       return
     }
-    // Node selection is only legal from the MAP phase. Opening the map mid-fight
-    // (PICK/FIGHT) or during a SHOP/REST/EVENT/REWARD step and clicking an
-    // available node would otherwise abandon the current encounter — the server
-    // rejects this too, this is just the user-facing feedback. (Admins keep the
-    // teleport path above for jumping around regardless of phase.)
+    // Ordinary node selection is legal only from MAP. A REWARD-phase click with
+    // pending choices uses the confirmed, server-authoritative forfeit path above.
+    // Admin teleport intentionally bypasses this phase guard.
     if (!isMapPhase && !isAdmin) {
       showWarning("Finish here first")
       return
@@ -166,7 +174,11 @@ export default function GameMap({
     if (scrollRef.current) scrollRef.current.style.cursor = "grab"
   }, [])
 
-  const nodes = Array.from(mapNodes.values())
+  // SVG uses painter's order for both display and pointer targeting. Render
+  // available choices last so future nodes cannot cover or intercept them.
+  const nodes = Array.from(mapNodes.values()).sort(
+    (a, b) => Number(a.available) - Number(b.available)
+  )
   const maxFloor = Math.max(...nodes.map((n) => n.floor), 1)
   const floorStep = 100
   // Desktop: vertical map (floors bottom → top) in a centered panel.
@@ -528,17 +540,16 @@ export default function GameMap({
                       />
                     )
                   }
-                  const totalWidth = sprites.length * spriteSize * 0.6
                   return (
                     <g opacity={nodeOpacity}>
                       {sprites.map((s, i) => {
-                        const ox = (i - (sprites.length - 1) / 2) * spriteSize * 0.6
+                        const offset = (i - (sprites.length - 1) / 2) * spriteSize * 0.6
                         return (
                           <image
                             key={`boss-${node.id}-${i}`}
                             href={`/assets/ui/elite-sprites-v2/${s}.png`}
-                            x={pos.cx + ox - spriteSize / 2}
-                            y={pos.cy - spriteSize / 2}
+                            x={pos.cx + (isMobile ? 0 : offset) - spriteSize / 2}
+                            y={pos.cy + (isMobile ? offset : 0) - spriteSize / 2}
                             width={spriteSize}
                             height={spriteSize}
                             style={{ imageRendering: "pixelated" as const, ...(isMissed ? { filter: "grayscale(1)" } : {}) }}
@@ -727,6 +738,33 @@ export default function GameMap({
           )}
         </div>
       )}
+      <Modal
+        show={pendingForfeitNodeId !== null}
+        header="Forfeit rewards?"
+        body="If you proceed now you will forfeit current rewards"
+        onClose={() => setPendingForfeitNodeId(null)}
+        footer={
+          <>
+            <button
+              className="bubbly red"
+              onClick={() => {
+                const nodeId = pendingForfeitNodeId
+                if (!nodeId) return
+                setPendingForfeitNodeId(null)
+                rooms.game?.send(Transfer.SKIP_ALL_REWARDS, { nodeId })
+              }}
+            >
+              Proceed
+            </button>
+            <button
+              className="bubbly blue"
+              onClick={() => setPendingForfeitNodeId(null)}
+            >
+              Cancel
+            </button>
+          </>
+        }
+      />
     </div>
   )
 }

@@ -1,18 +1,18 @@
+import Simulation from "../core/simulation"
 import Player from "../models/colyseus-models/player"
 import { computeSynergies } from "../models/colyseus-models/synergies"
 import PokemonFactory from "../models/pokemon-factory"
-import Simulation from "../core/simulation"
-import GameState from "../rooms/states/game-state"
 import type GameRoom from "../rooms/game-room"
+import GameState from "../rooms/states/game-state"
 import { Emotion, Role } from "../types"
 import { Team } from "../types/enum/Game"
-import { Item } from "../types/enum/Item"
-import { Pkm } from "../types/enum/Pokemon"
+import type { Item } from "../types/enum/Item"
+import type { Pkm } from "../types/enum/Pokemon"
 import { Synergy } from "../types/enum/Synergy"
-import { getWeather } from "../utils/weather"
 import { logger } from "../utils/logger"
+import { getWeather } from "../utils/weather"
 import {
-  AsyncFightOpponent,
+  type AsyncFightOpponent,
   getAllAsyncOpponentsForStage
 } from "./async-fight-pool"
 import { reconstructTeamAsPlayer } from "./team-snapshot"
@@ -139,11 +139,11 @@ export function applyEliteDesignToPlayer(
 // ============================================================================
 // Headless success-rate measurement
 //
-// Fights an elite design against EVERY saved endless team in the async-fight
-// pools that bracket its stage range (e.g. a stage 6-10 design fights the
-// act1-floor5 and act1-floor10 pools), stepping each Simulation in a tight
-// loop instead of on the room clock — no client rendering, real-time speed
-// irrelevant. ~200 fights complete in seconds.
+// Fights a design against recorded classic teams at Easy, Normal, Hard, and
+// Impossible. Each difficulty runs exactly 100 fights against both milestone
+// pools, for 200 fights per difficulty and 800 per full measurement. Underfilled
+// nonempty pools are cycled deterministically; an empty pool makes the measure
+// incomplete and no result is saved. Bosses use their act's floor 15 + 20 pools.
 //
 // Side-effect hygiene: the simulations are never added to state.simulations
 // (nothing syncs to clients) and neither temp player gets a simulationId, so
@@ -156,10 +156,17 @@ const SIM_TICK_MS = 50
 // Per-fight simulated-time cap; anything still standing on both sides is a draw.
 // Mirrors the live fight duration (FIGHTING_PHASE_DURATION = 45s) with headroom.
 const SIM_TIME_CAP_MS = 60000
-// Runaway backstop (pools are capped at 100 entries × 2 bracket stages).
-const MAX_FIGHTS_PER_MEASURE = 400
+export const FIGHTS_PER_MEASURE_POOL = 100
+export const ELITE_MEASURE_DIFFICULTIES = [
+  "easy",
+  "normal",
+  "hard",
+  "impossible"
+] as const
+export type EliteMeasureDifficulty = (typeof ELITE_MEASURE_DIFFICULTIES)[number]
 
 export interface EliteMeasureResult {
+  difficulty: EliteMeasureDifficulty
   stage: string
   wins: number
   draws: number
@@ -167,14 +174,27 @@ export interface EliteMeasureResult {
   sampleSize: number
 }
 
-// Maps an elite design's act + stage range to the endless async-fight pool keys
-// that bracket it. Pools only exist at floors 5/10/15/20 per act, so:
-//   1-5  → previous act floor 20 (when act > 1) + same act floor 5
-//   6-10 → floor 5 + floor 10 · 11-15 → floor 10 + floor 15 · 16-20 → floor 15 + floor 20
+// Produces the exact 100-opponent schedule for one milestone pool. FIFO pools
+// normally hold 100 distinct recordings; while a new pool fills, cycling keeps
+// the requested sample size stable without changing which teams are represented.
+export function buildMeasurementPoolSchedule<T>(opponents: readonly T[]): T[] {
+  if (opponents.length === 0) return []
+  return Array.from(
+    { length: FIGHTS_PER_MEASURE_POOL },
+    (_, index) => opponents[index % opponents.length]
+  )
+}
+
+// Maps an elite design's act + stage range to the milestone pools that bracket
+// it. Boss designs use "boss" and always face floor 15 + floor 20 of their act.
+// Classic recordings add the `classic-<difficulty>-` prefix at query time.
 export function bracketStagesForDesign(
   act: number,
   stageRange: string
 ): string[] {
+  if (stageRange === "boss") {
+    return [`act${act}-floor15`, `act${act}-floor20`]
+  }
   const m = stageRange.match(/^(\d+)-(\d+)$/)
   if (!m) return []
   const lo = parseInt(m[1])
@@ -213,7 +233,7 @@ function buildDesignPlayer(
   return player
 }
 
-// Runs one headless fight: design (blue) vs a saved endless team (red).
+// Runs one headless fight: design (blue) vs a recorded player team (red).
 //
 // CLOCK GOTCHA: abilities/synergies/passives schedule delayed effects on
 // `simulation.room.clock` (e.g. the FIELD on-death heal, synergies.ts). A
@@ -337,9 +357,9 @@ export function createHeadlessMeasureRoom(): GameRoom {
   return stub as unknown as GameRoom
 }
 
-// Measures a design against its bracketing pools. Yields to the event loop
-// between fights so room ticks/IO never starve. Returns one result per bracket
-// stage (sampleSize 0 when a pool is empty — "no data", not an error).
+// Measures a design against its classic difficulty milestone pools. Yields to
+// the event loop between fights so room ticks/IO never starve. Returns one
+// result per difficulty + bracket stage (sampleSize 0 means no recorded teams).
 //
 // opts.shouldAbort — checked between fights; return true to stop the batch
 //   (partial results discarded, nothing saved). The room path passes "room is
@@ -369,36 +389,49 @@ export async function measureEliteDesign(
 
   if (!opts?.skipLatch) measureRunning = true
   try {
-    const pools: { stage: string; opponents: AsyncFightOpponent[] }[] = []
-    for (const stage of stages) {
-      let opponents = opts?.poolCache?.get(stage)
-      if (!opponents) {
-        opponents = await getAllAsyncOpponentsForStage(stage)
-        opts?.poolCache?.set(stage, opponents)
+    const pools: {
+      difficulty: EliteMeasureDifficulty
+      stage: string
+      opponents: AsyncFightOpponent[]
+    }[] = []
+    for (const difficulty of ELITE_MEASURE_DIFFICULTIES) {
+      for (const stage of stages) {
+        const poolKey = `classic-${difficulty}-${stage}`
+        let opponents = opts?.poolCache?.get(poolKey)
+        if (!opponents) {
+          opponents = await getAllAsyncOpponentsForStage(poolKey)
+          opts?.poolCache?.set(poolKey, opponents)
+        }
+        pools.push({ difficulty, stage, opponents })
       }
-      pools.push({ stage, opponents })
     }
-    const total = Math.min(
-      pools.reduce((n, p) => n + p.opponents.length, 0),
-      MAX_FIGHTS_PER_MEASURE
-    )
+    if (pools.some((pool) => pool.opponents.length === 0)) {
+      return { error: "insufficient_data" }
+    }
+    const total = pools.length * FIGHTS_PER_MEASURE_POOL
     let done = 0
     const results: EliteMeasureResult[] = []
     for (const pool of pools) {
       const r: EliteMeasureResult = {
+        difficulty: pool.difficulty,
         stage: pool.stage,
         wins: 0,
         draws: 0,
         losses: 0,
         sampleSize: 0
       }
-      for (const opponent of pool.opponents) {
-        if (done >= MAX_FIGHTS_PER_MEASURE) break
+      const schedule = buildMeasurementPoolSchedule(pool.opponents)
+      for (const opponent of schedule) {
         // Caller-defined abort (room emptied / REST cancel) — stop the batch;
         // partial results are discarded (nothing saved on abort).
         if (shouldAbort()) return { error: "aborted" }
         try {
-          const outcome = runHeadlessEliteFight(room, room.state, design, opponent)
+          const outcome = runHeadlessEliteFight(
+            room,
+            room.state,
+            design,
+            opponent
+          )
           if (outcome === "win") r.wins++
           else if (outcome === "loss") r.losses++
           else r.draws++
@@ -410,6 +443,9 @@ export async function measureEliteDesign(
         if (done % 5 === 0 || done === total) onProgress?.(done, total)
         // Yield between fights — keeps the room update loop and IO responsive.
         await new Promise<void>((resolve) => setImmediate(resolve))
+      }
+      if (r.sampleSize !== FIGHTS_PER_MEASURE_POOL) {
+        return { error: "simulation_error" }
       }
       results.push(r)
     }

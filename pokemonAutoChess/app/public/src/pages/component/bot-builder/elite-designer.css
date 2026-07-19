@@ -264,6 +264,26 @@
   margin-top: 4px;
 }
 
+#team-builder.elite-designer .elite-boss-rewards {
+  border-top: var(--border-thin);
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+#team-builder.elite-designer .elite-boss-default {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 7px 0;
+  font-size: 0.85rem;
+}
+
+#team-builder.elite-designer .elite-boss-item-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 /* --- Designer / Library view tabs (elite-designer-modal) --- */
 .elite-view-tabs {
   display: flex;

@@ -27,6 +27,7 @@ import {
   type ApprovedEliteDesign,
   classicFloorToStageRange,
   designToSpireEliteData,
+  getApprovedBossDesigns,
   getApprovedEliteDesigns,
   type SpireEliteDesignData,
   spireFloorToStageRange
@@ -81,6 +82,7 @@ import { logger } from "../utils/logger"
 import { shuffleArray } from "../utils/random"
 import { schemaValues } from "../utils/schemas"
 import {
+  isEliteLossResult,
   OnBuyPokemonCommand,
   OnDragDropCombineCommand,
   OnDragDropItemCommand,
@@ -651,10 +653,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
           (c) => c.type === "eliteReward"
         )
         if (choiceIdx < 0) return
-        // Elite loss rewards carry no items (2 Pokemon, no components); win
-        // rewards carry a component per Pokemon. Regenerate the matching kind so
-        // a reroll can't upgrade a loss reward into a win reward.
-        const wasLossReward = player.choices[choiceIdx].items.length === 0
+        // Determine the reward tier from the fight result. Custom loss pools may
+        // include paired items, so items.length cannot distinguish wins from losses.
+        const wasLossReward = isEliteLossResult(player.history.at(-1)?.result)
         player.choices.splice(choiceIdx, 1)
         player.money -= 1
         const cmd = new OnUpdatePhaseCommand()
@@ -1277,34 +1278,72 @@ export default class GameRoom extends Room<{ state: GameState }> {
     )
 
     this.onMessage(Transfer.SKIP_REWARD, (client) => {
+      const canAdvance =
+        this.state.phase === GamePhaseState.PICK ||
+        this.state.phase === GamePhaseState.SHOP
       if (
         !this.state.gameFinished &&
         client.auth &&
         this.isPlayer(client) &&
-        this.state.phase !== GamePhaseState.FIGHT &&
-        this.state.phase !== GamePhaseState.MAP
+        canAdvance
       ) {
         this.state.updatePhaseNeeded = true
         this.state.time = 0
       }
     })
 
-    // STS-style "Skip" on the rewards screen: forfeit EVERYTHING unclaimed
-    // (gold, heal, XP, and any reward picks) and proceed to the map.
-    this.onMessage(Transfer.SKIP_ALL_REWARDS, (client) => {
-      if (
-        !this.state.gameFinished &&
-        client.auth &&
-        this.isPlayer(client) &&
-        this.state.phase === GamePhaseState.REWARD
-      ) {
+    // Forfeit every unclaimed reward. In REWARD this is the rewards screen's
+    // Skip action. In MAP it also repairs stale MAP + choices saves; an optional
+    // nodeId makes forfeiture and progression one server-authoritative action.
+    this.onMessage(
+      Transfer.SKIP_ALL_REWARDS,
+      (client, payload?: { nodeId?: string }) => {
+        if (this.state.gameFinished || !client.auth || !this.isPlayer(client))
+          return
+
         const player = this.state.players.get(client.auth.uid)
-        if (!player) return
+        if (!player || player.choices.length === 0) return
+
+        if (
+          (this.state.phase !== GamePhaseState.REWARD &&
+            this.state.phase !== GamePhaseState.MAP) ||
+          player.choices.some((choice) => choice.type === "starter")
+        )
+          return
+
+        const nodeId = payload?.nodeId
+        if (nodeId) {
+          // Validate the intended progression before discarding anything. A
+          // stale or forged confirmation must never cost the player's rewards.
+          const node = this.state.mapNodes.get(nodeId)
+          if (!node || !node.available || node.visited) return
+        }
+
+        if (this.state.phase === GamePhaseState.REWARD && !nodeId) {
+          player.choices.clear()
+          this.state.updatePhaseNeeded = true
+          this.state.time = 0
+          return
+        }
+
         player.choices.clear()
-        this.state.updatePhaseNeeded = true
-        this.state.time = 0
+        if (!nodeId) {
+          this.autoSaveRun()
+          return
+        }
+
+        const cmd = new OnUpdatePhaseCommand()
+        cmd.setPayload({})
+        cmd.room = this
+        cmd.state = this.state
+        cmd.clock = this.clock
+        if (this.state.phase === GamePhaseState.REWARD) {
+          cmd.initializeMapPhase()
+        }
+        cmd.onSelectMapNode(nodeId)
+        this.updateSpectateMetadata()
       }
-    })
+    )
 
     this.onMessage(
       Transfer.GAME_SPEED,
@@ -1661,50 +1700,34 @@ export default class GameRoom extends Room<{ state: GameState }> {
     this.state.eliteDesignAssignments.clear()
   }
 
-  // Spire mode: assigns an APPROVED library design to every ELITE node of the
-  // current act map (spireFloorToStageRange maps the 16-floor act onto the
-  // library's 20-floor brackets). A bracket with no approved designs converts
-  // the node into a normal wild encounter. Avoids repeating a design within one
-  // map when the bracket pool is big enough. Mirrors populateAsyncFightNodes:
-  // called (un-awaited) after map generation and awaited on resume.
-  // Assigns an approved Elite Design library entry to every ELITE node on the
-  // current act map — ALL modes, acts 1-3 (the hardcoded ELITE_ENCOUNTERS_BY_ACT
-  // pool remains only for Endless acts 4+, plus the mid-population/Fisho2
-  // fallbacks). A bracket with no approved design converts the node to a normal
-  // wild encounter, so acts 1-3 elites come ONLY from approved designs.
+  // Assigns approved library designs to every elite and act-boss node in acts
+  // 1-3. Missing elite brackets become wild fights; missing boss pools retain
+  // the existing hardcoded bosses. Assignments persist with the run.
   async populateEliteDesignNodes() {
-    // Endless keeps its current behavior in the infinite tail: acts 4+ use the
-    // hardcoded pool with uncapped difficulty scaling (fixed design boards
-    // can't scale there).
     if (this.state.isEndless && this.state.currentAct > 3) return
 
     const act = Math.min(this.state.currentAct, 3)
     this.spireEliteDesigns.clear()
+    let assignmentsChanged = false
 
     const eliteNodes: { id: string; node: MapNode }[] = []
     this.state.mapNodes.forEach((node, id) => {
       if (node.nodeType === MapNodeType.ELITE) eliteNodes.push({ id, node })
     })
-    if (eliteNodes.length === 0) return
     const poolCache = new Map<string, ApprovedEliteDesign[]>()
-    const usedDesignIds = new Set<string>()
+    const usedEliteDesignIds = new Set<string>()
     const allDungeons = Object.values(DungeonPMDO)
-    let assignmentsChanged = false
 
     for (const { id, node } of eliteNodes) {
       const restored = this.state.eliteDesignAssignments.get(id)
       if (restored) {
-        usedDesignIds.add(restored.designId)
+        usedEliteDesignIds.add(restored.designId)
         this.spireEliteDesigns.set(id, restored)
         node.displayName = restored.name
         node.eliteAvatar = PkmIndex[restored.icon] ?? ""
         continue
       }
 
-      // Spire's 16-floor acts map onto the library brackets as quarters;
-      // classic/endless 20-floor acts map directly. An empty bracket means "no
-      // elites here" (act-1 floors ≤5 — no act-1 "1-5" library bracket, and no
-      // elites should appear that early) → the node converts to wild below.
       const bracket = this.state.isSpire
         ? spireFloorToStageRange(node.floor)
         : classicFloorToStageRange(act, node.floor)
@@ -1713,7 +1736,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
         pool = await getApprovedEliteDesigns(act, bracket)
         poolCache.set(bracket, pool)
       }
-      const fresh = pool.filter((design) => !usedDesignIds.has(design.id))
+      const fresh = pool.filter(
+        (candidate) => !usedEliteDesignIds.has(candidate.id)
+      )
       const candidates = fresh.length > 0 ? fresh : pool
       const picked =
         candidates.length > 0
@@ -1723,8 +1748,6 @@ export default class GameRoom extends Room<{ state: GameState }> {
           : null
       const data = picked ? designToSpireEliteData(picked) : null
       if (!data) {
-        // No approved design for this bracket — the node becomes a normal wild
-        // encounter instead of falling back to the hardcoded elite pool.
         node.nodeType = MapNodeType.WILD_BATTLE
         node.eliteEncounterIndex = -1
         node.displayName = ""
@@ -1736,18 +1759,59 @@ export default class GameRoom extends Room<{ state: GameState }> {
         assignmentsChanged = true
         continue
       }
-      usedDesignIds.add(data.designId)
+      usedEliteDesignIds.add(data.designId)
       this.spireEliteDesigns.set(id, data)
       this.state.eliteDesignAssignments.set(id, data)
       assignmentsChanged = true
       node.displayName = data.name
       node.eliteAvatar = PkmIndex[data.icon] ?? ""
     }
+
+    const bossNodes: { id: string; node: MapNode }[] = []
+    this.state.mapNodes.forEach((node, id) => {
+      if (node.nodeType === MapNodeType.LEGENDARY_BOSS) {
+        bossNodes.push({ id, node })
+      }
+    })
+    const bossPool =
+      bossNodes.length > 0 ? await getApprovedBossDesigns(act) : []
+    const usedBossDesignIds = new Set<string>()
+    for (const { id, node } of bossNodes) {
+      const restored = this.state.eliteDesignAssignments.get(id)
+      if (restored?.kind === "boss") {
+        usedBossDesignIds.add(restored.designId)
+        this.spireEliteDesigns.set(id, restored)
+        node.displayName = restored.name
+        node.bossSprites = restored.encounter.board
+          .map(([pokemon]) => PkmIndex[pokemon] ?? "")
+          .join(",")
+        continue
+      }
+      const fresh = bossPool.filter(
+        (candidate) => !usedBossDesignIds.has(candidate.id)
+      )
+      const candidates = fresh.length > 0 ? fresh : bossPool
+      const picked =
+        candidates.length > 0
+          ? candidates[
+              Math.floor(this.state.nextRunRandom() * candidates.length)
+            ]
+          : null
+      const data = picked ? designToSpireEliteData(picked) : null
+      if (!data) continue
+      usedBossDesignIds.add(data.designId)
+      this.spireEliteDesigns.set(id, data)
+      this.state.eliteDesignAssignments.set(id, data)
+      assignmentsChanged = true
+      node.displayName = data.name
+      node.bossSprites = data.encounter.board
+        .map(([pokemon]) => PkmIndex[pokemon] ?? "")
+        .join(",")
+    }
+
     logger.info(
-      `Elite design nodes populated (act ${act}): ${this.spireEliteDesigns.size}/${eliteNodes.length} nodes got approved designs` +
-        (eliteNodes.length > this.spireEliteDesigns.size
-          ? `, ${eliteNodes.length - this.spireEliteDesigns.size} converted to wild (no approved design in bracket)`
-          : "")
+      `Library fights populated (act ${act}): ${eliteNodes.length} elite nodes, ` +
+        `${bossNodes.length} boss nodes, ${this.spireEliteDesigns.size} assignments`
     )
     if (assignmentsChanged) this.autoSaveRun()
   }
@@ -2623,9 +2687,9 @@ export default class GameRoom extends Room<{ state: GameState }> {
         const freeSpace = getFreeSpaceOnBench(player.board)
         if (freeSpace < 1 && !bypassLackOfSpace) return false
         this.spawnOnBench(player, pkm as Pkm)
-        // Spire design elites: a reward option is a Pokémon PLUS an optional
-        // paired item (classic-mode elite/gym picks grant only the Pokémon).
-        if (this.state.isSpire && choice.type === "eliteReward") {
+        // Approved-design elite rewards are atomic Pokémon + optional item
+        // choices in every mode. Legacy/hardcoded elite rewards remain Pokémon-only.
+        if (this.spireEliteRewardSource && choice.type === "eliteReward") {
           const pairedItem = choice.items[choiceIndex]
           if (pairedItem) {
             player.items.push(pairedItem)

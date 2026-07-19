@@ -32,6 +32,7 @@
     "format": "npx @biomejs/biome format app/ --write",
     "check": "npx @biomejs/biome check app/ --write",
     "check:unsafe": "npx @biomejs/biome check app/ --write --unsafe",
+    "test:elite-rewards": "node --test --test-force-exit --require ts-node/register/transpile-only app/rooms/commands/game-commands.test.ts",
     "build-client": "node esbuild.js --build",
     "build-server": "esbuild app/index.ts --bundle --platform=node --outdir=app/public/dist/server/app --format=cjs --packages=external --define:import.meta.url=import_meta_url --banner:js='const import_meta_url = require(\"url\").pathToFileURL(__filename).href;'",
     "download-music": "degit --force https://github.com/keldaanCommunity/pokemonAutoChessMusic ./app/public/src/assets/musics",

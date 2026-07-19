@@ -221,6 +221,10 @@ import type GameState from "../states/game-state"
 // phase change. See OnUpdateCommand + GameRoom.disconnectIdlePlayers().
 const IDLE_DISCONNECT_MS = 15 * 60 * 1000
 
+export function isEliteLossResult(result: BattleResult | undefined): boolean {
+  return result !== BattleResult.WIN
+}
+
 export class OnBuyPokemonCommand extends Command<
   GameRoom,
   {
@@ -1463,7 +1467,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     }
   }
 
-  // Builds the eliteReward choice from a Spire design's reward pool: show N
+  // Builds the eliteReward choice from an approved design's reward pool: show N
   // random options, each a Pokémon plus an optional (possibly random) item.
   // Returns false when the design defines no pool so callers fall back to the
   // standard elite rewards.
@@ -1472,7 +1476,7 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
     pool: { pokemon: string; item?: string }[],
     shown: number
   ): boolean {
-    if (!this.state.isSpire || pool.length === 0) return false
+    if (pool.length === 0) return false
     const count = Math.max(1, Math.min(shown || pool.length, pool.length))
     const opts = pickNRandomIn(pool, count)
     player.choices.push(
@@ -2126,13 +2130,32 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
                 items: []
               }
             } else {
-              encounter = node.displayName
-                ? getLegendaryBossEncounterByName(
+              const bossDesign = this.room.spireEliteDesigns.get(nodeId)
+              if (bossDesign?.kind === "boss") {
+                encounter = bossDesign.encounter
+                if (!this.state.isSpire) {
+                  encounter = addHardModeItems(
+                    adjustEncounterItems(
+                      encounter,
+                      mode,
+                      this.state.currentAct
+                    ),
                     this.state.currentAct,
-                    node.displayName,
+                    node.floor,
                     mode
                   )
-                : getLegendaryBossEncounter(this.state.currentAct, mode)
+                }
+                this.room.spireEliteRewardSource = bossDesign
+              } else {
+                encounter = node.displayName
+                  ? getLegendaryBossEncounterByName(
+                      this.state.currentAct,
+                      node.displayName,
+                      mode
+                    )
+                  : getLegendaryBossEncounter(this.state.currentAct, mode)
+                this.room.spireEliteRewardSource = null
+              }
             }
           })
         }
@@ -3120,34 +3143,74 @@ export class OnUpdatePhaseCommand extends Command<GameRoom> {
               )
             }
           }
+          const bossRewardSource =
+            node.nodeType === MapNodeType.LEGENDARY_BOSS &&
+            this.room.spireEliteRewardSource?.kind === "boss"
+              ? this.room.spireEliteRewardSource
+              : null
+          if (bossRewardSource) {
+            this.generateDesignRewardChoice(
+              player,
+              won ? bossRewardSource.winRewards : bossRewardSource.lossRewards,
+              won
+                ? bossRewardSource.winRewardsShown
+                : bossRewardSource.lossRewardsShown
+            )
+          }
           if (
             won &&
             node.nodeType === MapNodeType.LEGENDARY_BOSS &&
             !this.state.isTutorial
           ) {
-            this.grantBossSignatureItems(player)
+            if (
+              !bossRewardSource ||
+              bossRewardSource.useDefaultBossGrantedItems
+            ) {
+              this.grantBossSignatureItems(player)
+            }
+            for (const token of bossRewardSource?.bossGrantedItems ?? []) {
+              const item = this.resolveDesignRewardItem(token)
+              if (item) player.items.push(item)
+            }
           }
           // Tutorial's boss is the run's final fight (act 1 only), so skip the
-          // between-acts boss-item reward — the run completes straight to victory.
+          // act-completion item choice.
           if (
             node.nodeType === MapNodeType.LEGENDARY_BOSS &&
-            this.state.currentAct < 3 &&
             !this.state.isTutorial
           ) {
-            const isHardOrAbove = this.state.difficultyMode >= 2
-            const isImpossible = this.state.difficultyMode === 3
-            const rewardPool =
-              (isHardOrAbove && this.state.currentAct === 1) || isImpossible
-                ? [...Tools]
-                : [...ShinyItems]
-            const count = won ? 3 : 1
-            const goldItemChoices = pickNRandomIn(rewardPool, count)
-            player.choices.push(
-              new PlayerChoice({
-                type: "item",
-                items: goldItemChoices as any[]
-              })
-            )
+            if (
+              bossRewardSource &&
+              !bossRewardSource.useDefaultBossItemRewards
+            ) {
+              const count = won ? bossRewardSource.bossItemRewardsShown : 1
+              const options = pickNRandomIn(
+                bossRewardSource.bossItemRewards,
+                Math.min(count, bossRewardSource.bossItemRewards.length)
+              )
+                .map((token) => this.resolveDesignRewardItem(token))
+                .filter((item): item is Item => item !== "")
+              if (options.length > 0) {
+                player.choices.push(
+                  new PlayerChoice({ type: "item", items: options })
+                )
+              }
+            } else if (this.state.currentAct < 3) {
+              const isHardOrAbove = this.state.difficultyMode >= 2
+              const isImpossible = this.state.difficultyMode === 3
+              const rewardPool =
+                (isHardOrAbove && this.state.currentAct === 1) || isImpossible
+                  ? [...Tools]
+                  : [...ShinyItems]
+              const count = won ? 3 : 1
+              const goldItemChoices = pickNRandomIn(rewardPool, count)
+              player.choices.push(
+                new PlayerChoice({
+                  type: "item",
+                  items: goldItemChoices
+                })
+              )
+            }
           }
 
           // Relic post-battle heal is a claimable row on the rewards screen

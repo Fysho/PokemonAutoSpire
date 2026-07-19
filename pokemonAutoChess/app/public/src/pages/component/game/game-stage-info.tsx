@@ -1,13 +1,16 @@
-import React from "react"
 import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Tooltip } from "react-tooltip"
-import { SPIRE_CLASSES, SpireClass } from "../../../../../core/spire-classes"
+import {
+  SPIRE_CLASSES,
+  type SpireClass
+} from "../../../../../core/spire-classes"
 import { GamePhaseState } from "../../../../../types/enum/Game"
 import { SynergyAssociatedToWeather } from "../../../../../types/enum/Weather"
 import { getMaxTeamSize } from "../../../../../utils/board"
 import { selectSpectatedPlayer, useAppSelector } from "../../../hooks"
 import { addIconsToDescription } from "../../utils/descriptions"
+import { toggleFullScreen } from "../../utils/fullscreen"
 import SynergyIcon from "../icons/synergy-icon"
 import PokemonPortrait from "../pokemon-portrait"
 import TimerBar from "./game-timer-bar"
@@ -20,11 +23,7 @@ const DIFFICULTY_LABELS: Record<number, string> = {
   3: "Impossible"
 }
 
-export default function GameStageInfo({
-  onLeave
-}: {
-  onLeave?: () => void
-}) {
+export default function GameStageInfo({ onLeave }: { onLeave?: () => void }) {
   const { t } = useTranslation()
   const phase = useAppSelector((state) => state.game.phase)
   const weather = useAppSelector((state) => state.game.weather)
@@ -50,9 +49,7 @@ export default function GameStageInfo({
   // the fight. The player's opponent* fields are only set at fight start, so before/
   // after we fall back to the synced encounterName/encounterAvatar (set at node select).
   const showOpponent =
-    phase === GamePhaseState.PICK ||
-    isFight ||
-    phase === GamePhaseState.REWARD
+    phase === GamePhaseState.PICK || isFight || phase === GamePhaseState.REWARD
   const opponentName = showOpponent
     ? spectatedPlayer.opponentName || encounterName
     : ""
@@ -62,13 +59,21 @@ export default function GameStageInfo({
 
   const classData = SPIRE_CLASSES[spireClass as SpireClass]
   const subtitle = isSpire
-    ? classData?.name ?? ""
-    : DIFFICULTY_LABELS[difficultyMode] ?? ""
+    ? (classData?.name ?? "")
+    : (DIFFICULTY_LABELS[difficultyMode] ?? "")
 
   const level = experienceManager.level
-  const maxTeamSize = getMaxTeamSize(level, specialGameRule, spectatedPlayer.relics)
+  const maxTeamSize = getMaxTeamSize(
+    level,
+    specialGameRule,
+    spectatedPlayer.relics
+  )
   const hpColor =
-    runHP > 50 ? "var(--color-fg-green, #2ecc71)" : runHP > 20 ? "#f1c40f" : "#e74c3c"
+    runHP > 50
+      ? "var(--color-fg-green, #2ecc71)"
+      : runHP > 20
+        ? "#f1c40f"
+        : "#e74c3c"
 
   return (
     <div id="game-stage-info" className="my-container">
@@ -98,7 +103,11 @@ export default function GameStageInfo({
           data-tooltip-id="topbar-hp"
           style={{ color: hpColor }}
         >
-          <Tooltip id="topbar-hp" className="custom-theme-tooltip" place="bottom">
+          <Tooltip
+            id="topbar-hp"
+            className="custom-theme-tooltip"
+            place="bottom"
+          >
             <p className="help">{t("lose_game_hint")}</p>
           </Tooltip>
           <img src="/assets/ui/heart.png" alt="HP" />
@@ -142,15 +151,30 @@ export default function GameStageInfo({
                 place="bottom"
               >
                 <span style={{ verticalAlign: "middle" }}>
-                  <SynergyIcon type={SynergyAssociatedToWeather.get(weather)!} />
+                  <SynergyIcon
+                    type={SynergyAssociatedToWeather.get(weather)!}
+                  />
                   {t(`weather.${weather}`)}
                 </span>
-                <p>{addIconsToDescription(t(`weather_description.${weather}`))}</p>
+                <p>
+                  {addIconsToDescription(t(`weather_description.${weather}`))}
+                </p>
               </Tooltip>,
               document.body
             )}
             <img src={`/assets/icons/weather/${weather.toLowerCase()}.svg`} />
           </div>
+        )}
+
+        {document.fullscreenEnabled && (
+          <button
+            className="bubbly blue topbar-fullscreen-button"
+            onClick={() => void toggleFullScreen()}
+            aria-label={t("toggle_fullscreen")}
+            title={t("toggle_fullscreen")}
+          >
+            <img src="/assets/ui/fullscreen.svg" alt="" />
+          </button>
         )}
 
         {onLeave && (

@@ -1,6 +1,7 @@
 import UserMetadata from "../models/mongo-models/user-metadata"
 import { Role } from "../types"
 import { logger } from "../utils/logger"
+import type { AsyncFightOpponent } from "./async-fight-pool"
 import {
   getEliteDesignById,
   listEliteDesigns,
@@ -12,7 +13,6 @@ import {
   measureEliteDesign,
   releaseEliteMeasureLatch
 } from "./elite-test"
-import type { AsyncFightOpponent } from "./async-fight-pool"
 
 // ============================================================================
 // Room-less elite design measurement (REST path).
@@ -146,17 +146,21 @@ export async function startEliteMeasure(
   return { ok: true }
 }
 
-// Measures every design in the library (optionally narrowed to one act and/or
-// stage range) in the background. Admin only — a full library is minutes of
-// sustained CPU on the 2-vCPU droplet.
+// Measures every design in the library, optionally narrowed by kind, act, or
+// stage range. Admin only: a full library is sustained server CPU.
 export async function startEliteMeasureAll(
   uid: string,
-  filters?: { act?: number; stageRange?: string }
+  filters?: {
+    kind?: "elite" | "boss"
+    act?: number
+    stageRange?: string
+  }
 ): Promise<{ ok: boolean; error?: string; count?: number }> {
   if (isGuestUid(uid)) return { ok: false, error: "guest" }
   if (!(await isAdmin(uid))) return { ok: false, error: "forbidden" }
   const designs = (await listEliteDesigns()).filter(
     (d) =>
+      (filters?.kind === undefined || d.kind === filters.kind) &&
       (filters?.act === undefined || d.act === filters.act) &&
       (filters?.stageRange === undefined || d.stageRange === filters.stageRange)
   )
@@ -175,7 +179,13 @@ export async function startEliteMeasureAll(
 // One headless room + one pool cache serve the whole batch, so designs sharing
 // a bracket never re-fetch the same pools.
 async function runBatch(
-  designs: { id: string; name: string; act: number; stageRange: string; designJson: string }[]
+  designs: {
+    id: string
+    name: string
+    act: number
+    stageRange: string
+    designJson: string
+  }[]
 ): Promise<void> {
   const room = createHeadlessMeasureRoom()
   const poolCache = new Map<string, AsyncFightOpponent[]>()

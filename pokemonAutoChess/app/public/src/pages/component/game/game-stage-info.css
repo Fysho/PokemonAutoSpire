@@ -177,6 +177,18 @@
   height: 1.8em;
 }
 
+#game-stage-info .topbar-fullscreen-button.bubbly {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3em;
+}
+
+#game-stage-info .topbar-fullscreen-button img {
+  width: 1.2em;
+  height: 1.2em;
+}
+
 #game-stage-info .topbar-leave-button.bubbly {
   font-size: 0.85em;
   padding: 0.3em 0.55em;
@@ -258,6 +270,12 @@
   #game-stage-info,
   #game-bottom-bar {
     gap: 0.35em;
+  }
+}
+
+@media (pointer: coarse) {
+  #game-stage-info .topbar-fullscreen-button.bubbly {
+    display: flex;
   }
 }
 

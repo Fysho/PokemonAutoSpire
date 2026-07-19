@@ -4042,6 +4042,10 @@
   "options": {
     "title": "Options",
     "sound": "Sound",
+    "mobile": "Mobile",
+    "ui_scale": "UI scale",
+    "fullscreen": "Fullscreen",
+    "fullscreen_not_supported": "Fullscreen is not supported by this browser.",
     "interface": "Interface",
     "hotkeys": "Hotkeys",
     "game_files": "Game Files",

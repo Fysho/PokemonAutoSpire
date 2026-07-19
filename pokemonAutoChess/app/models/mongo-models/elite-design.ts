@@ -5,12 +5,12 @@ import { model, Schema } from "mongoose"
 // export string from the Elite Designer (re-importable into the editor and parsed
 // server-side by parseEliteDesignExport).
 //
-// `results` holds the latest success-rate measurement: one entry per bracketing
-// endless async-fight pool (e.g. a stage 6-10 design is measured against the
-// act1-floor5 and act1-floor10 pools). Pools are FIFO and evolve over time, so a
-// result is a snapshot — `sampleSize` + `testedAt` say what it was measured
-// against and when.
+// `results` holds the latest success-rate measurement: one entry per classic
+// difficulty and bracketing milestone pool. Each completed measurement uses
+// exactly 100 fights at both bracket edges: 200 fights per difficulty.
+// `sampleSize` + `testedAt` identify the exact snapshot.
 export interface IEliteDesignResult {
+  difficulty?: "easy" | "normal" | "hard" | "impossible"
   stage: string // async pool key, e.g. "act1-floor5"
   wins: number // elite design beat the player team
   draws: number // neither side dead at the time cap
@@ -20,10 +20,11 @@ export interface IEliteDesignResult {
 }
 
 export interface IEliteDesign {
+  kind: "elite" | "boss"
   name: string
   act: number
-  stageRange: string // e.g. "6-10"
-  icon: string // Pkm of the design's icon Pokémon (map avatar)
+  stageRange: string // elite bracket (e.g. "6-10") or "boss"
+  icon: string // Pkm of the design's map avatar
   designJson: string
   creatorUid: string
   creatorName: string
@@ -34,6 +35,12 @@ export interface IEliteDesign {
 
 const eliteDesignResultSchema = new Schema<IEliteDesignResult>(
   {
+    // Optional only for backward compatibility with pre-classic Endless result
+    // rows. Every newly written measurement supplies a difficulty.
+    difficulty: {
+      type: String,
+      enum: ["easy", "normal", "hard", "impossible"]
+    },
     stage: { type: String, required: true },
     wins: { type: Number, default: 0 },
     draws: { type: Number, default: 0 },
@@ -46,6 +53,7 @@ const eliteDesignResultSchema = new Schema<IEliteDesignResult>(
 
 const eliteDesignSchema = new Schema<IEliteDesign>(
   {
+    kind: { type: String, enum: ["elite", "boss"], default: "elite" },
     name: { type: String, required: true },
     act: { type: Number, required: true },
     stageRange: { type: String, required: true },

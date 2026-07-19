@@ -1,27 +1,27 @@
-export function enterFullScreen() {
-  if (document.fullscreenEnabled) {
-    try {
-      document.documentElement.requestFullscreen()
-    } catch (e) {
-      console.info(e)
-    }
+export async function enterFullScreen(): Promise<void> {
+  if (!document.fullscreenEnabled || document.fullscreenElement) return
+
+  try {
+    await document.documentElement.requestFullscreen({ navigationUI: "hide" })
+  } catch (error) {
+    console.info(error)
   }
 }
 
-export function exitFullScreen() {
-  if (document.fullscreenEnabled) {
-    try {
-      document.exitFullscreen()
-    } catch (e) {
-      console.info(e)
-    }
+export async function exitFullScreen(): Promise<void> {
+  if (!document.fullscreenEnabled || !document.fullscreenElement) return
+
+  try {
+    await document.exitFullscreen()
+  } catch (error) {
+    console.info(error)
   }
 }
 
-export function toggleFullScreen() {
+export async function toggleFullScreen(): Promise<void> {
   if (!document.fullscreenElement) {
-    enterFullScreen()
+    await enterFullScreen()
   } else {
-    exitFullScreen()
+    await exitFullScreen()
   }
 }

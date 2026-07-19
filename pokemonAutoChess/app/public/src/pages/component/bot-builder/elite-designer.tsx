@@ -2,24 +2,25 @@ import type React from "react"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
+import { computeSynergies } from "../../../../../models/colyseus-models/synergies"
+import PokemonFactory from "../../../../../models/pokemon-factory"
+import { getPokemonData } from "../../../../../models/precomputed/precomputed-pokemon-data"
+import { Emotion, type PkmWithCustom } from "../../../../../types"
+import { Item } from "../../../../../types/enum/Item"
+import { Pkm, PkmIndex } from "../../../../../types/enum/Pokemon"
+import type { Synergy } from "../../../../../types/enum/Synergy"
+import { useAppSelector } from "../../../hooks"
+import type { IDetailledPokemon } from "../../../models/bot-v2"
 import {
   createEliteTestRoom,
   isEliteTestActive,
   rooms,
   sendEliteTest
 } from "../../../network"
-import { useAppSelector } from "../../../hooks"
 import { LocalStoreKeys, localStore } from "../../utils/store"
-import { computeSynergies } from "../../../../../models/colyseus-models/synergies"
-import { getPokemonData } from "../../../../../models/precomputed/precomputed-pokemon-data"
-import PokemonFactory from "../../../../../models/pokemon-factory"
-import { Emotion, type PkmWithCustom } from "../../../../../types"
-import { Item } from "../../../../../types/enum/Item"
-import { Pkm, PkmIndex } from "../../../../../types/enum/Pokemon"
-import type { Synergy } from "../../../../../types/enum/Synergy"
-import type { IDetailledPokemon } from "../../../models/bot-v2"
 import PokemonPortrait from "../pokemon-portrait"
 import Synergies from "../synergy/synergies"
+import { BOSS_PRESETS } from "./boss-presets"
 import ItemPicker from "./item-picker"
 import PokemonPicker from "./pokemon-picker"
 import SelectedEntity from "./selected-entity"
@@ -42,6 +43,7 @@ export interface RewardOption {
 }
 
 export interface EliteDesign {
+  kind: "elite" | "boss"
   name: string
   act: number // 1-3
   stageRange: StageRange
@@ -55,6 +57,13 @@ export interface EliteDesign {
   // How many options to draw at random from each pool per fight (pick 1).
   winRewardsShown: number
   lossRewardsShown: number
+  // Boss-only act-completion rewards. Default switches preserve the existing
+  // player-dependent signature grants and difficulty-aware Shiny/Tool choices.
+  useDefaultBossGrantedItems: boolean
+  bossGrantedItems: string[]
+  useDefaultBossItemRewards: boolean
+  bossItemRewards: string[]
+  bossItemRewardsShown: number
   // Library entry this design was loaded from / saved to (own entries only).
   // Editor-side tracking only — never part of the export string. When set, the
   // save button becomes "Update Library" and a "Create New" button appears.
@@ -62,6 +71,7 @@ export interface EliteDesign {
 }
 
 export const DEFAULT_ELITE_DESIGN: EliteDesign = {
+  kind: "elite",
   name: "",
   act: 1,
   stageRange: "16-20",
@@ -71,7 +81,12 @@ export const DEFAULT_ELITE_DESIGN: EliteDesign = {
   winRewards: [],
   lossRewards: [],
   winRewardsShown: 3,
-  lossRewardsShown: 2
+  lossRewardsShown: 2,
+  useDefaultBossGrantedItems: true,
+  bossGrantedItems: [],
+  useDefaultBossItemRewards: true,
+  bossItemRewards: [],
+  bossItemRewardsShown: 3
 }
 
 // "Random from category" reward tokens. Each maps to an exported array in
@@ -109,28 +124,94 @@ interface EliteRecommendation {
 
 // Mirrors getDifficultyConfig() in app/models/spire-encounters.ts (Normal mode),
 // sampled at the top floor of each stage range. Keep in sync with that function.
-const RECOMMENDATIONS: Record<number, Record<StageRange, EliteRecommendation>> = {
+const RECOMMENDATIONS: Record<
+  number,
+  Record<StageRange, EliteRecommendation>
+> = {
   1: {
-    "1-5": { pokemonCount: [2, 3], maxStarsPerPokemon: 1, starBudget: [2, 3], rarities: ["COMMON", "UNCOMMON"] },
-    "6-10": { pokemonCount: [3, 4], maxStarsPerPokemon: 2, starBudget: [4, 6], rarities: ["COMMON", "UNCOMMON"] },
-    "11-15": { pokemonCount: [3, 5], maxStarsPerPokemon: 2, starBudget: [6, 8], rarities: ["UNCOMMON", "RARE"] },
-    "16-20": { pokemonCount: [4, 5], maxStarsPerPokemon: 2, starBudget: [7, 9], rarities: ["UNCOMMON", "RARE"] }
+    "1-5": {
+      pokemonCount: [2, 3],
+      maxStarsPerPokemon: 1,
+      starBudget: [2, 3],
+      rarities: ["COMMON", "UNCOMMON"]
+    },
+    "6-10": {
+      pokemonCount: [3, 4],
+      maxStarsPerPokemon: 2,
+      starBudget: [4, 6],
+      rarities: ["COMMON", "UNCOMMON"]
+    },
+    "11-15": {
+      pokemonCount: [3, 5],
+      maxStarsPerPokemon: 2,
+      starBudget: [6, 8],
+      rarities: ["UNCOMMON", "RARE"]
+    },
+    "16-20": {
+      pokemonCount: [4, 5],
+      maxStarsPerPokemon: 2,
+      starBudget: [7, 9],
+      rarities: ["UNCOMMON", "RARE"]
+    }
   },
   2: {
-    "1-5": { pokemonCount: [5, 7], maxStarsPerPokemon: 3, starBudget: [6, 10], rarities: ["RARE", "EPIC"] },
-    "6-10": { pokemonCount: [6, 7], maxStarsPerPokemon: 3, starBudget: [8, 12], rarities: ["RARE", "EPIC"] },
-    "11-15": { pokemonCount: [6, 7], maxStarsPerPokemon: 3, starBudget: [10, 14], rarities: ["EPIC", "ULTRA"] },
-    "16-20": { pokemonCount: [7, 8], maxStarsPerPokemon: 3, starBudget: [12, 15], rarities: ["EPIC", "ULTRA"] }
+    "1-5": {
+      pokemonCount: [5, 7],
+      maxStarsPerPokemon: 3,
+      starBudget: [6, 10],
+      rarities: ["RARE", "EPIC"]
+    },
+    "6-10": {
+      pokemonCount: [6, 7],
+      maxStarsPerPokemon: 3,
+      starBudget: [8, 12],
+      rarities: ["RARE", "EPIC"]
+    },
+    "11-15": {
+      pokemonCount: [6, 7],
+      maxStarsPerPokemon: 3,
+      starBudget: [10, 14],
+      rarities: ["EPIC", "ULTRA"]
+    },
+    "16-20": {
+      pokemonCount: [7, 8],
+      maxStarsPerPokemon: 3,
+      starBudget: [12, 15],
+      rarities: ["EPIC", "ULTRA"]
+    }
   },
   3: {
-    "1-5": { pokemonCount: [7, 8], maxStarsPerPokemon: 3, starBudget: [13, 18], rarities: ["EPIC", "ULTRA"] },
-    "6-10": { pokemonCount: [7, 9], maxStarsPerPokemon: 3, starBudget: [15, 21], rarities: ["EPIC", "ULTRA"] },
-    "11-15": { pokemonCount: [8, 9], maxStarsPerPokemon: 3, starBudget: [17, 23], rarities: ["EPIC", "ULTRA"] },
-    "16-20": { pokemonCount: [8, 9], maxStarsPerPokemon: 3, starBudget: [17, 23], rarities: ["EPIC", "ULTRA"] }
+    "1-5": {
+      pokemonCount: [7, 8],
+      maxStarsPerPokemon: 3,
+      starBudget: [13, 18],
+      rarities: ["EPIC", "ULTRA"]
+    },
+    "6-10": {
+      pokemonCount: [7, 9],
+      maxStarsPerPokemon: 3,
+      starBudget: [15, 21],
+      rarities: ["EPIC", "ULTRA"]
+    },
+    "11-15": {
+      pokemonCount: [8, 9],
+      maxStarsPerPokemon: 3,
+      starBudget: [17, 23],
+      rarities: ["EPIC", "ULTRA"]
+    },
+    "16-20": {
+      pokemonCount: [8, 9],
+      maxStarsPerPokemon: 3,
+      starBudget: [17, 23],
+      rarities: ["EPIC", "ULTRA"]
+    }
   }
 }
 
-function getRecommendation(act: number, range: StageRange): EliteRecommendation {
+function getRecommendation(
+  act: number,
+  range: StageRange
+): EliteRecommendation {
   return RECOMMENDATIONS[act]?.[range] ?? RECOMMENDATIONS[1]["16-20"]
 }
 
@@ -160,9 +241,12 @@ export function buildExportString(design: EliteDesign): string {
     Object.entries(design.bonus).filter(([, v]) => Number(v))
   )
   const obj: Record<string, unknown> = {
-    name: design.name?.trim() || "Custom Elite",
+    kind: design.kind,
+    name:
+      design.name?.trim() ||
+      (design.kind === "boss" ? "Custom Boss" : "Custom Elite"),
     act: design.act,
-    stages: design.stageRange,
+    stages: design.kind === "boss" ? "boss" : design.stageRange,
     board
   }
   if (design.iconPokemon) obj.icon = design.iconPokemon
@@ -179,6 +263,17 @@ export function buildExportString(design: EliteDesign): string {
   if (lossRewards.length) {
     obj.lossRewards = lossRewards
     obj.lossRewardsShown = design.lossRewardsShown
+  }
+  if (design.kind === "boss") {
+    obj.useDefaultBossGrantedItems = design.useDefaultBossGrantedItems
+    obj.useDefaultBossItemRewards = design.useDefaultBossItemRewards
+    if (design.bossGrantedItems.length) {
+      obj.bossGrantedItems = design.bossGrantedItems
+    }
+    if (design.bossItemRewards.length) {
+      obj.bossItemRewards = design.bossItemRewards
+      obj.bossItemRewardsShown = design.bossItemRewardsShown
+    }
   }
   return JSON.stringify(obj)
 }
@@ -205,9 +300,11 @@ export function parseImportString(str: string): EliteDesign | null {
             .map((o: [Pkm, string?]) => ({ pokemon: o[0], item: o[1] }))
         : []
     return {
+      kind: obj.kind === "boss" ? "boss" : "elite",
       name: typeof obj.name === "string" ? obj.name : "",
       act: typeof obj.act === "number" ? obj.act : 1,
-      stageRange: (obj.stages as StageRange) ?? "16-20",
+      stageRange:
+        obj.kind === "boss" ? "16-20" : ((obj.stages as StageRange) ?? "16-20"),
       iconPokemon: typeof obj.icon === "string" ? (obj.icon as Pkm) : undefined,
       board,
       bonus: obj.bonus ?? {},
@@ -216,7 +313,19 @@ export function parseImportString(str: string): EliteDesign | null {
       winRewardsShown:
         typeof obj.winRewardsShown === "number" ? obj.winRewardsShown : 3,
       lossRewardsShown:
-        typeof obj.lossRewardsShown === "number" ? obj.lossRewardsShown : 2
+        typeof obj.lossRewardsShown === "number" ? obj.lossRewardsShown : 2,
+      useDefaultBossGrantedItems: obj.useDefaultBossGrantedItems !== false,
+      bossGrantedItems: Array.isArray(obj.bossGrantedItems)
+        ? obj.bossGrantedItems.map(String)
+        : [],
+      useDefaultBossItemRewards: obj.useDefaultBossItemRewards !== false,
+      bossItemRewards: Array.isArray(obj.bossItemRewards)
+        ? obj.bossItemRewards.map(String)
+        : [],
+      bossItemRewardsShown:
+        typeof obj.bossItemRewardsShown === "number"
+          ? obj.bossItemRewardsShown
+          : 3
     }
   } catch (e) {
     return null
@@ -245,7 +354,14 @@ export default function EliteDesigner(props: {
   const [copied, setCopied] = useState(false)
   const uid = useAppSelector((state) => state.network.uid)
   const [saveState, setSaveState] = useState<
-    "idle" | "saving" | "saved" | "error" | "full" | "taken" | "missing" | "invalid"
+    | "idle"
+    | "saving"
+    | "saved"
+    | "error"
+    | "full"
+    | "taken"
+    | "missing"
+    | "invalid"
   >("idle")
   // The reward option currently being edited (picker/item clicks route to it).
   const [activeReward, setActiveReward] = useState<{
@@ -258,7 +374,10 @@ export default function EliteDesigner(props: {
   }
 
   // --- rewards ---
-  function setRewards(set: "winRewards" | "lossRewards", rewards: RewardOption[]) {
+  function setRewards(
+    set: "winRewards" | "lossRewards",
+    rewards: RewardOption[]
+  ) {
     updateDesign({ ...design, [set]: rewards })
   }
 
@@ -392,7 +511,11 @@ export default function EliteDesigner(props: {
         updateBoard(next)
       } else {
         updateBoard(board.filter((p) => p !== pokemonOnCell))
-        if (selectedPokemon && selectedPokemon.x === x && selectedPokemon.y === y) {
+        if (
+          selectedPokemon &&
+          selectedPokemon.x === x &&
+          selectedPokemon.y === y
+        ) {
           setSelectedPokemon(undefined)
         }
       }
@@ -465,6 +588,38 @@ export default function EliteDesigner(props: {
   }
 
   // --- config controls ---
+  function setKind(kind: "elite" | "boss") {
+    updateDesign({ ...design, kind, libraryId: undefined })
+    setActiveReward(null)
+  }
+
+  function loadBossPreset(index: number) {
+    const preset = BOSS_PRESETS[index]
+    if (!preset) return
+    updateDesign({
+      ...DEFAULT_ELITE_DESIGN,
+      kind: "boss",
+      name: preset.name,
+      act: preset.act,
+      stageRange: "16-20",
+      iconPokemon: preset.icon,
+      board: preset.board.map(([name, x, y], unitIndex) => ({
+        name,
+        x,
+        y,
+        items: [...(preset.items[unitIndex] ?? [])],
+        shiny: false,
+        emotion: Emotion.NORMAL
+      })),
+      bonus: { ...preset.bonus },
+      // Explicitly preserve the current live boss reward behavior.
+      useDefaultBossGrantedItems: true,
+      useDefaultBossItemRewards: true
+    })
+    setSelectedPokemon(undefined)
+    setActiveReward(null)
+  }
+
   function setAct(act: number) {
     const ranges = STAGE_RANGES_BY_ACT[act]
     const stageRange = ranges.includes(design.stageRange)
@@ -481,7 +636,12 @@ export default function EliteDesigner(props: {
   }
 
   function reset() {
-    updateDesign({ ...DEFAULT_ELITE_DESIGN, act: design.act, stageRange: design.stageRange })
+    updateDesign({
+      ...DEFAULT_ELITE_DESIGN,
+      kind: design.kind,
+      act: design.act,
+      stageRange: design.stageRange
+    })
     setSelectedPokemon(undefined)
     setActiveReward(null)
   }
@@ -595,7 +755,10 @@ export default function EliteDesigner(props: {
         <div className="elite-reward-head">
           <span>{label}</span>
           <span className="elite-reward-buttons">
-            <button className="bubbly blue small" onClick={() => addReward(set)}>
+            <button
+              className="bubbly blue small"
+              onClick={() => addReward(set)}
+            >
               + {t("elite_designer_reward_add")}
             </button>
             <button
@@ -634,9 +797,7 @@ export default function EliteDesigner(props: {
             <RewardChip
               key={i}
               option={option}
-              active={
-                activeReward?.set === set && activeReward?.index === i
-              }
+              active={activeReward?.set === set && activeReward?.index === i}
               onSelect={() =>
                 setActiveReward((cur) =>
                   cur && cur.set === set && cur.index === i
@@ -660,6 +821,60 @@ export default function EliteDesigner(props: {
     )
   }
 
+  function renderBossItemPool(
+    field: "bossGrantedItems" | "bossItemRewards",
+    label: string,
+    includeRandom: boolean
+  ) {
+    const items = design[field]
+    const addItem = (item: string) => {
+      if (item && !items.includes(item)) {
+        updateDesign({ ...design, [field]: [...items, item] })
+      }
+    }
+    return (
+      <div className="elite-reward-set">
+        <div className="elite-reward-head">
+          <span>{label}</span>
+          <select value="" onChange={(event) => addItem(event.target.value)}>
+            <option value="">+ Add item</option>
+            {Object.values(Item).map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+            {includeRandom &&
+              RANDOM_ITEM_TOKENS.map(({ token, label: tokenLabel }) => (
+                <option key={token} value={token}>
+                  {tokenLabel}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="elite-boss-item-list">
+          {items.length === 0 && (
+            <span className="elite-rec-note">No custom items selected.</span>
+          )}
+          {items.map((item) => (
+            <button
+              key={item}
+              className="bubbly dark small"
+              onClick={() =>
+                updateDesign({
+                  ...design,
+                  [field]: items.filter((candidate) => candidate !== item)
+                })
+              }
+              title="Remove item"
+            >
+              {RANDOM_TOKEN_LABEL[item] ?? item} ×
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div id="team-builder" className="elite-designer">
       <div className="synergies-container my-box">
@@ -667,6 +882,18 @@ export default function EliteDesigner(props: {
       </div>
 
       <div className="actions elite-top">
+        <label className="elite-field">
+          <span>Design</span>
+          <select
+            value={design.kind}
+            onChange={(event) =>
+              setKind(event.target.value === "boss" ? "boss" : "elite")
+            }
+          >
+            <option value="elite">Elite</option>
+            <option value="boss">Act Boss</option>
+          </select>
+        </label>
         <label className="elite-field">
           <span>{t("elite_designer_act")}</span>
           <select
@@ -680,27 +907,49 @@ export default function EliteDesigner(props: {
             ))}
           </select>
         </label>
-        <label className="elite-field">
-          <span>{t("elite_designer_stage")}</span>
-          <select
-            value={design.stageRange}
-            onChange={(e) =>
-              updateDesign({ ...design, stageRange: e.target.value as StageRange })
-            }
-          >
-            {STAGE_RANGES_BY_ACT[design.act].map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </label>
+        {design.kind === "elite" ? (
+          <label className="elite-field">
+            <span>{t("elite_designer_stage")}</span>
+            <select
+              value={design.stageRange}
+              onChange={(e) =>
+                updateDesign({
+                  ...design,
+                  stageRange: e.target.value as StageRange
+                })
+              }
+            >
+              {STAGE_RANGES_BY_ACT[design.act].map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label className="elite-field">
+            <span>Example boss</span>
+            <select
+              value=""
+              onChange={(event) => loadBossPreset(Number(event.target.value))}
+            >
+              <option value="">Load preset…</option>
+              {BOSS_PRESETS.map((preset, index) => (
+                <option key={`${preset.act}-${preset.name}`} value={index}>
+                  Act {preset.act} · {preset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="elite-field elite-name">
           <span>{t("elite_designer_name")}</span>
           <input
             type="text"
             value={design.name}
-            placeholder="Custom Elite"
+            placeholder={
+              design.kind === "boss" ? "Custom Boss" : "Custom Elite"
+            }
             onChange={(e) => updateDesign({ ...design, name: e.target.value })}
           />
         </label>
@@ -749,33 +998,45 @@ export default function EliteDesigner(props: {
       />
 
       <div className="elite-sidebar">
-        <div className="my-box elite-rec">
-          <h4>
-            {t("elite_designer_recommended")} · {t("elite_designer_act")}{" "}
-            {design.act} · {design.stageRange}
-          </h4>
-          <div className="elite-rec-grid">
-            <span>{t("elite_designer_pokemon")}</span>
-            <span className={status(placedCount, rec.pokemonCount)}>
-              {placedCount} / {rec.pokemonCount[0]}–{rec.pokemonCount[1]}
-            </span>
-            <span>{t("elite_designer_stars")}</span>
-            <span className={status(starsUsed, rec.starBudget)}>
-              {starsUsed} / {rec.starBudget[0]}–{rec.starBudget[1]}
-            </span>
-            <span>{t("elite_designer_max_stars")}</span>
-            <span
-              className={
-                maxStarPlaced > rec.maxStarsPerPokemon ? "elite-stat-over" : ""
-              }
-            >
-              {maxStarPlaced} / {rec.maxStarsPerPokemon}★
-            </span>
-            <span>{t("elite_designer_rarities")}</span>
-            <span>{rec.rarities.join(", ")}</span>
+        {design.kind === "elite" ? (
+          <div className="my-box elite-rec">
+            <h4>
+              {t("elite_designer_recommended")} · {t("elite_designer_act")}{" "}
+              {design.act} · {design.stageRange}
+            </h4>
+            <div className="elite-rec-grid">
+              <span>{t("elite_designer_pokemon")}</span>
+              <span className={status(placedCount, rec.pokemonCount)}>
+                {placedCount} / {rec.pokemonCount[0]}–{rec.pokemonCount[1]}
+              </span>
+              <span>{t("elite_designer_stars")}</span>
+              <span className={status(starsUsed, rec.starBudget)}>
+                {starsUsed} / {rec.starBudget[0]}–{rec.starBudget[1]}
+              </span>
+              <span>{t("elite_designer_max_stars")}</span>
+              <span
+                className={
+                  maxStarPlaced > rec.maxStarsPerPokemon
+                    ? "elite-stat-over"
+                    : ""
+                }
+              >
+                {maxStarPlaced} / {rec.maxStarsPerPokemon}★
+              </span>
+              <span>{t("elite_designer_rarities")}</span>
+              <span>{rec.rarities.join(", ")}</span>
+            </div>
+            <p className="elite-rec-note">{t("elite_designer_not_a_limit")}</p>
           </div>
-          <p className="elite-rec-note">{t("elite_designer_not_a_limit")}</p>
-        </div>
+        ) : (
+          <div className="my-box elite-rec">
+            <h4>Act {design.act} Boss</h4>
+            <p className="elite-rec-note">
+              Boss measurements use 100 recorded teams from Act {design.act}{" "}
+              Floor 15 and 100 from Floor 20 at each difficulty.
+            </p>
+          </div>
+        )}
 
         <div className="my-box elite-rewards">
           <h4>{t("elite_designer_rewards")}</h4>
@@ -821,6 +1082,70 @@ export default function EliteDesigner(props: {
               </div>
             </div>
           )}
+          {design.kind === "boss" && (
+            <div className="elite-boss-rewards">
+              <h4>Boss act-completion rewards</h4>
+              <label className="elite-boss-default">
+                <input
+                  type="checkbox"
+                  checked={design.useDefaultBossGrantedItems}
+                  onChange={(event) =>
+                    updateDesign({
+                      ...design,
+                      useDefaultBossGrantedItems: event.target.checked
+                    })
+                  }
+                />
+                Use current player-dependent signature item grants
+              </label>
+              {!design.useDefaultBossGrantedItems &&
+                renderBossItemPool(
+                  "bossGrantedItems",
+                  "Items granted immediately on a win",
+                  false
+                )}
+              <label className="elite-boss-default">
+                <input
+                  type="checkbox"
+                  checked={design.useDefaultBossItemRewards}
+                  onChange={(event) =>
+                    updateDesign({
+                      ...design,
+                      useDefaultBossItemRewards: event.target.checked
+                    })
+                  }
+                />
+                Use current difficulty-aware Shiny/Tool choices
+              </label>
+              {!design.useDefaultBossItemRewards && (
+                <>
+                  {renderBossItemPool(
+                    "bossItemRewards",
+                    "Act-completion item choice pool",
+                    true
+                  )}
+                  <label className="elite-reward-shown">
+                    Show on win
+                    <input
+                      type="number"
+                      min={1}
+                      value={design.bossItemRewardsShown}
+                      onChange={(event) =>
+                        updateDesign({
+                          ...design,
+                          bossItemRewardsShown: Math.max(
+                            1,
+                            Math.round(Number(event.target.value) || 1)
+                          )
+                        })
+                      }
+                    />
+                    (losses show one)
+                  </label>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <details className="my-box elite-bonus">
@@ -844,7 +1169,11 @@ export default function EliteDesigner(props: {
 
         <div className="my-box elite-export">
           <h4>{t("elite_designer_export")}</h4>
-          <textarea readOnly value={exportString} onFocus={(e) => e.target.select()} />
+          <textarea
+            readOnly
+            value={exportString}
+            onFocus={(e) => e.target.select()}
+          />
           <div className="elite-export-actions">
             <button className="bubbly blue" onClick={copyExport}>
               {copied ? t("elite_designer_copied") : t("elite_designer_copy")}

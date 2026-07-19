@@ -1441,6 +1441,17 @@ export default function Game() {
   const isEventPhase = phase === GamePhaseState.EVENT
   const isShopPhase = phase === GamePhaseState.SHOP
   const isRewardPhase = phase === GamePhaseState.REWARD
+  const pendingChoices = connectedPlayer?.choices ?? []
+  const hasChoicesPending = pendingChoices.length > 0
+  const hasPendingRewards = pendingChoices.some(
+    (choice) => choice.type !== "starter"
+  )
+  const canForfeitPendingChoices =
+    (isRewardPhase || isMapPhase) &&
+    hasPendingRewards &&
+    !pendingChoices.some((choice) => choice.type === "starter")
+  const shouldShowRewards =
+    isRewardPhase || (isMapPhase && hasPendingRewards)
   const isMapShowing = !mapHidden && mapVersion > 0
   const isBoardHidden = isMapShowing || isEventPhase
 
@@ -1529,7 +1540,8 @@ export default function Game() {
               onHide={() => setMapHidden(true)}
               readOnly={spectate || (!isMapPhase && (connectedPlayer?.choices?.length ?? 0) > 0)}
               showRerollMap={!spectate && !isSpire && (connectedPlayer?.choices?.some((c: any) => c.type === "starter") ?? false)}
-              hasChoicesPending={(connectedPlayer?.choices?.length ?? 0) > 0}
+              hasChoicesPending={hasChoicesPending}
+              canForfeitPendingChoices={canForfeitPendingChoices}
               isMapPhase={isMapPhase}
               isAdmin={isAdmin}
             />
@@ -1558,7 +1570,7 @@ export default function Game() {
               readOnly={spectate}
             />
           )}
-          {isRewardPhase && <GameRewardsScreen />}
+          {shouldShowRewards && <GameRewardsScreen />}
           {!spectate && !runComplete && !runFailed && isMapPhase && mapHidden && mapVersion > 0 && (connectedPlayer?.choices?.length ?? 1) === 0 && (
             <div className="game-action-float" style={{
               position: "absolute",
@@ -1700,7 +1712,7 @@ export default function Game() {
           {!isBoardHidden && <GameSynergies />}
           {!isBoardHidden && <GameOpponentSynergies />}
           {!isBoardHidden && <GameShop />}
-          {!isRewardPhase && <GameChoice />}
+          {!shouldShowRewards && <GameChoice />}
           <GameBalancePanel />
           <GameDpsMeter />
           <GameToasts />

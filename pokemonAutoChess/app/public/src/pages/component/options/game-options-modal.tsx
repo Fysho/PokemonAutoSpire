@@ -1,5 +1,5 @@
 import Phaser from "phaser"
-import type { Dispatch, SetStateAction } from "react"
+import { type Dispatch, type SetStateAction, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Tab, TabList, TabPanel, Tabs } from "react-tabs"
 import { isThemeUnlocked, THEMES } from "../../../../../config"
@@ -10,6 +10,7 @@ import { useAppDispatch, useAppSelector } from "../../../hooks"
 import { usePreferences } from "../../../preferences"
 import { selectLanguage } from "../../../stores/NetworkStore"
 import { getGameScene } from "../../game"
+import { enterFullScreen, exitFullScreen } from "../../utils/fullscreen"
 import { Checkbox } from "../checkbox/checkbox"
 import type { Page } from "../main-sidebar/main-sidebar"
 import { Modal } from "../modal/modal"
@@ -30,6 +31,23 @@ export default function GameOptionsModal(props: {
   )
   const profile = useAppSelector((state) => state.network.profile)
   const profileLevel = profile?.level ?? 0
+  const [isMobile] = useState(
+    () => window.matchMedia("(pointer: coarse)").matches
+  )
+  const [isFullscreen, setIsFullscreen] = useState(
+    () => document.fullscreenElement !== null
+  )
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement !== null)
+    }
+
+    document.addEventListener("fullscreenchange", syncFullscreenState)
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState)
+    }
+  }, [])
 
   const renderers = {
     [Phaser.AUTO]: "Auto",
@@ -46,11 +64,48 @@ export default function GameOptionsModal(props: {
     >
       <Tabs>
         <TabList>
+          {isMobile && <Tab key="mobile">{t("options.mobile")}</Tab>}
           <Tab key="sound">{t("options.sound")}</Tab>
           <Tab key="interface">{t("options.interface")}</Tab>
           <Tab key="hotkeys">{t("options.hotkeys")}</Tab>
           <Tab key="files">{t("options.game_files")}</Tab>
         </TabList>
+
+        {isMobile && (
+          <TabPanel>
+            <label className="mobile-ui-scale">
+              {t("options.ui_scale")}: {preferences.uiScale} %
+              <input
+                type="range"
+                min="75"
+                max="125"
+                step="5"
+                value={preferences.uiScale}
+                onInput={(event) =>
+                  setPreferences({
+                    uiScale: Number.parseInt(
+                      (event.target as HTMLInputElement).value
+                    )
+                  })
+                }
+              />
+            </label>
+            <p>
+              <Checkbox
+                isDark
+                checked={isFullscreen}
+                disabled={!document.fullscreenEnabled}
+                onToggle={(checked) => {
+                  void (checked ? enterFullScreen() : exitFullScreen())
+                }}
+                label={t("options.fullscreen")}
+              />
+            </p>
+            {!document.fullscreenEnabled && (
+              <p className="info">{t("options.fullscreen_not_supported")}</p>
+            )}
+          </TabPanel>
+        )}
 
         <TabPanel>
           <label style={{ width: "100%" }}>

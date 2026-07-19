@@ -67,6 +67,9 @@ const BONUS_LIMITS: Record<string, [number, number]> = {
 // Returns an error code, or null when the design content is valid.
 // (Exported for tests only — saveEliteDesign is the real entry point.)
 export function validateEliteDesignContent(raw: any): string | null {
+  if (raw.kind !== undefined && raw.kind !== "elite" && raw.kind !== "boss") {
+    return "bad_kind"
+  }
   if (!Array.isArray(raw.board) || raw.board.length === 0) return "empty_design"
   if (raw.board.length > MAX_BOARD_UNITS) return "board_too_large"
   const cells = new Set<string>()
@@ -127,6 +130,46 @@ export function validateEliteDesignContent(raw: any): string | null {
       return "bad_rewards"
     }
   }
+  if (raw.bossGrantedItems !== undefined) {
+    if (
+      !Array.isArray(raw.bossGrantedItems) ||
+      raw.bossGrantedItems.length > MAX_REWARD_POOL ||
+      raw.bossGrantedItems.some(
+        (item: unknown) => !VALID_ITEMS.has(String(item))
+      )
+    ) {
+      return "bad_rewards"
+    }
+  }
+  if (raw.bossItemRewards !== undefined) {
+    if (
+      !Array.isArray(raw.bossItemRewards) ||
+      raw.bossItemRewards.length > MAX_REWARD_POOL ||
+      raw.bossItemRewards.some(
+        (item: unknown) =>
+          !VALID_ITEMS.has(String(item)) &&
+          !RANDOM_ITEM_TOKENS.has(String(item))
+      )
+    ) {
+      return "bad_rewards"
+    }
+  }
+  if (
+    raw.bossItemRewardsShown !== undefined &&
+    (!Number.isInteger(raw.bossItemRewardsShown) ||
+      raw.bossItemRewardsShown < 1 ||
+      raw.bossItemRewardsShown > MAX_REWARD_POOL)
+  ) {
+    return "bad_rewards"
+  }
+  for (const key of [
+    "useDefaultBossGrantedItems",
+    "useDefaultBossItemRewards"
+  ]) {
+    if (raw[key] !== undefined && typeof raw[key] !== "boolean") {
+      return "bad_rewards"
+    }
+  }
   if (raw.icon !== undefined && !VALID_PKM.has(String(raw.icon))) {
     return "invalid_pokemon"
   }
@@ -154,26 +197,34 @@ export async function saveEliteDesign(
   if (!parsed || parsed.board.length === 0) {
     return { ok: false, error: "empty_design" }
   }
+  let kind: "elite" | "boss" = "elite"
   let act = 1
   let stageRange = ""
   try {
     const raw = JSON.parse(designJson)
+    kind = raw.kind === "boss" ? "boss" : "elite"
     act = Number(raw.act)
-    stageRange = String(raw.stages ?? "")
+    stageRange = kind === "boss" ? "boss" : String(raw.stages ?? "")
     const contentError = validateEliteDesignContent(raw)
     if (contentError) return { ok: false, error: contentError }
   } catch {
     return { ok: false, error: "malformed" }
   }
-  // Validate against the real stage ladder, not just the range list — act 1 has
-  // no "1-5" elite bracket (matches STAGE_RANGES_BY_ACT in the client designer),
-  // and a design saved outside the ladder can't be bumped or drawn by Spire.
-  if (!STAGE_LADDER.some((s) => s.act === act && s.stageRange === stageRange)) {
+  if (kind === "boss") {
+    if (!Number.isInteger(act) || act < 1 || act > 3) {
+      return { ok: false, error: "bad_stage" }
+    }
+  } else if (
+    !STAGE_LADDER.some((s) => s.act === act && s.stageRange === stageRange)
+  ) {
+    // Validate against the real elite stage ladder: act 1 has no 1-5 bracket.
     return { ok: false, error: "bad_stage" }
   }
   if (designJson.length > 20000) return { ok: false, error: "too_large" }
 
-  const name = parsed.name.trim().slice(0, 60) || "Custom Elite"
+  const name =
+    parsed.name.trim().slice(0, 60) ||
+    (kind === "boss" ? "Custom Boss" : "Custom Elite")
   const icon = parsed.icon ?? parsed.board[0]?.name ?? ""
   try {
     if (id) {
@@ -201,6 +252,7 @@ export async function saveEliteDesign(
       }).lean()
       if (nameClash) return { ok: false, error: "name_taken" }
       existing.name = name
+      existing.kind = kind
       existing.act = act
       existing.stageRange = stageRange
       existing.icon = icon
@@ -232,6 +284,7 @@ export async function saveEliteDesign(
         ? user.displayName
         : "Player"
     const doc = await EliteDesign.create({
+      kind,
       name,
       act,
       stageRange,
@@ -257,9 +310,15 @@ export async function listEliteDesigns(): Promise<
   try {
     const docs = await EliteDesign.find().lean()
     return docs
-      .map((d: any) => ({ ...d, id: d._id.toString(), _id: undefined }))
+      .map((d: any) => ({
+        ...d,
+        kind: d.kind === "boss" ? "boss" : "elite",
+        id: d._id.toString(),
+        _id: undefined
+      }))
       .sort(
         (a, b) =>
+          a.kind.localeCompare(b.kind) ||
           a.act - b.act ||
           parseInt(a.stageRange) - parseInt(b.stageRange) ||
           a.name.localeCompare(b.name)
@@ -290,7 +349,7 @@ export async function setEliteDesignApproved(
 
 export type ApprovedEliteDesign = IEliteDesign & { id: string }
 
-// All approved designs for one act + stage-range bracket (Spire elite pool).
+// All approved elite designs for one act + stage-range bracket.
 export async function getApprovedEliteDesigns(
   act: number,
   stageRange: string
@@ -299,6 +358,31 @@ export async function getApprovedEliteDesigns(
     const docs = await EliteDesign.find({
       act,
       stageRange,
+      approved: true,
+      $or: [{ kind: "elite" }, { kind: { $exists: false } }]
+    }).lean()
+    return docs.map((d: any) => ({
+      ...d,
+      kind: "elite",
+      id: d._id.toString(),
+      _id: undefined
+    }))
+  } catch (e) {
+    logger.error("Failed to get approved elite designs:", e)
+    return []
+  }
+}
+
+// All approved boss designs for one act. Existing pre-kind records can only be
+// elites, so boss selection requires the explicit discriminator.
+export async function getApprovedBossDesigns(
+  act: number
+): Promise<ApprovedEliteDesign[]> {
+  try {
+    const docs = await EliteDesign.find({
+      kind: "boss",
+      act,
+      stageRange: "boss",
       approved: true
     }).lean()
     return docs.map((d: any) => ({
@@ -307,7 +391,7 @@ export async function getApprovedEliteDesigns(
       _id: undefined
     }))
   } catch (e) {
-    logger.error("Failed to get approved elite designs:", e)
+    logger.error("Failed to get approved boss designs:", e)
     return []
   }
 }
@@ -323,6 +407,7 @@ export interface SpireEliteRewardOption {
 
 export interface SpireEliteDesignData {
   designId: string
+  kind: "elite" | "boss"
   name: string
   icon: string // Pkm shown as the map node avatar
   encounter: SpireEncounter
@@ -330,6 +415,11 @@ export interface SpireEliteDesignData {
   winRewardsShown: number
   lossRewards: SpireEliteRewardOption[]
   lossRewardsShown: number
+  useDefaultBossGrantedItems: boolean
+  bossGrantedItems: string[]
+  useDefaultBossItemRewards: boolean
+  bossItemRewards: string[]
+  bossItemRewardsShown: number
 }
 
 // Converts a stored design into the SpireEncounter the fight machinery consumes,
@@ -389,8 +479,11 @@ export function designToSpireEliteData(doc: {
             item: o[1] ? String(o[1]) : undefined
           }))
       : []
+  const decodeItems = (value: unknown): string[] =>
+    Array.isArray(value) ? value.map(String) : []
   return {
     designId: String(doc.id ?? ""),
+    kind: raw.kind === "boss" ? "boss" : "elite",
     name: encounter.name,
     icon,
     encounter,
@@ -399,7 +492,15 @@ export function designToSpireEliteData(doc: {
       typeof raw.winRewardsShown === "number" ? raw.winRewardsShown : 3,
     lossRewards: decodeRewards(raw.lossRewards),
     lossRewardsShown:
-      typeof raw.lossRewardsShown === "number" ? raw.lossRewardsShown : 2
+      typeof raw.lossRewardsShown === "number" ? raw.lossRewardsShown : 2,
+    useDefaultBossGrantedItems: raw.useDefaultBossGrantedItems !== false,
+    bossGrantedItems: decodeItems(raw.bossGrantedItems),
+    useDefaultBossItemRewards: raw.useDefaultBossItemRewards !== false,
+    bossItemRewards: decodeItems(raw.bossItemRewards),
+    bossItemRewardsShown:
+      typeof raw.bossItemRewardsShown === "number"
+        ? raw.bossItemRewardsShown
+        : 3
   }
 }
 
@@ -456,6 +557,9 @@ export async function bumpEliteDesign(
   try {
     const doc = await EliteDesign.findById(id)
     if (!doc) return { ok: false, error: "not_found" }
+    if ((doc.kind ?? "elite") === "boss") {
+      return { ok: false, error: "bad_stage" }
+    }
     // Creator or admin (role also needed for the approval-clear below when the
     // creator bumps an approved design).
     let isAdmin = false
